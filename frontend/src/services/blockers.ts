@@ -58,7 +58,7 @@ export const blockersService = {
    */
   getLinks: async (blockerId: string): Promise<BlockerLink[]> => {
     const response = await apiClient.get<BlockerLink[]>(`/blockers/${blockerId}/links`);
-    return response.data;
+    return response.data || [];
   },
 
   /**
@@ -88,7 +88,7 @@ export const blockersService = {
     const response = await apiClient.get<Blocker[]>(`/tasks/${taskId}/blockers`, {
       params: { active_only: activeOnly },
     });
-    return response.data;
+    return response.data || [];
   },
 
   /**
@@ -99,7 +99,7 @@ export const blockersService = {
     const response = await apiClient.get<Blocker[]>(`/projects/${projectId}/blockers`, {
       params: { active_only: activeOnly },
     });
-    return response.data;
+    return response.data || [];
   },
 
   /**
@@ -192,7 +192,7 @@ export const blockersService = {
     await Promise.all(
       blockers.map(async (blocker) => {
         const links = await blockersService.getLinks(blocker.id);
-        links
+        (links || [])
           .filter((link) => link.blocked_entity_type === "task")
           .forEach((link) => {
             if (!taskBlockerMap[link.blocked_entity_id]) {

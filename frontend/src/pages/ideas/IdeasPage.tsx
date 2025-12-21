@@ -99,8 +99,8 @@ export default function IdeasPage() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="relative flex-1 max-w-md">
+      <div className="mb-6 flex flex-col gap-3 sm:gap-4">
+        <div className="relative sm:max-w-md">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
           <input
             type="search"
@@ -111,7 +111,7 @@ export default function IdeasPage() {
           />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -135,7 +135,7 @@ export default function IdeasPage() {
           </label>
 
           {/* View mode toggle */}
-          <div className="flex rounded-lg border border-gray-300 dark:border-dark-border">
+          <div className="ml-auto flex rounded-lg border border-gray-300 dark:border-dark-border">
             <button
               onClick={() => setViewMode("list")}
               className={clsx(

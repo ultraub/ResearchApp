@@ -61,20 +61,20 @@ export default function TeamsPage() {
                 Manage your teams and collaborate with others
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3">
               <button
                 onClick={() => setIsJoinModalOpen(true)}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-dark-border dark:bg-dark-elevated dark:text-gray-300 dark:hover:bg-dark-card"
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-4 dark:border-dark-border dark:bg-dark-elevated dark:text-gray-300 dark:hover:bg-dark-card"
               >
                 <TicketIcon className="h-5 w-5" />
-                Join Team
+                <span className="hidden sm:inline">Join Team</span>
               </button>
               <button
                 onClick={() => setIsCreateModalOpen(true)}
-                className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+                className="flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 sm:px-4"
               >
                 <PlusIcon className="h-5 w-5" />
-                Create Team
+                <span className="hidden sm:inline">Create Team</span>
               </button>
             </div>
           </div>
