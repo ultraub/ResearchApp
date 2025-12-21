@@ -86,8 +86,15 @@ export default function AuthLayout() {
       </div>
 
       {/* Right side - auth form */}
-      <div className="flex w-full items-center justify-center px-4 lg:w-1/2">
+      <div className="flex w-full flex-col items-center justify-center px-4 py-8 lg:w-1/2 lg:py-0">
         <div className="w-full max-w-sm">
+          {/* Mobile logo - shown when branding panel is hidden */}
+          <div className="mb-8 text-center lg:hidden">
+            <h1 className="text-3xl font-bold text-primary-600">Pasteur</h1>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              Research workflow management
+            </p>
+          </div>
           <Outlet />
         </div>
       </div>

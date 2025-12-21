@@ -119,28 +119,28 @@ export function KnowledgeLibraryPage({ organizationId }: KnowledgeLibraryPagePro
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Knowledge Library</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowImportModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-elevated transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-elevated transition-colors text-sm"
           >
             <DocumentArrowDownIcon className="w-5 h-5" />
-            Import
+            <span className="hidden sm:inline">Import</span>
           </button>
           <button
             onClick={() => setShowAddPaperModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
           >
             <PlusIcon className="w-5 h-5" />
-            Add Paper
+            <span className="hidden sm:inline">Add Paper</span>
           </button>
         </div>
       </div>
 
       {/* View Toggle & Filters */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
         <div className="flex items-center bg-gray-100 dark:bg-dark-elevated rounded-lg p-1">
           <button
             onClick={() => setView('papers')}
@@ -169,8 +169,8 @@ export function KnowledgeLibraryPage({ organizationId }: KnowledgeLibraryPagePro
         </div>
 
         {view === 'papers' && (
-          <>
-            <div className="relative flex-1 max-w-md">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-center">
+            <div className="relative flex-1">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
@@ -182,11 +182,11 @@ export function KnowledgeLibraryPage({ organizationId }: KnowledgeLibraryPagePro
             </div>
 
             <div className="flex items-center gap-2">
-              <FunnelIcon className="w-5 h-5 text-gray-400" />
+              <FunnelIcon className="w-5 h-5 text-gray-400 hidden sm:block" />
               <select
                 value={readStatusFilter || ''}
                 onChange={(e) => setReadStatusFilter(e.target.value || undefined)}
-                className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
               >
                 <option value="">All statuses</option>
                 <option value="unread">Unread</option>
@@ -197,7 +197,7 @@ export function KnowledgeLibraryPage({ organizationId }: KnowledgeLibraryPagePro
               <select
                 value={selectedCollectionId || ''}
                 onChange={(e) => setSelectedCollectionId(e.target.value || undefined)}
-                className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
               >
                 <option value="">All collections</option>
                 {collections.map((collection) => (
@@ -207,7 +207,7 @@ export function KnowledgeLibraryPage({ organizationId }: KnowledgeLibraryPagePro
                 ))}
               </select>
             </div>
-          </>
+          </div>
         )}
       </div>
 

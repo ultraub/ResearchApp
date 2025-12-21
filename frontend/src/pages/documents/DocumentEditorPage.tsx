@@ -25,6 +25,7 @@ import {
 import { DocumentCommentsSidebar } from '../../components/documents';
 import { AISidebar } from '../../components/ai';
 import { useDocumentComments } from '../../hooks/useDocumentComments';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 
 const DOCUMENT_STATUS_OPTIONS = [
   { value: 'draft', label: 'Draft' },
@@ -360,9 +361,9 @@ export function DocumentEditorPage() {
           />
         </div>
 
-        {/* Version History Sidebar */}
+        {/* DESKTOP: Version History Sidebar */}
         {showVersionHistory && (
-          <div className="w-80 flex-shrink-0 border-l border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-base overflow-auto">
+          <div className="hidden md:block w-80 flex-shrink-0 border-l border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-base overflow-auto">
             <div className="p-4">
               <h3 className="font-medium text-gray-900 dark:text-white mb-4">Version History</h3>
               <div className="space-y-3">
@@ -398,23 +399,25 @@ export function DocumentEditorPage() {
           </div>
         )}
 
-        {/* Comments Sidebar */}
-        <DocumentCommentsSidebar
-          documentId={documentId!}
-          isOpen={showComments}
-          onClose={() => setShowComments(false)}
-          onJumpToSelection={(start, end) => {
-            // TODO: Implement scroll to selection in editor
-            console.log('Jump to selection:', start, end);
-          }}
-          pendingInlineComment={pendingInlineComment}
-          onSubmitInlineComment={handleSubmitInlineComment}
-          onCancelInlineComment={() => setPendingInlineComment(null)}
-        />
+        {/* DESKTOP: Comments Sidebar */}
+        <div className="hidden md:block">
+          <DocumentCommentsSidebar
+            documentId={documentId!}
+            isOpen={showComments}
+            onClose={() => setShowComments(false)}
+            onJumpToSelection={(start, end) => {
+              // TODO: Implement scroll to selection in editor
+              console.log('Jump to selection:', start, end);
+            }}
+            pendingInlineComment={pendingInlineComment}
+            onSubmitInlineComment={handleSubmitInlineComment}
+            onCancelInlineComment={() => setPendingInlineComment(null)}
+          />
+        </div>
 
-        {/* AI Assistant Sidebar */}
+        {/* DESKTOP: AI Assistant Sidebar */}
         {showAI && (
-          <div className="w-96 flex-shrink-0">
+          <div className="hidden md:block w-96 flex-shrink-0">
             <AISidebar
               documentId={documentId!}
               documentContent={contentText}
@@ -439,6 +442,98 @@ export function DocumentEditorPage() {
           </div>
         )}
       </div>
+
+      {/* MOBILE: Version History Bottom Sheet */}
+      <BottomSheet
+        isOpen={showVersionHistory}
+        onClose={() => setShowVersionHistory(false)}
+        title="Version History"
+        className="md:hidden"
+      >
+        <div className="space-y-3">
+          {/* Current version */}
+          <div className="p-3 bg-white dark:bg-dark-card rounded-lg border border-primary-200 dark:border-primary-800">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-primary-600 dark:text-primary-400">
+                Current (v{document.version})
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {format(new Date(document.updated_at), 'PPp')}
+            </p>
+          </div>
+
+          {/* Previous versions */}
+          {versions.map((version) => (
+            <VersionCard
+              key={version.id}
+              version={version}
+              onRestore={() => restoreMutation.mutate(version.id)}
+              isRestoring={restoreMutation.isPending}
+            />
+          ))}
+
+          {versions.length === 0 && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+              No previous versions
+            </p>
+          )}
+        </div>
+      </BottomSheet>
+
+      {/* MOBILE: Comments Bottom Sheet */}
+      <BottomSheet
+        isOpen={showComments}
+        onClose={() => setShowComments(false)}
+        title={`Comments ${comments.length > 0 ? `(${comments.length})` : ''}`}
+        snapPoints={[0.6, 0.9]}
+        className="md:hidden"
+      >
+        <DocumentCommentsSidebar
+          documentId={documentId!}
+          isOpen={true}
+          onClose={() => setShowComments(false)}
+          onJumpToSelection={(start, end) => {
+            setShowComments(false);
+            console.log('Jump to selection:', start, end);
+          }}
+          pendingInlineComment={pendingInlineComment}
+          onSubmitInlineComment={handleSubmitInlineComment}
+          onCancelInlineComment={() => setPendingInlineComment(null)}
+        />
+      </BottomSheet>
+
+      {/* MOBILE: AI Assistant Bottom Sheet */}
+      <BottomSheet
+        isOpen={showAI}
+        onClose={() => setShowAI(false)}
+        title="AI Assistant"
+        snapPoints={[0.6, 0.9]}
+        className="md:hidden"
+      >
+        <AISidebar
+          documentId={documentId!}
+          documentContent={contentText}
+          selectedText={selectedText}
+          documentType={document.document_type || 'document'}
+          onClose={() => setShowAI(false)}
+          onInsertContent={(text) => {
+            setContentText((prev) => prev + '\n\n' + text);
+            setHasUnsavedChanges(true);
+            setShowAI(false);
+            toast.success('Content inserted');
+          }}
+          onReplaceSelection={(text) => {
+            if (selectedText) {
+              setContentText((prev) => prev.replace(selectedText, text));
+              setSelectedText('');
+              setHasUnsavedChanges(true);
+              setShowAI(false);
+              toast.success('Selection replaced');
+            }
+          }}
+        />
+      </BottomSheet>
     </div>
   );
 }

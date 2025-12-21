@@ -122,14 +122,14 @@ export default function TeamDetailPage() {
           </Link>
 
           {/* Team info */}
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/30">
-                <UserGroupIcon className="h-7 w-7 text-primary-600 dark:text-primary-400" />
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-primary-100 sm:h-14 sm:w-14 dark:bg-primary-900/30">
+                <UserGroupIcon className="h-6 w-6 text-primary-600 sm:h-7 sm:w-7 dark:text-primary-400" />
               </div>
-              <div>
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-white">
                     {team.name}
                   </h1>
                   {team.current_user_role && (
@@ -148,7 +148,7 @@ export default function TeamDetailPage() {
                     {team.description}
                   </p>
                 )}
-                <div className="mt-2 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-500 sm:gap-4 dark:text-gray-400">
                   <span className="flex items-center gap-1.5">
                     <UserGroupIcon className="h-4 w-4" />
                     {team.member_count} member{team.member_count !== 1 ? "s" : ""}
@@ -165,7 +165,7 @@ export default function TeamDetailPage() {
             {canManage && (
               <button
                 onClick={() => setIsSettingsModalOpen(true)}
-                className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 dark:border-dark-border dark:text-gray-400 dark:hover:bg-dark-elevated"
+                className="self-start rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 dark:border-dark-border dark:text-gray-400 dark:hover:bg-dark-elevated"
                 title="Team settings"
               >
                 <Cog6ToothIcon className="h-5 w-5" />
@@ -174,27 +174,29 @@ export default function TeamDetailPage() {
           </div>
 
           {/* Tabs */}
-          <div className="mt-6 flex gap-1 border-b border-transparent">
-            {tabs.map((tab) => {
-              // Only show invites tab if user can manage
-              if (tab.id === "invites" && !canManage) return null;
+          <div className="-mx-4 mt-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <div className="flex gap-1 border-b border-transparent">
+              {tabs.map((tab) => {
+                // Only show invites tab if user can manage
+                if (tab.id === "invites" && !canManage) return null;
 
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={clsx(
-                    "flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-                    activeTab === tab.id
-                      ? "border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400"
-                      : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300"
-                  )}
-                >
-                  <tab.icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={clsx(
+                      "flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors sm:px-4",
+                      activeTab === tab.id
+                        ? "border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400"
+                        : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300"
+                    )}
+                  >
+                    <tab.icon className="h-4 w-4" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -281,17 +283,17 @@ function MembersTab({ members, canManage, onManageClick }: MembersTabProps) {
   return (
     <div className="space-y-4">
       {/* Header with manage button */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-gray-900 sm:text-lg dark:text-white">
           Team Members ({members.length})
         </h2>
         {canManage && (
           <button
             onClick={onManageClick}
-            className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 sm:px-4"
           >
             <PlusIcon className="h-4 w-4" />
-            Manage Members
+            <span className="hidden sm:inline">Manage Members</span>
           </button>
         )}
       </div>

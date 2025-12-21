@@ -14,8 +14,11 @@ import {
   ChevronRightIcon,
   BookOpenIcon,
   ExclamationTriangleIcon,
+  CheckCircleIcon,
+  BeakerIcon,
 } from "@heroicons/react/24/outline";
 import { clsx } from "clsx";
+import { CollapsibleSection, CollapsibleSectionGroup } from "@/components/ui/CollapsibleSection";
 import { projectsService } from "@/services/projects";
 import { tasksService } from "@/services/tasks";
 import { blockersService } from "@/services/blockers";
@@ -390,8 +393,8 @@ export default function ProjectDetailPage() {
           </div>
         </div>
 
-        {/* Tabs and view toggle */}
-        <div className="mt-4 flex items-center justify-between">
+        {/* Tabs and view toggle - DESKTOP ONLY */}
+        <div className="mt-4 hidden md:flex items-center justify-between">
           <nav className="flex gap-6">
             <button
               onClick={() => setActiveTab("tasks")}
@@ -589,6 +592,208 @@ export default function ProjectDetailPage() {
           />
         )}
 
+        {/* MOBILE: Collapsible sections view */}
+        <div className="md:hidden space-y-3">
+          <CollapsibleSectionGroup defaultOpen="tasks">
+            {/* Tasks Section */}
+            <CollapsibleSection
+              id="tasks"
+              title="Tasks"
+              icon={CheckCircleIcon}
+              count={allTasks.length}
+              defaultOpen
+            >
+              <div className="pt-2">
+                {/* Mobile action buttons */}
+                <div className="flex gap-2 mb-4">
+                  <button
+                    onClick={() => handleAddTask("todo")}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    Add Task
+                  </button>
+                  <button
+                    onClick={() => setIsCreateBlockerOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-yellow-400 bg-yellow-50 px-3 py-2 text-sm font-medium text-yellow-700 hover:bg-yellow-100 dark:border-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400"
+                  >
+                    <ExclamationTriangleIcon className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Aggregation toggle for mobile */}
+                {hasChildren && (
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer mb-3">
+                    <input
+                      type="checkbox"
+                      checked={includeChildTasks}
+                      onChange={(e) => setIncludeChildTasks(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700"
+                    />
+                    Include subproject tasks
+                  </label>
+                )}
+
+                {/* Task list for mobile - always list view */}
+                {tasksLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary-600" />
+                  </div>
+                ) : allTasks.length === 0 ? (
+                  <p className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
+                    No tasks yet. Create your first task to get started.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {allTasks.slice(0, 5).map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        onClick={() => handleTaskClick(task)}
+                        blockerInfo={taskBlockers?.[task.id]}
+                        unreadInfo={taskUnreadInfo?.[task.id]}
+                        onVote={handleVote}
+                      />
+                    ))}
+                    {allTasks.length > 5 && (
+                      <p className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
+                        + {allTasks.length - 5} more tasks
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+
+            {/* Documents Section */}
+            <CollapsibleSection
+              id="documents"
+              title="Documents"
+              icon={DocumentTextIcon}
+            >
+              <div className="pt-2">
+                <div className="flex justify-end mb-3">
+                  <button
+                    onClick={() => setIsCreateDocumentOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    New Document
+                  </button>
+                </div>
+                {projectId && (
+                  <DocumentList
+                    projectId={projectId}
+                    showFilters={false}
+                    showViewAll={true}
+                    showCreateButton={false}
+                    limit={3}
+                    onDocumentClick={(doc) =>
+                      navigate(`/projects/${projectId}/documents/${doc.id}`)
+                    }
+                    viewAllUrl={`/projects/${projectId}/documents`}
+                  />
+                )}
+              </div>
+            </CollapsibleSection>
+
+            {/* Papers Section */}
+            <CollapsibleSection
+              id="papers"
+              title="Papers"
+              icon={BookOpenIcon}
+            >
+              <div className="pt-2">
+                {organization?.id && projectId && (
+                  <ProjectPapersSection
+                    projectId={projectId}
+                    organizationId={organization.id}
+                  />
+                )}
+              </div>
+            </CollapsibleSection>
+
+            {/* Lab Notebook Section */}
+            <CollapsibleSection
+              id="notebook"
+              title="Lab Notebook"
+              icon={BeakerIcon}
+            >
+              <div className="pt-2">
+                <div className="flex justify-end mb-3">
+                  <button
+                    onClick={handleCreateJournalEntry}
+                    className="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    New Entry
+                  </button>
+                </div>
+                {projectId && (
+                  <JournalEntryList
+                    projectId={projectId}
+                    onEntryClick={handleJournalEntryClick}
+                    onCreateClick={handleCreateJournalEntry}
+                  />
+                )}
+              </div>
+            </CollapsibleSection>
+
+            {/* Blockers Section */}
+            <CollapsibleSection
+              id="blockers"
+              title="Blockers"
+              icon={ExclamationTriangleIcon}
+              warning={projectBlockers && projectBlockers.length > 0}
+              count={projectBlockers?.length}
+            >
+              <div className="pt-2">
+                <div className="flex justify-end mb-3">
+                  <button
+                    onClick={() => setIsCreateBlockerOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    Add Blocker
+                  </button>
+                </div>
+                {projectId && (
+                  <BlockerList
+                    projectId={projectId}
+                    showResolved={false}
+                    onCreateBlocker={() => setIsCreateBlockerOpen(true)}
+                  />
+                )}
+              </div>
+            </CollapsibleSection>
+
+            {/* Timeline Section */}
+            <CollapsibleSection
+              id="timeline"
+              title="Timeline"
+              icon={ClockIcon}
+            >
+              <div className="pt-2 text-center py-6">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Timeline view coming soon
+                </p>
+                {project?.start_date && (
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Start: {new Date(project.start_date).toLocaleDateString()}
+                  </p>
+                )}
+                {project?.target_end_date && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Target: {new Date(project.target_end_date).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            </CollapsibleSection>
+          </CollapsibleSectionGroup>
+        </div>
+
+        {/* DESKTOP: Tab-based view */}
+        <div className="hidden md:block">
         {/* Tasks Tab */}
         {activeTab === "tasks" && (
           <>
@@ -777,6 +982,8 @@ export default function ProjectDetailPage() {
             )}
           </div>
         )}
+        </div>
+        {/* End DESKTOP: Tab-based view */}
       </div>
 
       {/* Create task modal */}

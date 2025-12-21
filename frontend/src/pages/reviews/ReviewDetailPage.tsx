@@ -376,31 +376,33 @@ export default function ReviewDetailPage() {
 
               {/* Actions */}
               {review.status !== "completed" && review.status !== "cancelled" && (
-                <div className="mt-6 flex items-center gap-3 border-t border-gray-200 pt-6 dark:border-dark-border">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div className="mt-6 border-t border-gray-200 pt-6 dark:border-dark-border">
+                  <span className="mb-3 block text-sm font-medium text-gray-700 dark:text-gray-300 sm:mb-0 sm:mr-3 sm:inline">
                     Decision:
                   </span>
-                  <button
-                    onClick={() => handleDecision("approved")}
-                    className="flex items-center gap-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-                  >
-                    <CheckCircleIcon className="h-4 w-4" />
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => handleDecision("needs_revision")}
-                    className="flex items-center gap-1 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
-                  >
-                    <PencilIcon className="h-4 w-4" />
-                    Request Changes
-                  </button>
-                  <button
-                    onClick={() => handleDecision("rejected")}
-                    className="flex items-center gap-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-                  >
-                    <XCircleIcon className="h-4 w-4" />
-                    Reject
-                  </button>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+                    <button
+                      onClick={() => handleDecision("approved")}
+                      className="flex items-center justify-center gap-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+                    >
+                      <CheckCircleIcon className="h-4 w-4" />
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleDecision("needs_revision")}
+                      className="flex items-center justify-center gap-1 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                      Request Changes
+                    </button>
+                    <button
+                      onClick={() => handleDecision("rejected")}
+                      className="flex items-center justify-center gap-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                    >
+                      <XCircleIcon className="h-4 w-4" />
+                      Reject
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
