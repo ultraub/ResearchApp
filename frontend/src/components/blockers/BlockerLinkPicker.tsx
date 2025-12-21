@@ -275,14 +275,15 @@ export function BlockerLinkPicker({
 }: BlockerLinkPickerProps) {
   const [query, setQuery] = useState("");
 
-  // Get existing linked IDs for filtering
+  // Get existing linked IDs for filtering (with defensive check)
+  const safeExistingLinks = existingLinks || [];
   const existingTaskIds = new Set(
-    existingLinks
+    safeExistingLinks
       .filter((l) => l.blocked_entity_type === "task")
       .map((l) => l.blocked_entity_id)
   );
   const existingProjectIds = new Set(
-    existingLinks
+    safeExistingLinks
       .filter((l) => l.blocked_entity_type === "project")
       .map((l) => l.blocked_entity_id)
   );

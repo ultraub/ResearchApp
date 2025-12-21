@@ -95,7 +95,7 @@ export default function IdeaCard({
       </div>
 
       {/* Tags */}
-      {idea.tags.length > 0 && (
+      {idea.tags && idea.tags.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-1">
           {idea.tags.map((tag) => (
             <span

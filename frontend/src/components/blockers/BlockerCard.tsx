@@ -112,7 +112,7 @@ export function BlockerCard({ blocker, onClick }: BlockerCardProps) {
       )}
 
       {/* Tags */}
-      {blocker.tags.length > 0 && (
+      {blocker.tags && blocker.tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {blocker.tags.slice(0, 3).map((tag) => (
             <span
@@ -122,7 +122,7 @@ export function BlockerCard({ blocker, onClick }: BlockerCardProps) {
               {tag}
             </span>
           ))}
-          {blocker.tags.length > 3 && (
+          {blocker.tags && blocker.tags.length > 3 && (
             <span className="text-xs text-gray-400">+{blocker.tags.length - 3}</span>
           )}
         </div>

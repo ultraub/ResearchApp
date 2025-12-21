@@ -1,14 +1,10 @@
-import { useState } from "react";
 import { Outlet, NavLink } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   HomeIcon,
   FolderIcon,
   DocumentTextIcon,
   BookOpenIcon,
   Cog6ToothIcon,
-  Bars3Icon,
-  XMarkIcon,
   MagnifyingGlassIcon,
   LightBulbIcon,
   ClipboardDocumentCheckIcon,
@@ -19,6 +15,7 @@ import { clsx } from "clsx";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { UserMenu } from "./UserMenu";
 import { ThemeToggle } from "./ThemeToggle";
+import { BottomTabBar } from "./BottomTabBar";
 import { useTeams } from "@/hooks/useTeams";
 
 const navigation = [

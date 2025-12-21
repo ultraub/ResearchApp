@@ -121,7 +121,7 @@ export default function JournalEntryCard({ entry, onClick, onTogglePin }: Journa
       )}
 
       {/* Tags */}
-      {entry.tags.length > 0 && (
+      {entry.tags && entry.tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {entry.tags.slice(0, 4).map((tag) => (
             <span
@@ -131,7 +131,7 @@ export default function JournalEntryCard({ entry, onClick, onTogglePin }: Journa
               {tag}
             </span>
           ))}
-          {entry.tags.length > 4 && (
+          {entry.tags && entry.tags.length > 4 && (
             <span className="text-xs text-gray-400">+{entry.tags.length - 4}</span>
           )}
         </div>
