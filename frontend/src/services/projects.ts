@@ -83,12 +83,12 @@ export const projectsService = {
 
   getTemplates: async () => {
     const response = await apiClient.get<ProjectTemplate[]>("/projects/templates");
-    return response.data;
+    return response.data || [];
   },
 
   getMembers: async (projectId: string) => {
     const response = await apiClient.get<ProjectMember[]>(`/projects/${projectId}/members`);
-    return response.data;
+    return response.data || [];
   },
 
   addMember: async (projectId: string, data: { user_id: string; role?: string }) => {
@@ -113,7 +113,7 @@ export const projectsService = {
     const response = await apiClient.get<Project[]>(`/projects/${projectId}/children`, {
       params: { include_archived: includeArchived },
     });
-    return response.data;
+    return response.data || [];
   },
 
   getTree: async (projectId: string, includeArchived = false) => {
@@ -125,7 +125,7 @@ export const projectsService = {
 
   getAncestors: async (projectId: string) => {
     const response = await apiClient.get<Project[]>(`/projects/${projectId}/ancestors`);
-    return response.data;
+    return response.data || [];
   },
 
   move: async (projectId: string, newParentId: string | null) => {

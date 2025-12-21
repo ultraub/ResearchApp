@@ -42,7 +42,9 @@ export function NeedsAttentionWidget({
     let blockerTotal = 0;
     let commentTotal = 0;
 
-    for (const project of projects) {
+    // Add defensive check for undefined projects
+    const safeProjects = projects || [];
+    for (const project of safeProjects) {
       // Add blocker items (one per project with blockers)
       if (project.active_blocker_count > 0) {
         blockerTotal += project.active_blocker_count;

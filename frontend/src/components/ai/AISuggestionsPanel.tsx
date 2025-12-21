@@ -309,8 +309,10 @@ export function AISuggestionsPanel({
   onClearSuggestions,
   hasContent,
 }: AISuggestionsPanelProps) {
-  const pendingSuggestions = suggestions.filter((s) => s.status === 'pending');
-  const resolvedSuggestions = suggestions.filter((s) => s.status !== 'pending');
+  // Add defensive check for undefined suggestions
+  const safeSuggestions = suggestions || [];
+  const pendingSuggestions = safeSuggestions.filter((s) => s.status === 'pending');
+  const resolvedSuggestions = safeSuggestions.filter((s) => s.status !== 'pending');
 
   return (
     <div className="h-full flex flex-col">
@@ -321,7 +323,7 @@ export function AISuggestionsPanel({
             <SparklesIcon className="h-5 w-5 text-accent-600 dark:text-accent-400" />
             <span className="font-medium text-gray-900 dark:text-white">AI Review</span>
           </div>
-          {suggestions.length > 0 && (
+          {safeSuggestions.length > 0 && (
             <button
               onClick={onClearSuggestions}
               className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -393,7 +395,7 @@ export function AISuggestionsPanel({
 
       {/* Suggestions list */}
       <div className="flex-1 overflow-y-auto p-4">
-        {suggestions.length === 0 && !isLoading && !error && (
+        {safeSuggestions.length === 0 && !isLoading && !error && (
           <div className="text-center py-8">
             <SparklesIcon className="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600" />
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">

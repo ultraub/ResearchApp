@@ -25,11 +25,12 @@ export default function CommentList({
   isReplying,
   isRead,
 }: CommentListProps) {
-  // Group comments by parent
-  const topLevelComments = comments.filter((c) => !c.parent_comment_id);
+  // Group comments by parent - add defensive check for undefined
+  const safeComments = comments || [];
+  const topLevelComments = safeComments.filter((c) => !c.parent_comment_id);
   const repliesMap = new Map<string, TaskComment[]>();
 
-  comments.forEach((comment) => {
+  safeComments.forEach((comment) => {
     if (comment.parent_comment_id) {
       const existing = repliesMap.get(comment.parent_comment_id) || [];
       repliesMap.set(comment.parent_comment_id, [...existing, comment]);

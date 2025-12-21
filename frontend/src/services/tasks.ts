@@ -144,7 +144,7 @@ export const tasksService = {
   // Comments
   getComments: async (taskId: string) => {
     const response = await apiClient.get<TaskComment[]>(`/tasks/${taskId}/comments`);
-    return response.data;
+    return response.data || [];
   },
 
   addComment: async (taskId: string, data: TaskCommentCreateData) => {
@@ -169,7 +169,7 @@ export const tasksService = {
     const response = await apiClient.get<ReactionSummary[]>(
       `/tasks/${taskId}/comments/${commentId}/reactions`
     );
-    return response.data;
+    return response.data || [];
   },
 
   addReaction: async (taskId: string, commentId: string, emoji: string) => {
@@ -187,12 +187,12 @@ export const tasksService = {
   // Assignments
   getAssignments: async (taskId: string) => {
     const response = await apiClient.get<TaskAssignment[]>(`/tasks/${taskId}/assignments`);
-    return response.data;
+    return response.data || [];
   },
 
   assignUsers: async (taskId: string, data: TaskAssignmentCreate) => {
     const response = await apiClient.post<TaskAssignment[]>(`/tasks/${taskId}/assignments`, data);
-    return response.data;
+    return response.data || [];
   },
 
   updateAssignment: async (taskId: string, assignmentId: string, data: TaskAssignmentUpdate) => {
