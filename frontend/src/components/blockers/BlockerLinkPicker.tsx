@@ -301,13 +301,13 @@ export function BlockerLinkPicker({
     enabled: !!projectId,
   });
 
-  // Flatten tasks from all status columns
+  // Flatten tasks from all status columns (with defensive checks)
   const currentProjectTasks = currentProjectTasksByStatus
     ? [
-        ...currentProjectTasksByStatus.todo,
-        ...currentProjectTasksByStatus.in_progress,
-        ...currentProjectTasksByStatus.in_review,
-        ...currentProjectTasksByStatus.done,
+        ...(currentProjectTasksByStatus.todo || []),
+        ...(currentProjectTasksByStatus.in_progress || []),
+        ...(currentProjectTasksByStatus.in_review || []),
+        ...(currentProjectTasksByStatus.done || []),
       ]
     : [];
 
@@ -331,11 +331,13 @@ export function BlockerLinkPicker({
 
       // Flatten and combine all tasks with their parent project name
       return results.flatMap((tasksByStatus, idx) => {
+        // Defensive: ensure tasksByStatus and its properties exist
+        if (!tasksByStatus) return [];
         const allTasks = [
-          ...tasksByStatus.todo,
-          ...tasksByStatus.in_progress,
-          ...tasksByStatus.in_review,
-          ...tasksByStatus.done,
+          ...(tasksByStatus.todo || []),
+          ...(tasksByStatus.in_progress || []),
+          ...(tasksByStatus.in_review || []),
+          ...(tasksByStatus.done || []),
         ];
         return allTasks.map((task: Task) => ({
           ...task,

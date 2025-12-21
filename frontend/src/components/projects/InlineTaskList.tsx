@@ -98,17 +98,18 @@ export default function InlineTaskList({ projectId, className = "" }: InlineTask
   // Combine active tasks (exclude done) and sort by urgency
   const activeTasks: Task[] = [];
   if (tasksByStatus) {
-    activeTasks.push(...tasksByStatus.in_progress);
-    activeTasks.push(...tasksByStatus.in_review);
-    activeTasks.push(...tasksByStatus.todo);
+    activeTasks.push(...(tasksByStatus.in_progress || []));
+    activeTasks.push(...(tasksByStatus.in_review || []));
+    activeTasks.push(...(tasksByStatus.todo || []));
   }
 
   // Sort by overdue status, then due date, then status
   const sortedTasks = sortTasksByUrgency(activeTasks);
   const visibleTasks = sortedTasks.slice(0, MAX_VISIBLE_TASKS);
   const remainingCount = activeTasks.length - visibleTasks.length;
-  const allDone = tasksByStatus && activeTasks.length === 0 && tasksByStatus.done.length > 0;
-  const noTasks = tasksByStatus && activeTasks.length === 0 && tasksByStatus.done.length === 0;
+  const doneCount = tasksByStatus?.done?.length ?? 0;
+  const allDone = tasksByStatus && activeTasks.length === 0 && doneCount > 0;
+  const noTasks = tasksByStatus && activeTasks.length === 0 && doneCount === 0;
 
   if (isLoading) {
     return (
@@ -129,7 +130,7 @@ export default function InlineTaskList({ projectId, className = "" }: InlineTask
   if (allDone) {
     return (
       <div className={`pl-8 py-2 text-sm text-green-600 dark:text-green-400 ${className}`}>
-        All tasks completed ({tasksByStatus.done.length})
+        All tasks completed ({doneCount})
       </div>
     );
   }

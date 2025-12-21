@@ -242,10 +242,10 @@ export default function ProjectDetailPage() {
     const allCurrentTasks = tasksByStatus
       ? [
           ...(tasksByStatus.idea || []),
-          ...tasksByStatus.todo,
-          ...tasksByStatus.in_progress,
-          ...tasksByStatus.in_review,
-          ...tasksByStatus.done,
+          ...(tasksByStatus.todo || []),
+          ...(tasksByStatus.in_progress || []),
+          ...(tasksByStatus.in_review || []),
+          ...(tasksByStatus.done || []),
         ]
       : [];
     const task = allCurrentTasks.find(t => t.id === taskId);
@@ -291,10 +291,10 @@ export default function ProjectDetailPage() {
   const allTasks: Task[] = tasksByStatus
     ? [
         ...(tasksByStatus.idea || []),
-        ...tasksByStatus.todo,
-        ...tasksByStatus.in_progress,
-        ...tasksByStatus.in_review,
-        ...tasksByStatus.done,
+        ...(tasksByStatus.todo || []),
+        ...(tasksByStatus.in_progress || []),
+        ...(tasksByStatus.in_review || []),
+        ...(tasksByStatus.done || []),
       ]
     : [];
 
