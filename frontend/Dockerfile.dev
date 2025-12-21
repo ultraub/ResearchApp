@@ -1,0 +1,22 @@
+# Development Dockerfile for frontend
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files first
+COPY package*.json ./
+
+# Copy source code (node_modules excluded via .dockerignore)
+COPY . .
+
+# Install dependencies with correct platform binaries
+# Remove package-lock.json to avoid npm optional deps bug with rollup
+RUN rm -rf node_modules package-lock.json && \
+    npm install && \
+    npm install @rollup/rollup-linux-x64-musl --save-optional
+
+# Expose port
+EXPOSE 3000
+
+# Start development server
+CMD ["npm", "run", "dev", "--", "--host"]
