@@ -56,7 +56,7 @@ export default function KanbanBoard({
     setDragOverColumn(null);
 
     if (draggedTask && draggedTask.status !== columnId) {
-      const columnTasks = tasks[columnId as keyof TasksByStatus];
+      const columnTasks = tasks[columnId as keyof TasksByStatus] || [];
       onTaskMove?.(draggedTask.id, columnId, columnTasks.length);
     }
     setDraggedTask(null);

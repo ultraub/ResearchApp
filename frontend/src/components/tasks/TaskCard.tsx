@@ -361,7 +361,7 @@ export default function TaskCard({ task, onClick, isDragging, reviewStatus, bloc
       )}
 
       {/* Tags */}
-      {task.tags.length > 0 && (
+      {task.tags && task.tags.length > 0 && (
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           {task.tags.slice(0, 3).map((tag) => (
             <span
