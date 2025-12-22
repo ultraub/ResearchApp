@@ -398,8 +398,15 @@ async def list_tasks(
     # Verify project access
     await check_project_access(db, project_id, current_user.id)
 
-    # Base query
-    query = select(Task).where(Task.project_id == project_id)
+    # Base query with assignments loaded
+    query = (
+        select(Task)
+        .options(
+            selectinload(Task.assignments).selectinload(TaskAssignment.user),
+            selectinload(Task.project),
+        )
+        .where(Task.project_id == project_id)
+    )
 
     # Apply filters
     if status:
@@ -418,8 +425,24 @@ async def list_tasks(
             )
         )
 
-    # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
+    # Get total count (without options for performance)
+    count_base = select(Task).where(Task.project_id == project_id)
+    if status:
+        count_base = count_base.where(Task.status == status)
+    elif not include_completed:
+        count_base = count_base.where(Task.status != "done")
+    if priority:
+        count_base = count_base.where(Task.priority == priority)
+    if assignee_id:
+        count_base = count_base.where(Task.assignee_id == assignee_id)
+    if search:
+        count_base = count_base.where(
+            or_(
+                Task.title.ilike(f"%{search}%"),
+                Task.description.ilike(f"%{search}%"),
+            )
+        )
+    count_query = select(func.count()).select_from(count_base.subquery())
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
@@ -430,8 +453,11 @@ async def list_tasks(
     result = await db.execute(query)
     tasks = list(result.scalars().all())
 
+    # Convert tasks to response dicts with assignments
+    task_items = [_task_to_response(t) for t in tasks]
+
     return {
-        "items": tasks,
+        "items": task_items,
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -451,17 +477,26 @@ async def get_tasks_by_status(
 
     result = await db.execute(
         select(Task)
+        .options(
+            selectinload(Task.assignments).selectinload(TaskAssignment.user),
+            selectinload(Task.project),
+            selectinload(Task.comments),
+            selectinload(Task.subtasks),
+        )
         .where(Task.project_id == project_id, Task.parent_task_id.is_(None))
         .order_by(Task.position.asc())
     )
     tasks = list(result.scalars().all())
 
+    # Convert tasks to response dicts
+    task_responses = [_task_to_response(t) for t in tasks]
+
     return {
-        "idea": [t for t in tasks if t.status == "idea"],
-        "todo": [t for t in tasks if t.status == "todo"],
-        "in_progress": [t for t in tasks if t.status == "in_progress"],
-        "in_review": [t for t in tasks if t.status == "in_review"],
-        "done": [t for t in tasks if t.status == "done"],
+        "idea": [t for t in task_responses if t["status"] == "idea"],
+        "todo": [t for t in task_responses if t["status"] == "todo"],
+        "in_progress": [t for t in task_responses if t["status"] == "in_progress"],
+        "in_review": [t for t in task_responses if t["status"] == "in_review"],
+        "done": [t for t in task_responses if t["status"] == "done"],
     }
 
 
@@ -494,6 +529,14 @@ async def get_tasks_by_status_aggregated(
     # Verify project access
     await check_project_access(db, project_id, current_user.id)
 
+    # Common options for loading relationships
+    task_options = [
+        selectinload(Task.assignments).selectinload(TaskAssignment.user),
+        selectinload(Task.project),
+        selectinload(Task.comments),
+        selectinload(Task.subtasks),
+    ]
+
     if include_children:
         # Get all descendant project IDs
         project_ids = await _get_descendant_project_ids(db, project_id)
@@ -506,34 +549,35 @@ async def get_tasks_by_status_aggregated(
 
         result = await db.execute(
             select(Task)
+            .options(*task_options)
             .where(Task.project_id.in_(project_ids), Task.parent_task_id.is_(None))
             .order_by(Task.project_id, Task.position.asc())
         )
         tasks = list(result.scalars().all())
 
-        # Add project_name to each task for non-root project tasks
-        def task_with_project_name(t):
-            # Only add project_name for tasks from child projects
+        # Convert tasks to response dicts with project_name for child projects
+        task_responses = []
+        for t in tasks:
+            response = _task_to_response(t)
             if t.project_id != project_id:
-                # Attach project_name as an attribute for serialization
-                t.project_name = projects.get(t.project_id)
-            return t
-
-        tasks = [task_with_project_name(t) for t in tasks]
+                response["project_name"] = projects.get(t.project_id)
+            task_responses.append(response)
     else:
         result = await db.execute(
             select(Task)
+            .options(*task_options)
             .where(Task.project_id == project_id, Task.parent_task_id.is_(None))
             .order_by(Task.position.asc())
         )
         tasks = list(result.scalars().all())
+        task_responses = [_task_to_response(t) for t in tasks]
 
     return {
-        "idea": [t for t in tasks if t.status == "idea"],
-        "todo": [t for t in tasks if t.status == "todo"],
-        "in_progress": [t for t in tasks if t.status == "in_progress"],
-        "in_review": [t for t in tasks if t.status == "in_review"],
-        "done": [t for t in tasks if t.status == "done"],
+        "idea": [t for t in task_responses if t["status"] == "idea"],
+        "todo": [t for t in task_responses if t["status"] == "todo"],
+        "in_progress": [t for t in task_responses if t["status"] == "in_progress"],
+        "in_review": [t for t in task_responses if t["status"] == "in_review"],
+        "done": [t for t in task_responses if t["status"] == "done"],
     }
 
 
@@ -563,6 +607,41 @@ def _assignment_to_response(assignment: TaskAssignment) -> dict:
         data["user_name"] = assignment.user.display_name or assignment.user.email
         data["user_email"] = assignment.user.email
     return data
+
+
+def _task_to_response(task: Task) -> dict:
+    """Convert task model to response dict with assignments and user info."""
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "status": task.status,
+        "priority": task.priority,
+        "task_type": task.task_type,
+        "project_id": task.project_id,
+        "project_name": task.project.name if hasattr(task, "project") and task.project else None,
+        "assignee_id": task.assignee_id,
+        "created_by_id": task.created_by_id,
+        "due_date": task.due_date,
+        "completed_at": task.completed_at,
+        "position": task.position,
+        "estimated_hours": task.estimated_hours,
+        "actual_hours": task.actual_hours,
+        "parent_task_id": task.parent_task_id,
+        "tags": task.tags or [],
+        "created_at": task.created_at,
+        "updated_at": task.updated_at,
+        "comment_count": len(task.comments) if hasattr(task, "comments") and task.comments else 0,
+        "subtask_count": len(task.subtasks) if hasattr(task, "subtasks") and task.subtasks else 0,
+        "vote_count": task.vote_count if hasattr(task, "vote_count") else 0,
+        "user_voted": False,
+        "impact_score": task.impact_score if hasattr(task, "impact_score") else None,
+        "effort_score": task.effort_score if hasattr(task, "effort_score") else None,
+        "assignments": [
+            _assignment_to_response(a)
+            for a in (task.assignments if hasattr(task, "assignments") and task.assignments else [])
+        ],
+    }
 
 
 # =========================================================================
