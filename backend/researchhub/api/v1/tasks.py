@@ -302,6 +302,8 @@ class TaskResponse(BaseModel):
     user_voted: bool = False
     impact_score: int | None = None
     effort_score: int | None = None
+    # Assignments
+    assignments: list[TaskAssignmentResponse] | None = None
 
     class Config:
         from_attributes = True
@@ -590,11 +592,16 @@ async def get_task(
     task_id: UUID,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> Task:
+) -> dict:
     """Get a specific task."""
     result = await db.execute(
         select(Task)
-        .options(selectinload(Task.subtasks), selectinload(Task.comments))
+        .options(
+            selectinload(Task.subtasks),
+            selectinload(Task.comments),
+            selectinload(Task.assignments).selectinload(TaskAssignment.user),
+            selectinload(Task.project),
+        )
         .where(Task.id == task_id)
     )
     task = result.scalar_one_or_none()
@@ -608,7 +615,37 @@ async def get_task(
     # Verify project access
     await check_project_access(db, task.project_id, current_user.id)
 
-    return task
+    # Build response with assignments
+    response_data = {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "status": task.status,
+        "priority": task.priority,
+        "task_type": task.task_type,
+        "project_id": task.project_id,
+        "project_name": task.project.name if task.project else None,
+        "assignee_id": task.assignee_id,
+        "created_by_id": task.created_by_id,
+        "due_date": task.due_date,
+        "completed_at": task.completed_at,
+        "position": task.position,
+        "estimated_hours": task.estimated_hours,
+        "actual_hours": task.actual_hours,
+        "parent_task_id": task.parent_task_id,
+        "tags": task.tags or [],
+        "created_at": task.created_at,
+        "updated_at": task.updated_at,
+        "comment_count": len(task.comments) if task.comments else 0,
+        "subtask_count": len(task.subtasks) if task.subtasks else 0,
+        "vote_count": task.vote_count if hasattr(task, 'vote_count') else 0,
+        "user_voted": False,
+        "impact_score": task.impact_score if hasattr(task, 'impact_score') else None,
+        "effort_score": task.effort_score if hasattr(task, 'effort_score') else None,
+        "assignments": [_assignment_to_response(a) for a in (task.assignments or [])],
+    }
+
+    return response_data
 
 
 @router.patch("/{task_id}", response_model=TaskResponse)
