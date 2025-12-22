@@ -123,7 +123,7 @@ export function CreateBlockerModal({
                   </Dialog.Title>
                   <button
                     onClick={handleClose}
-                    className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+                    className="rounded-lg p-1.5 text-gray-400 dark:text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                   >
                     <XMarkIcon className="h-5 w-5" />
                   </button>

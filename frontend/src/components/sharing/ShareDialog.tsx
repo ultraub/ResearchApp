@@ -83,8 +83,8 @@ function PeopleTab({
 
   if (!shares || shares.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <UserPlus className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <UserPlus className="h-12 w-12 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
         <p>No one has access yet</p>
         <p className="text-sm mt-1">Send an invitation to share this project</p>
       </div>
@@ -94,7 +94,7 @@ function PeopleTab({
   return (
     <div className="space-y-2">
       {shares.map((share) => (
-        <div key={share.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+        <div key={share.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-elevated">
           {/* Avatar */}
           <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-medium">
             {share.user_name?.charAt(0) || share.user_email.charAt(0).toUpperCase()}
@@ -102,10 +102,10 @@ function PeopleTab({
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
+            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
               {share.user_name || share.user_email}
             </p>
-            <p className="text-xs text-gray-500 truncate">{share.user_email}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{share.user_email}</p>
           </div>
 
           {/* Role selector */}
@@ -128,7 +128,7 @@ function PeopleTab({
           {share.user_id !== currentUserId && (
             <button
               onClick={() => removeMutation.mutate(share.id)}
-              className="p-1 text-gray-400 hover:text-red-600 rounded"
+              className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 rounded"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -191,7 +191,7 @@ function LinkTab({
       {/* Link settings */}
       <div className="space-y-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Access level</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Access level</label>
           <select
             value={accessLevel}
             onChange={(e) => setAccessLevel(e.target.value as 'view' | 'comment' | 'edit')}
@@ -204,7 +204,7 @@ function LinkTab({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Link expires</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Link expires</label>
           <select
             value={expiresIn}
             onChange={(e) => setExpiresIn(e.target.value)}
@@ -224,7 +224,7 @@ function LinkTab({
             onChange={(e) => setRequiresAuth(e.target.checked)}
             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
           />
-          <span className="text-sm text-gray-700">Require sign in</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">Require sign in</span>
         </label>
       </div>
 
@@ -245,11 +245,11 @@ function LinkTab({
               type="text"
               value={generatedLink}
               readOnly
-              className="flex-1 bg-transparent text-sm focus:outline-none"
+              className="flex-1 bg-transparent text-sm text-gray-900 dark:text-gray-100 focus:outline-none"
             />
             <button
               onClick={handleCopy}
-              className="p-2 text-gray-500 hover:text-gray-700 rounded"
+              className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded"
             >
               {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
             </button>
@@ -321,7 +321,7 @@ function InviteTab({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email address</label>
         <input
           type="email"
           value={email}
@@ -332,7 +332,7 @@ function InviteTab({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
         <select
           value={role}
           onChange={(e) => setRole(e.target.value)}
@@ -347,7 +347,7 @@ function InviteTab({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Personal message (optional)
         </label>
         <textarea
@@ -403,10 +403,10 @@ export function ShareDialog({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Share "{resourceName}"</h2>
-            <p className="text-sm text-gray-500 capitalize">{resourceType}</p>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Share "{resourceName}"</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{resourceType}</p>
           </div>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded">
+          <button onClick={onClose} className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded">
             <X className="h-5 w-5" />
           </button>
         </div>

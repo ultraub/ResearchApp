@@ -145,7 +145,7 @@ export default function MultiUserSelect({
             </div>
 
             <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
-              <ChevronUpDownIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+              <ChevronUpDownIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
             </Combobox.Button>
           </div>
 
@@ -158,9 +158,9 @@ export default function MultiUserSelect({
           >
             <Combobox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none dark:bg-dark-card sm:text-sm">
               {loading ? (
-                <div className="px-4 py-2 text-sm text-gray-500">Loading...</div>
+                <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">Loading...</div>
               ) : filteredMembers.length === 0 ? (
-                <div className="px-4 py-2 text-sm text-gray-500">
+                <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
                   {query === "" ? "No team members found" : "No matches found"}
                 </div>
               ) : (

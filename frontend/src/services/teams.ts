@@ -72,7 +72,7 @@ export const teamsService = {
    */
   getMembers: async (teamId: string) => {
     const response = await apiClient.get<TeamMember[]>(`/teams/${teamId}/members`);
-    return response.data;
+    return response.data || [];
   },
 
   /**
@@ -112,7 +112,7 @@ export const teamsService = {
     const response = await apiClient.get<Project[]>(`/teams/${teamId}/projects`, {
       params: { include_archived: includeArchived },
     });
-    return response.data;
+    return response.data || [];
   },
 
   // ============================================================================
@@ -132,7 +132,7 @@ export const teamsService = {
    */
   getInvites: async (teamId: string) => {
     const response = await apiClient.get<InviteCode[]>(`/teams/${teamId}/invites`);
-    return response.data;
+    return response.data || [];
   },
 
   /**

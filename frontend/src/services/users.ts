@@ -124,13 +124,13 @@ export const usersApi = {
   // Organization Members
   async getOrganizationMembers(orgId: string): Promise<OrganizationMember[]> {
     const response = await api.get<OrganizationMember[]>(`/organizations/${orgId}/members`);
-    return response.data;
+    return response.data || [];
   },
 
   // List all users for member selection
   async listUsers(search?: string): Promise<UserListItem[]> {
     const params = search ? { search } : {};
     const response = await api.get<UserListItem[]>('/users', { params });
-    return response.data;
+    return response.data || [];
   },
 };

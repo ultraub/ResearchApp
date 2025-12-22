@@ -168,7 +168,7 @@ export default function TaskDocumentsTab({ task }: TaskDocumentsTabProps) {
                       {DOCUMENT_TYPE_OPTIONS.find(o => o.value === link.document_type)?.label || link.document_type}
                     </span>
                   )}
-                  <span className="text-gray-400">
+                  <span className="text-gray-400 dark:text-gray-500">
                     · {format(new Date(link.created_at), "MMM d")}
                   </span>
                 </div>
@@ -177,7 +177,7 @@ export default function TaskDocumentsTab({ task }: TaskDocumentsTabProps) {
               <div className="flex items-center gap-1">
                 <Link
                   to={`/projects/${task.project_id}/documents/${link.document_id}`}
-                  className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
+                  className="rounded p-1.5 text-gray-400 dark:text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                   title="Open document"
                 >
                   <ArrowTopRightOnSquareIcon className="h-4 w-4" />
@@ -186,7 +186,7 @@ export default function TaskDocumentsTab({ task }: TaskDocumentsTabProps) {
                   onClick={() =>
                     handleUnlink(link.id, link.document_title || "this document")
                   }
-                  className="rounded p-1.5 text-gray-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30"
+                  className="rounded p-1.5 text-gray-400 dark:text-gray-500 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                   title="Unlink document"
                 >
                   <TrashIcon className="h-4 w-4" />
@@ -400,7 +400,7 @@ function LinkDocumentModal({
                     {isLoading ? (
                       <div className="h-32 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" />
                     ) : availableDocs.length === 0 ? (
-                      <p className="py-4 text-center text-sm text-gray-500">
+                      <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                         No available documents in this project
                       </p>
                     ) : (
@@ -425,7 +425,7 @@ function LinkDocumentModal({
                               <p className="truncate text-sm text-gray-900 dark:text-white">
                                 {doc.title}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {doc.document_type} · {doc.status}
                               </p>
                             </div>
@@ -604,7 +604,7 @@ function CreateDocumentModal({ isOpen, onClose, task }: CreateDocumentModalProps
                     </div>
                     {DOCUMENT_TYPE_OPTIONS.length > 8 && (
                       <div className="mt-2 flex flex-wrap items-center gap-1">
-                        <span className="text-xs text-gray-400">More:</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">More:</span>
                         {DOCUMENT_TYPE_OPTIONS.slice(8).map((option) => (
                           <button
                             key={option.value}

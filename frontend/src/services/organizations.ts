@@ -58,7 +58,7 @@ export const organizationsService = {
     const response = await apiClient.get<OrganizationMemberDetail[]>(
       `/organizations/${orgId}/members`
     );
-    return response.data;
+    return response.data || [];
   },
 
   /**
@@ -99,7 +99,7 @@ export const organizationsService = {
    */
   getTeams: async (orgId: string) => {
     const response = await apiClient.get<TeamDetail[]>(`/organizations/${orgId}/teams`);
-    return response.data;
+    return response.data || [];
   },
 
   // ============================================================================
@@ -119,7 +119,7 @@ export const organizationsService = {
    */
   getInvites: async (orgId: string) => {
     const response = await apiClient.get<InviteCode[]>(`/organizations/${orgId}/invites`);
-    return response.data;
+    return response.data || [];
   },
 
   /**
