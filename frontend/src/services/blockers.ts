@@ -163,9 +163,9 @@ export const blockersService = {
 
     // Filter to those that have a link to this project as a blocked entity
     const blockersWithLinks = await Promise.all(
-      blockers.map(async (blocker) => {
+      (blockers || []).map(async (blocker) => {
         const links = await blockersService.getLinks(blocker.id);
-        const blocksThisProject = links.some(
+        const blocksThisProject = (links || []).some(
           (link) => link.blocked_entity_type === "project" && link.blocked_entity_id === projectId
         );
         return blocksThisProject ? blocker : null;

@@ -65,7 +65,7 @@ export function ProjectPapersSection({ projectId, organizationId }: ProjectPaper
     mutationFn: async (paperId: string) => {
       // Find the link ID for this paper-project combination
       const links = await getPaperLinks(paperId);
-      const link = links.find(
+      const link = (links || []).find(
         (l) => l.linked_entity_type === 'project' && l.linked_entity_id === projectId
       );
       if (link) {
