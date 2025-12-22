@@ -122,10 +122,12 @@ async def global_search(
                 },
             ))
 
-    # Search Tasks
+    # Search Tasks (scoped to organization via project)
     if "task" in search_types:
         task_query = (
             select(Task)
+            .join(Project, Task.project_id == Project.id)
+            .where(Project.organization_id == organization_id)
             .where(
                 or_(
                     func.lower(Task.title).like(search_term),

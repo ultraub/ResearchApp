@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   PlusIcon,
@@ -119,11 +119,22 @@ function ProjectCard({
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { organization } = useOrganizationStore();
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Auto-open create modal when navigating with ?create=true
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setIsCreateModalOpen(true);
+      // Remove the query param after opening
+      searchParams.delete('create');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Fetch projects for grid view (list view uses HierarchicalProjectList which fetches its own data)
   const { data, isLoading } = useQuery({

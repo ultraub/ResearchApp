@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   PlusIcon,
@@ -29,6 +29,7 @@ const statusFilters = [
 
 export default function IdeasPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -46,6 +47,16 @@ export default function IdeasPage() {
   useEffect(() => {
     localStorage.setItem("ideas-view-mode", viewMode);
   }, [viewMode]);
+
+  // Auto-open quick capture when navigating with ?create=true
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setIsQuickCaptureOpen(true);
+      // Remove the query param after opening
+      searchParams.delete('create');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["ideas", { status: statusFilter, search: searchQuery, pinned_only: pinnedOnly }],

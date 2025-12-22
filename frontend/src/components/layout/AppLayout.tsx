@@ -5,7 +5,6 @@ import {
   DocumentTextIcon,
   BookOpenIcon,
   Cog6ToothIcon,
-  MagnifyingGlassIcon,
   LightBulbIcon,
   ClipboardDocumentCheckIcon,
   PencilSquareIcon,
@@ -16,7 +15,9 @@ import { NotificationsDropdown } from "./NotificationsDropdown";
 import { UserMenu } from "./UserMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import { BottomTabBar } from "./BottomTabBar";
+import { GlobalSearch } from "../search/GlobalSearch";
 import { useTeams } from "@/hooks/useTeams";
+import { useOrganizationId } from "@/stores/organization";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: HomeIcon },
@@ -33,6 +34,7 @@ const navigation = [
 export default function AppLayout() {
   // Fetch and sync teams on app load - ensures fresh data after login
   useTeams();
+  const organizationId = useOrganizationId();
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-base">
@@ -86,18 +88,8 @@ export default function AppLayout() {
           </span>
 
           {/* Search */}
-          <div className="flex-1">
-            <div className="relative max-w-md group">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-primary-500" />
-              <input
-                type="search"
-                placeholder="Search..."
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-500 transition-all focus:border-primary-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:shadow-sm dark:border-dark-border dark:bg-dark-elevated dark:text-white dark:placeholder-gray-400 dark:focus:border-primary-500/50 dark:focus:ring-primary-500/10"
-              />
-              <kbd className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-500 dark:bg-dark-border dark:text-gray-400 sm:block">
-                ⌘K
-              </kbd>
-            </div>
+          <div className="flex-1 max-w-md">
+            <GlobalSearch organizationId={organizationId} />
           </div>
 
           {/* Right side items */}

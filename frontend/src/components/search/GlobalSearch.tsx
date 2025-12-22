@@ -18,6 +18,7 @@ import {
   User,
   ArrowRight,
   Command,
+  PenSquare,
 } from 'lucide-react';
 import { searchApi, type SearchResultItem } from '../../services/search';
 
@@ -33,6 +34,7 @@ const typeIcons: Record<string, typeof FileText> = {
   paper: BookOpen,
   collection: FolderOpen,
   user: User,
+  journal: PenSquare,
 };
 
 const typeColors: Record<string, string> = {
@@ -43,6 +45,7 @@ const typeColors: Record<string, string> = {
   paper: 'text-orange-600 bg-orange-50 dark:bg-orange-900/30 dark:text-orange-400',
   collection: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400',
   user: 'text-gray-600 bg-gray-50 dark:bg-gray-900/30 dark:text-gray-400',
+  journal: 'text-teal-600 bg-teal-50 dark:bg-teal-900/30 dark:text-teal-400',
 };
 
 function SearchResultItemComponent({
@@ -267,15 +270,33 @@ export function GlobalSearch({ organizationId }: GlobalSearchProps) {
             <div className="p-4">
               <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase mb-3">Quick Actions</p>
               <div className="space-y-1">
-                <button className="w-full flex items-center gap-3 p-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated rounded-lg">
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    navigate('/projects?create=true');
+                  }}
+                  className="w-full flex items-center gap-3 p-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated rounded-lg"
+                >
                   <Folder className="h-4 w-4 text-primary-600 dark:text-primary-400" />
                   <span>Create new project</span>
                 </button>
-                <button className="w-full flex items-center gap-3 p-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated rounded-lg">
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    navigate('/documents/new');
+                  }}
+                  className="w-full flex items-center gap-3 p-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated rounded-lg"
+                >
                   <FileText className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                   <span>Create new document</span>
                 </button>
-                <button className="w-full flex items-center gap-3 p-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated rounded-lg">
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    navigate('/ideas?create=true');
+                  }}
+                  className="w-full flex items-center gap-3 p-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated rounded-lg"
+                >
                   <Lightbulb className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                   <span>Capture new idea</span>
                 </button>
