@@ -73,7 +73,7 @@ export const searchApi = {
     searchParams.append('limit', limit.toString());
 
     const response = await api.get<SearchSuggestion[]>(`/search/suggestions?${searchParams}`);
-    return response.data;
+    return response.data || [];
   },
 
   async getRecentSearches(userId: string, limit = 10): Promise<string[]> {
@@ -82,6 +82,6 @@ export const searchApi = {
     searchParams.append('limit', limit.toString());
 
     const response = await api.get<string[]>(`/search/recent?${searchParams}`);
-    return response.data;
+    return response.data || [];
   },
 };

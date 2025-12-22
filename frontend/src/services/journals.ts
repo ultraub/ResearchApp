@@ -53,7 +53,7 @@ export async function addJournalEntryLink(
 
 export async function getJournalEntryLinks(entryId: string): Promise<JournalEntryLink[]> {
   const response = await api.get<JournalEntryLink[]>(`/journals/${entryId}/links`);
-  return response.data;
+  return response.data || [];
 }
 
 export async function removeJournalEntryLink(
@@ -70,7 +70,7 @@ export async function getJournalTags(params?: {
   project_id?: string;
 }): Promise<string[]> {
   const response = await api.get<string[]>('/journals/tags', { params });
-  return response.data;
+  return response.data || [];
 }
 
 export async function getJournalCalendarEntries(

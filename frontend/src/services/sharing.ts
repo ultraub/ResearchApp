@@ -101,7 +101,7 @@ export const projectSharesApi = {
 
   async list(projectId: string): Promise<ProjectShare[]> {
     const response = await api.get<ProjectShare[]>(`/sharing/projects/${projectId}/shares`);
-    return response.data;
+    return response.data || [];
   },
 
   async update(shareId: string, updates: {
@@ -266,7 +266,7 @@ export const reactionsApi = {
     if (params.user_id) searchParams.append('user_id', params.user_id);
 
     const response = await api.get<Reaction[]>(`/sharing/reactions?${searchParams}`);
-    return response.data;
+    return response.data || [];
   },
 
   async remove(data: {

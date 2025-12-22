@@ -132,7 +132,7 @@ export async function getPapers(
   const response = await api.get<Paper[]>('/knowledge/papers', {
     params: { organization_id: organizationId, ...params },
   });
-  return response.data;
+  return response.data || [];
 }
 
 export async function getPaper(paperId: string): Promise<Paper> {
@@ -184,7 +184,7 @@ export async function getCollections(
   const response = await api.get<Collection[]>('/knowledge/collections', {
     params: { organization_id: organizationId, ...params },
   });
-  return response.data;
+  return response.data || [];
 }
 
 export async function getCollection(collectionId: string): Promise<Collection> {
@@ -229,7 +229,7 @@ export async function getCollectionPapers(
     `/knowledge/collections/${collectionId}/papers`,
     { params }
   );
-  return response.data;
+  return response.data || [];
 }
 
 // Highlights
@@ -245,7 +245,7 @@ export async function getPaperHighlights(paperId: string): Promise<PaperHighligh
   const response = await api.get<PaperHighlight[]>(
     `/knowledge/papers/${paperId}/highlights`
   );
-  return response.data;
+  return response.data || [];
 }
 
 export async function deleteHighlight(highlightId: string): Promise<void> {
@@ -260,7 +260,7 @@ export async function createPaperLink(data: CreatePaperLinkRequest): Promise<Pap
 
 export async function getPaperLinks(paperId: string): Promise<PaperLink[]> {
   const response = await api.get<PaperLink[]>(`/knowledge/papers/${paperId}/links`);
-  return response.data;
+  return response.data || [];
 }
 
 export async function deletePaperLink(linkId: string): Promise<void> {
@@ -270,7 +270,7 @@ export async function deletePaperLink(linkId: string): Promise<void> {
 // Get papers linked to a project
 export async function getProjectPapers(projectId: string): Promise<Paper[]> {
   const response = await api.get<Paper[]>(`/knowledge/projects/${projectId}/papers`);
-  return response.data;
+  return response.data || [];
 }
 
 // Link a paper to a project

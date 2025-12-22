@@ -152,7 +152,7 @@ export async function deleteDocument(documentId: string): Promise<void> {
 // Document Versions
 export async function getDocumentVersions(documentId: string): Promise<DocumentVersion[]> {
   const response = await api.get<DocumentVersion[]>(`/documents/${documentId}/versions`);
-  return response.data;
+  return response.data || [];
 }
 
 export async function restoreDocumentVersion(
@@ -173,7 +173,7 @@ export async function getDocumentComments(
   const response = await api.get<DocumentComment[]>(`/documents/${documentId}/comments`, {
     params: { include_resolved: includeResolved },
   });
-  return response.data;
+  return response.data || [];
 }
 
 export async function createComment(data: CreateCommentRequest): Promise<DocumentComment> {
@@ -220,5 +220,5 @@ export async function getDocumentTemplates(
   const response = await api.get<DocumentTemplate[]>('/documents/templates/', {
     params: organizationId ? { organization_id: organizationId } : undefined,
   });
-  return response.data;
+  return response.data || [];
 }

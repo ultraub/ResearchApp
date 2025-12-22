@@ -95,7 +95,7 @@ export async function listComments(
   const response = await api.get<ReviewComment[]>(`/reviews/${reviewId}/comments`, {
     params: options as Record<string, unknown>,
   });
-  return response.data;
+  return response.data || [];
 }
 
 export async function addComment(
@@ -134,7 +134,7 @@ export async function getMyAssignments(options?: {
   const response = await api.get<ReviewAssignment[]>('/reviews/my/assignments', {
     params: options as Record<string, unknown>,
   });
-  return response.data;
+  return response.data || [];
 }
 
 // =============================================================================

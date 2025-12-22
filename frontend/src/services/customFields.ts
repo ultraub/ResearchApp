@@ -28,7 +28,7 @@ export const customFieldsService = {
       `/projects/${projectId}/custom-fields`,
       { params }
     );
-    return response.data;
+    return response.data || [];
   },
 
   /**
@@ -82,7 +82,7 @@ export const customFieldsService = {
       `/projects/${projectId}/custom-fields/reorder`,
       { field_order: fieldOrder }
     );
-    return response.data;
+    return response.data || [];
   },
 
   // =========================================================================
@@ -96,7 +96,7 @@ export const customFieldsService = {
     const response = await apiClient.get<CustomFieldValue[]>(
       `/tasks/${taskId}/custom-fields`
     );
-    return response.data;
+    return response.data || [];
   },
 
   /**
@@ -125,7 +125,7 @@ export const customFieldsService = {
       `/tasks/${taskId}/custom-fields`,
       { values }
     );
-    return response.data;
+    return response.data || [];
   },
 
   /**

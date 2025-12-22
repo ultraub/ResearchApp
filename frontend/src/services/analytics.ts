@@ -128,7 +128,7 @@ export const analyticsApi = {
     params.append('days', days.toString());
 
     const response = await api.get<TimeSeriesData[]>(`/analytics/activity-timeline?${params}`);
-    return response.data;
+    return response.data || [];
   },
 
   async getProjectProgress(
@@ -142,7 +142,7 @@ export const analyticsApi = {
     }
 
     const response = await api.get<ProjectProgress[]>(`/analytics/project-progress?${params}`);
-    return response.data;
+    return response.data || [];
   },
 
   async getProjectAttentionDetails(projectId: string): Promise<ProjectAttentionDetails> {
@@ -159,7 +159,7 @@ export const analyticsApi = {
     params.append('days', days.toString());
 
     const response = await api.get<ActivityMetrics[]>(`/analytics/activity-types?${params}`);
-    return response.data;
+    return response.data || [];
   },
 
   async getTeamProductivity(
@@ -173,7 +173,7 @@ export const analyticsApi = {
     params.append('limit', limit.toString());
 
     const response = await api.get<TeamProductivity[]>(`/analytics/team-productivity?${params}`);
-    return response.data;
+    return response.data || [];
   },
 
   async getDashboard(organizationId: string): Promise<DashboardAnalytics> {
