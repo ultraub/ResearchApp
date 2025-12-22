@@ -448,7 +448,7 @@ export function DocumentEditorPage() {
         isOpen={showVersionHistory}
         onClose={() => setShowVersionHistory(false)}
         title="Version History"
-        className="md:hidden"
+        mobileOnly
       >
         <div className="space-y-3">
           {/* Current version */}
@@ -487,7 +487,7 @@ export function DocumentEditorPage() {
         onClose={() => setShowComments(false)}
         title={`Comments ${comments.length > 0 ? `(${comments.length})` : ''}`}
         snapPoints={[0.6, 0.9]}
-        className="md:hidden"
+        mobileOnly
       >
         <DocumentCommentsSidebar
           documentId={documentId!}
@@ -509,7 +509,7 @@ export function DocumentEditorPage() {
         onClose={() => setShowAI(false)}
         title="AI Assistant"
         snapPoints={[0.6, 0.9]}
-        className="md:hidden"
+        mobileOnly
       >
         <AISidebar
           documentId={documentId!}

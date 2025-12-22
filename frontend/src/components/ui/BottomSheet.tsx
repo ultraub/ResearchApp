@@ -10,11 +10,27 @@
  * - Dark mode support
  */
 
-import { Fragment, useRef, useEffect, type ReactNode } from "react";
+import { Fragment, useRef, useEffect, useState, type ReactNode } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { motion, useMotionValue, useTransform, PanInfo } from "framer-motion";
 import { clsx } from "clsx";
 import { XMarkIcon } from "@heroicons/react/24/outline";
+
+// Hook to detect if we're on mobile
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.innerWidth < 768; // md breakpoint
+  });
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  return isMobile;
+}
 
 export interface BottomSheetProps {
   /** Whether the bottom sheet is open */
@@ -33,6 +49,8 @@ export interface BottomSheetProps {
   showCloseButton?: boolean;
   /** Additional class names for the panel */
   className?: string;
+  /** Only render on mobile devices (default: false) */
+  mobileOnly?: boolean;
 }
 
 export function BottomSheet({
@@ -44,9 +62,16 @@ export function BottomSheet({
   initialSnap = 0,
   showCloseButton = true,
   className,
+  mobileOnly = false,
 }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const y = useMotionValue(0);
+  const isMobile = useIsMobile();
+
+  // Don't render on desktop if mobileOnly is true
+  if (mobileOnly && !isMobile) {
+    return null;
+  }
 
   // Calculate initial height based on snap point
   const initialHeight = snapPoints[initialSnap] * 100;

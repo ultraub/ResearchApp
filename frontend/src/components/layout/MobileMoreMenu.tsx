@@ -86,6 +86,7 @@ export function MobileMoreMenu({ isOpen, onClose }: MobileMoreMenuProps) {
       title="More"
       snapPoints={[0.6]}
       className="max-h-[85vh]"
+      mobileOnly
     >
       {/* Main navigation items */}
       <div className="space-y-1">
