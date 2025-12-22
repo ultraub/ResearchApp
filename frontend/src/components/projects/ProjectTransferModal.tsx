@@ -41,10 +41,9 @@ export function ProjectTransferModal({
   });
 
   // Filter out current team and personal teams
-  const availableTeams =
-    teamsData?.items.filter(
-      (t) => !t.is_personal && t.id !== project.team_id
-    ) || [];
+  const availableTeams = (teamsData?.items || []).filter(
+    (t) => !t.is_personal && t.id !== project.team_id
+  );
 
   // Get selected team info
   const selectedTeam = availableTeams.find((t) => t.id === selectedTeamId);

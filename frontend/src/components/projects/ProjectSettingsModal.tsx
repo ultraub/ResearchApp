@@ -91,7 +91,7 @@ export function ProjectSettingsModal({
   });
 
   // Filter out personal teams for scope change (only show non-personal teams)
-  const availableTeams = teamsData?.items.filter((t) => !t.is_personal) || [];
+  const availableTeams = (teamsData?.items || []).filter((t) => !t.is_personal);
 
   // Form state
   const [formData, setFormData] = useState({
