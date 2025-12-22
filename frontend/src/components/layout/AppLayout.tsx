@@ -81,14 +81,14 @@ export default function AppLayout() {
       {/* Main content area */}
       <div className="lg:pl-64">
         {/* Top header */}
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-gray-200/80 bg-white/95 backdrop-blur-sm px-3 shadow-sm dark:border-dark-border dark:bg-dark-card/95 sm:px-4 lg:px-6">
-          {/* Mobile: App name */}
-          <span className="text-lg font-semibold bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent lg:hidden">
-            Pasteur
-          </span>
-
-          {/* Search */}
-          <div className="flex-1 max-w-md">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-gray-200/80 bg-white/95 backdrop-blur-sm px-3 shadow-sm dark:border-dark-border dark:bg-dark-card/95 sm:px-4 lg:px-6">
+          {/* Left section */}
+          <div className="flex items-center gap-4">
+            {/* Mobile: App name */}
+            <span className="text-lg font-semibold bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent lg:hidden">
+              Pasteur
+            </span>
+            {/* Search */}
             <GlobalSearch organizationId={organizationId} />
           </div>
 
