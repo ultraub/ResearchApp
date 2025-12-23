@@ -398,7 +398,10 @@ async def create_task(
     )
     db.add(task)
     await db.commit()
-    await db.refresh(task, ["created_by"])
+    # Re-query with fresh data (including updated_at) and created_by relationship
+    stmt = select(Task).options(selectinload(Task.created_by)).where(Task.id == task.id)
+    result = await db.execute(stmt)
+    task = result.scalar_one()
 
     logger.info(
         "Task created",
@@ -811,7 +814,10 @@ async def update_task(
         setattr(task, field, value)
 
     await db.commit()
-    await db.refresh(task, ["created_by"])
+    # Re-query with fresh data (including updated_at) and created_by relationship
+    stmt = select(Task).options(selectinload(Task.created_by)).where(Task.id == task_id)
+    result = await db.execute(stmt)
+    task = result.scalar_one()
 
     logger.info("Task updated", task_id=str(task_id))
     return task
@@ -901,7 +907,10 @@ async def move_task(
         task.completed_at = None
 
     await db.commit()
-    await db.refresh(task, ["created_by"])
+    # Re-query with fresh data (including updated_at) and created_by relationship
+    stmt = select(Task).options(selectinload(Task.created_by)).where(Task.id == task_id)
+    result = await db.execute(stmt)
+    task = result.scalar_one()
 
     logger.info(
         "Task moved",
@@ -2477,7 +2486,10 @@ async def update_idea_score(
     task.extra_data = extra_data
 
     await db.commit()
-    await db.refresh(task, ["created_by"])
+    # Re-query with fresh data (including updated_at) and created_by relationship
+    stmt = select(Task).options(selectinload(Task.created_by)).where(Task.id == task_id)
+    result = await db.execute(stmt)
+    task = result.scalar_one()
 
     logger.info(
         "Idea score updated",
@@ -2537,7 +2549,10 @@ async def convert_idea_to_task(
     task.extra_data = extra_data
 
     await db.commit()
-    await db.refresh(task, ["created_by"])
+    # Re-query with fresh data (including updated_at) and created_by relationship
+    stmt = select(Task).options(selectinload(Task.created_by)).where(Task.id == task_id)
+    result = await db.execute(stmt)
+    task = result.scalar_one()
 
     logger.info("Idea converted to task", task_id=str(task_id), new_status=convert_data.target_status)
 

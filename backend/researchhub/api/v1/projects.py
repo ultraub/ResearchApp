@@ -74,6 +74,8 @@ class ProjectMemberResponse(BaseModel):
     id: UUID
     user_id: UUID
     role: str
+    display_name: str | None = None
+    email: str | None = None
     notify_on_task_assigned: bool
     notify_on_document_update: bool
     notify_on_comment: bool
@@ -767,10 +769,35 @@ async def list_project_members(
     project_id: UUID,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> list[ProjectMember]:
-    """List project members."""
-    project = await check_project_access(db, project_id, current_user.id)
-    return project.members
+) -> list[dict]:
+    """List project members with user information."""
+    from researchhub.models.user import User
+
+    # Verify access
+    await check_project_access(db, project_id, current_user.id)
+
+    # Fetch members with user info
+    result = await db.execute(
+        select(ProjectMember, User)
+        .join(User, ProjectMember.user_id == User.id)
+        .where(ProjectMember.project_id == project_id)
+        .order_by(User.display_name)
+    )
+
+    members = []
+    for member, user in result.all():
+        members.append({
+            "id": member.id,
+            "user_id": member.user_id,
+            "role": member.role,
+            "display_name": user.display_name,
+            "email": user.email,
+            "notify_on_task_assigned": member.notify_on_task_assigned,
+            "notify_on_document_update": member.notify_on_document_update,
+            "notify_on_comment": member.notify_on_comment,
+        })
+
+    return members
 
 
 @router.post("/{project_id}/members", response_model=ProjectMemberResponse)
@@ -779,9 +806,20 @@ async def add_project_member(
     member_data: ProjectMemberAdd,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> ProjectMember:
+) -> dict:
     """Add a member to the project."""
+    from researchhub.models.user import User
+
     await check_project_access(db, project_id, current_user.id, "admin")
+
+    # Check if user exists and get their info
+    user_result = await db.execute(select(User).where(User.id == member_data.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
 
     # Check if already a member
     existing = await db.execute(
@@ -810,7 +848,17 @@ async def add_project_member(
         project_id=str(project_id),
         user_id=str(member_data.user_id),
     )
-    return member
+
+    return {
+        "id": member.id,
+        "user_id": member.user_id,
+        "role": member.role,
+        "display_name": user.display_name,
+        "email": user.email,
+        "notify_on_task_assigned": member.notify_on_task_assigned,
+        "notify_on_document_update": member.notify_on_document_update,
+        "notify_on_comment": member.notify_on_comment,
+    }
 
 
 @router.delete("/{project_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

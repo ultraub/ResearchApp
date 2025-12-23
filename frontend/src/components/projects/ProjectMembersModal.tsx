@@ -185,15 +185,26 @@ export function ProjectMembersModal({
     }
   };
 
-  // Get display name for a user ID from available members list
+  // Get display name for a user ID - check member data first, then fall back to available members list
+  const getMemberDisplayName = (member: ProjectMember): string => {
+    if (member.display_name) return member.display_name;
+    if (member.email) return member.email;
+    // Fall back to lookup for backwards compatibility
+    const availableMember = availableMembersList.find((m) => m.user_id === member.user_id);
+    return availableMember?.display_name || availableMember?.email || "Unknown User";
+  };
+
+  const getMemberEmail = (member: ProjectMember): string => {
+    if (member.email) return member.email;
+    // Fall back to lookup for backwards compatibility
+    const availableMember = availableMembersList.find((m) => m.user_id === member.user_id);
+    return availableMember?.email || "";
+  };
+
+  // Get display name for a user ID from available members list (for add member dropdown)
   const getUserDisplayName = (userId: string): string => {
     const member = availableMembersList.find((m) => m.user_id === userId);
     return member?.display_name || member?.email || "Unknown User";
-  };
-
-  const getUserEmail = (userId: string): string => {
-    const member = availableMembersList.find((m) => m.user_id === userId);
-    return member?.email || "";
   };
 
   return (
@@ -435,14 +446,14 @@ export function ProjectMembersModal({
                             >
                               <div className="flex items-center gap-3">
                                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 text-sm font-medium text-gray-600 dark:bg-dark-elevated dark:text-gray-300">
-                                  {getUserDisplayName(member.user_id).charAt(0).toUpperCase()}
+                                  {getMemberDisplayName(member).charAt(0).toUpperCase()}
                                 </div>
                                 <div>
                                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {getUserDisplayName(member.user_id)}
+                                    {getMemberDisplayName(member)}
                                   </p>
                                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    {getUserEmail(member.user_id)}
+                                    {getMemberEmail(member)}
                                   </p>
                                 </div>
                               </div>

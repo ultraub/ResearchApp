@@ -292,13 +292,16 @@ function MembersTab({ org, members, isLoading, isAdmin, onAddMemberClick }: Memb
   });
 
   const getMemberDisplayName = (member: OrganizationMemberDetail): string => {
+    // Check API field names first, then legacy names
+    if (member.display_name) return member.display_name;
     if (member.user_name) return member.user_name;
+    if (member.email) return member.email;
     if (member.user_email) return member.user_email;
     return "Unknown User";
   };
 
   const getMemberEmail = (member: OrganizationMemberDetail): string => {
-    return member.user_email || "";
+    return member.email || member.user_email || "";
   };
 
   const handleRoleChange = (member: OrganizationMemberDetail, newRole: OrganizationMemberRole) => {

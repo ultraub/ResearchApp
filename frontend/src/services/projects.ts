@@ -44,6 +44,8 @@ export interface ProjectMember {
   id: string;
   user_id: string;
   role: "owner" | "admin" | "member" | "viewer";
+  display_name?: string | null;
+  email?: string | null;
   notify_on_task_assigned: boolean;
   notify_on_document_update: boolean;
   notify_on_comment: boolean;

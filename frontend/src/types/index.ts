@@ -741,13 +741,16 @@ export interface JoinResult {
 export type OrganizationMemberRole = "admin" | "member";
 
 export interface OrganizationMemberDetail {
-  id: string;
-  organization_id: string;
+  id?: string;
+  organization_id?: string;
   user_id: string;
   role: OrganizationMemberRole;
-  created_at: string;
-  updated_at: string;
-  // User info (when loaded)
+  created_at?: string;
+  updated_at?: string;
+  // User info - API returns these field names
+  display_name?: string | null;
+  email?: string | null;
+  // Legacy field names for backwards compatibility
   user_name?: string | null;
   user_email?: string | null;
 }
