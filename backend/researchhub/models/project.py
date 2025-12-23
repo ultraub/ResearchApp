@@ -389,25 +389,31 @@ class Task(BaseModel):
         "Task", remote_side="Task.id", back_populates="subtasks"
     )
     subtasks: Mapped[list["Task"]] = relationship(
-        "Task", back_populates="parent_task", lazy="selectin"
+        "Task", back_populates="parent_task", lazy="selectin",
+        cascade="all, delete-orphan", passive_deletes=True
     )
     comments: Mapped[list["TaskComment"]] = relationship(
-        "TaskComment", back_populates="task", lazy="selectin"
+        "TaskComment", back_populates="task", lazy="selectin",
+        cascade="all, delete-orphan", passive_deletes=True
     )
     assignments: Mapped[list["TaskAssignment"]] = relationship(
-        "TaskAssignment", back_populates="task", lazy="selectin"
+        "TaskAssignment", back_populates="task", lazy="selectin",
+        cascade="all, delete-orphan", passive_deletes=True
     )
     documents: Mapped[list["TaskDocument"]] = relationship(
-        "TaskDocument", back_populates="task", lazy="selectin"
+        "TaskDocument", back_populates="task", lazy="selectin",
+        cascade="all, delete-orphan", passive_deletes=True
     )
     custom_field_values: Mapped[list["TaskCustomFieldValue"]] = relationship(
-        "TaskCustomFieldValue", back_populates="task", lazy="selectin"
+        "TaskCustomFieldValue", back_populates="task", lazy="selectin",
+        cascade="all, delete-orphan", passive_deletes=True
     )
     recurring_rule: Mapped["RecurringTaskRule | None"] = relationship(
         "RecurringTaskRule", back_populates="created_tasks"
     )
     votes: Mapped[list["IdeaVote"]] = relationship(
-        "IdeaVote", back_populates="task", lazy="selectin"
+        "IdeaVote", back_populates="task", lazy="selectin",
+        cascade="all, delete-orphan", passive_deletes=True
     )
     source_idea: Mapped["Idea | None"] = relationship(
         "Idea", foreign_keys=[source_idea_id]
