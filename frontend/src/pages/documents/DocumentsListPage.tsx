@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { clsx } from "clsx";
 import toast from "react-hot-toast";
 import {
@@ -9,6 +9,7 @@ import {
   MagnifyingGlassIcon,
   FunnelIcon,
   ArchiveBoxIcon,
+  ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid";
 import {
@@ -18,6 +19,7 @@ import {
   deleteDocument,
   type Document,
 } from "@/services/documents";
+import { projectsService } from "@/services/projects";
 import { DocumentCard } from "@/components/documents";
 
 export function DocumentsListPage() {
@@ -27,6 +29,13 @@ export function DocumentsListPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [showArchived, setShowArchived] = useState(false);
+
+  // Fetch project details
+  const { data: project } = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => projectsService.get(projectId!),
+    enabled: !!projectId,
+  });
 
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ["documents", projectId, search, statusFilter, showArchived],
@@ -133,11 +142,32 @@ export function DocumentsListPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-2 text-sm">
+        <Link
+          to="/documents"
+          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        >
+          All Documents
+        </Link>
+        <ChevronRightIcon className="w-4 h-4 text-gray-400" />
+        <span className="text-gray-900 dark:text-white font-medium">
+          {project?.name || "Project Documents"}
+        </span>
+      </nav>
+
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Documents
-        </h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Documents
+          </h1>
+          {project && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              in {project.name}
+            </p>
+          )}
+        </div>
         <button
           onClick={handleCreateDocument}
           disabled={createMutation.isPending}

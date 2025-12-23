@@ -16,7 +16,8 @@ import { motion, useMotionValue, useTransform, PanInfo } from "framer-motion";
 import { clsx } from "clsx";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 
-// Hook to detect if we're on mobile
+// Hook to detect if we're on mobile with debounced resize handling
+// Debouncing prevents rapid state changes during DevTools resize which causes React errors
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -24,9 +25,27 @@ function useIsMobile() {
   });
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const checkMobile = () => {
+      // Clear any pending update
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      // Debounce to prevent rapid state changes during resize animations
+      // This prevents React Error #300 when DevTools is opened/closed
+      timeoutId = setTimeout(() => {
+        setIsMobile(window.innerWidth < 768);
+      }, 150);
+    };
+
     window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   return isMobile;
@@ -68,8 +87,21 @@ export function BottomSheet({
   const y = useMotionValue(0);
   const isMobile = useIsMobile();
 
-  // Don't render on desktop if mobileOnly is true
-  if (mobileOnly && !isMobile) {
+  // For mobileOnly sheets, close gracefully when switching to desktop mode
+  // This prevents React Error #300 caused by abrupt unmounting during Dialog transitions
+  useEffect(() => {
+    if (mobileOnly && !isMobile && isOpen) {
+      onClose();
+    }
+  }, [mobileOnly, isMobile, isOpen, onClose]);
+
+  // Calculate effective open state - for mobileOnly sheets, only show on mobile
+  // This ensures Transition animates out properly before we stop rendering
+  const effectivelyOpen = mobileOnly ? (isOpen && isMobile) : isOpen;
+
+  // Don't render at all if mobileOnly and not mobile and definitely closed
+  // The effectivelyOpen ensures transitions complete before we return null
+  if (mobileOnly && !isMobile && !isOpen) {
     return null;
   }
 
@@ -101,7 +133,7 @@ export function BottomSheet({
   }, [isOpen, y]);
 
   return (
-    <Transition show={isOpen} as={Fragment}>
+    <Transition show={effectivelyOpen} as={Fragment}>
       <Dialog onClose={onClose} className="relative z-50">
         {/* Backdrop */}
         <Transition.Child
