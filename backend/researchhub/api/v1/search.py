@@ -256,7 +256,7 @@ async def global_search(
                 id=paper.id,
                 type="paper",
                 title=paper.title,
-                description=paper.authors,
+                description=", ".join(paper.authors) if paper.authors else None,
                 snippet=_get_snippet(paper.abstract, q) if paper.abstract else None,
                 url=f"/knowledge/papers/{paper.id}",
                 created_at=paper.created_at,
