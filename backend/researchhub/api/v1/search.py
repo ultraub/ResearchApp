@@ -22,7 +22,7 @@ from researchhub.models import (
 )
 from researchhub.models.organization import Team
 
-router = APIRouter(prefix="/search", tags=["search"])
+router = APIRouter(tags=["search"])
 
 
 # --- Search Schemas ---
