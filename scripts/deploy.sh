@@ -68,11 +68,12 @@ else
     echo "⚠ Warning: Frontend health check failed or not available"
 fi
 
-# Cleanup old containers and images
+# Cleanup old containers, images, volumes, and build cache
 echo "=== Cleaning up ==="
 docker container prune -f
 docker image prune -af  # Remove all unused images, not just dangling
 docker volume prune -f --filter "label!=keep"  # Remove unused volumes except those labeled 'keep'
+docker builder prune -af  # Remove all build cache
 
 # Show disk usage
 echo "=== Disk usage ==="

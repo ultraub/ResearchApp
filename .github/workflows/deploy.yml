@@ -55,7 +55,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: ECR_REGISTRY
           script: |
-            cd /app
+            cd /home/ec2-user/app
+            source .env
             export ECR_REGISTRY=$ECR_REGISTRY
             ./deploy.sh
 
