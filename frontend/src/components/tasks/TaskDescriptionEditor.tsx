@@ -103,8 +103,8 @@ export default function TaskDescriptionEditor({
   onSave,
   placeholder = "Add a description...",
   editable = true,
-  autoSave = true,
-  autoSaveDelay = 1000,
+  autoSave = false,
+  autoSaveDelay = 2000,
   className,
   minHeight = "150px",
 }: TaskDescriptionEditorProps) {
@@ -347,17 +347,28 @@ export default function TaskDescriptionEditor({
 
           <div className="flex-1" />
 
-          {/* Save status */}
+          {/* Save button and status */}
           {onSave && (
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {isSaving ? (
-                "Saving..."
-              ) : hasUnsavedChanges ? (
-                <span className="text-amber-600 dark:text-amber-400">Unsaved</span>
-              ) : (
-                "Saved"
+            <div className="flex items-center gap-2">
+              {hasUnsavedChanges && (
+                <button
+                  onClick={() => handleSave()}
+                  disabled={isSaving}
+                  className="px-2 py-0.5 text-xs font-medium rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </button>
               )}
-            </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {isSaving ? (
+                  "Saving..."
+                ) : hasUnsavedChanges ? (
+                  <span className="text-amber-600 dark:text-amber-400">Unsaved changes</span>
+                ) : (
+                  "✓ Saved"
+                )}
+              </span>
+            </div>
           )}
         </div>
       )}

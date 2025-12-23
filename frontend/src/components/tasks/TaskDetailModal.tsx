@@ -738,8 +738,7 @@ export default function TaskDetailModal({
                                       description: JSON.stringify(content),
                                     }));
                                   }}
-                                  autoSave={true}
-                                  autoSaveDelay={1500}
+                                  autoSave={false}
                                   minHeight="150px"
                                 />
                               </div>

@@ -740,10 +740,10 @@ async def create_org_invite(
             detail="Failed to generate unique invite code",
         )
 
-    # Calculate expiration
+    # Calculate expiration (use naive UTC datetime for DB compatibility)
     expires_at = None
     if invite_data.expires_in_hours:
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=invite_data.expires_in_hours)
+        expires_at = datetime.utcnow() + timedelta(hours=invite_data.expires_in_hours)
 
     invite = InviteCode(
         code=code,
