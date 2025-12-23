@@ -75,7 +75,10 @@ class User(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<User {self.email}>"
+        try:
+            return f"<User {self.email}>"
+        except Exception:
+            return f"<User id={self.id}>"
 
 
 class UserPreferences(BaseModel):
