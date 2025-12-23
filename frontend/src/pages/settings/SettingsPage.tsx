@@ -1119,8 +1119,9 @@ function OrganizationSettings() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [orgName, setOrgName] = useState('');
   const [orgSlug, setOrgSlug] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const { organization, teams, fetchOrganizationsAndTeams } = useOrganizationStore();
+  const { organizations, fetchOrganizationsAndTeams } = useOrganizationStore();
 
   const createOrgMutation = useMutation({
     mutationFn: async (data: { name: string; slug: string }) => {
@@ -1152,10 +1153,48 @@ function OrganizationSettings() {
     },
   });
 
+  const joinOrgMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const response = await fetch('/api/v1/invites/join', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${useAuthStore.getState().accessToken}`,
+        },
+        body: JSON.stringify({ code: code.toUpperCase() }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to join organization');
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setToast({ message: `Successfully joined ${data.name}!`, type: 'success' });
+      fetchOrganizationsAndTeams();
+      setInviteCode('');
+      setTimeout(() => setToast(null), 3000);
+    },
+    onError: (error: Error) => {
+      setToast({ message: error.message, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    },
+  });
+
   const handleCreateOrg = (e: React.FormEvent) => {
     e.preventDefault();
     if (!orgName.trim() || !orgSlug.trim()) return;
     createOrgMutation.mutate({ name: orgName.trim(), slug: orgSlug.trim().toLowerCase() });
+  };
+
+  const handleJoinOrg = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteCode.trim()) {
+      setToast({ message: 'Please enter an invite code', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    joinOrgMutation.mutate(inviteCode.trim());
   };
 
   // Auto-generate slug from name
@@ -1170,58 +1209,49 @@ function OrganizationSettings() {
     setOrgSlug(slug);
   };
 
-  if (organization) {
-    return (
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Organization</h2>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          Manage your organization settings
-        </p>
-
-        <div className="mt-6 space-y-4">
-          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-600">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-100 dark:bg-primary-900/30">
-                <BuildingOfficeIcon className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">{organization.name}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">@{organization.slug}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-600">
-            <p className="font-medium text-gray-900 dark:text-white">Teams</p>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {teams.length} team{teams.length !== 1 ? 's' : ''} in this organization
-            </p>
-            <div className="mt-3 space-y-2">
-              {teams.map((team) => (
-                <div key={team.id} className="flex items-center gap-2 rounded-lg bg-gray-50 p-2 dark:bg-gray-700">
-                  <div className="h-2 w-2 rounded-full bg-green-500" />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{team.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        {toast && <Toast message={toast.message} type={toast.type} />}
-      </div>
-    );
-  }
-
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Organization</h2>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Organizations</h2>
       <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-        Manage your organization settings
+        Manage your organizations and memberships
       </p>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-6">
+        {/* Existing Organizations */}
+        {organizations.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Your Organizations ({organizations.length})
+            </h3>
+            {organizations.map((org) => (
+              <div
+                key={org.id}
+                className="rounded-lg border border-gray-200 p-4 dark:border-gray-600"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-100 dark:bg-primary-900/30">
+                    <BuildingOfficeIcon className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 dark:text-white">{org.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">@{org.slug}</p>
+                  </div>
+                  <a
+                    href={`/organizations/${org.id}`}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    Manage
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Create Organization Form */}
         {showCreateForm ? (
           <form onSubmit={handleCreateOrg} className="rounded-lg border border-gray-200 p-4 dark:border-gray-600">
-            <h3 className="font-medium text-gray-900 dark:text-white">Create Organization</h3>
+            <h3 className="font-medium text-gray-900 dark:text-white">Create New Organization</h3>
             <div className="mt-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1270,37 +1300,37 @@ function OrganizationSettings() {
             </div>
           </form>
         ) : (
-          <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center dark:border-gray-600">
-            <BuildingOfficeIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-4 font-medium text-gray-900 dark:text-white">
-              No organization yet
-            </h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Create an organization to collaborate with your team
-            </p>
-            <button
-              onClick={() => setShowCreateForm(true)}
-              className="mt-4 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
-            >
-              Create Organization
-            </button>
-          </div>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600 dark:border-gray-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+          >
+            <BuildingOfficeIcon className="h-5 w-5" />
+            Create New Organization
+          </button>
         )}
 
-        <div className="mt-6">
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Or join an existing organization
+        {/* Join Organization */}
+        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-600">
+          <h3 className="font-medium text-gray-900 dark:text-white">Join an Organization</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Enter an invite code to join an existing organization
           </p>
-          <div className="mt-2 flex gap-2">
+          <form onSubmit={handleJoinOrg} className="mt-3 flex gap-2">
             <input
               type="text"
-              placeholder="Enter invite code"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              placeholder="Enter invite code (e.g., ORG-ABC123)"
               className="flex-1 rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
             />
-            <button className="rounded-lg border border-primary-600 px-4 py-2 text-sm font-medium text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20">
-              Join
+            <button
+              type="submit"
+              disabled={joinOrgMutation.isPending}
+              className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+            >
+              {joinOrgMutation.isPending ? 'Joining...' : 'Join'}
             </button>
-          </div>
+          </form>
         </div>
       </div>
       {toast && <Toast message={toast.message} type={toast.type} />}

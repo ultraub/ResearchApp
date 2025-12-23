@@ -21,6 +21,7 @@ export function ConvertToTaskModal({
   const queryClient = useQueryClient();
   const [projectId, setProjectId] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
+  const [initialStatus, setInitialStatus] = useState<"idea" | "todo">("idea");
 
   const { data: projectsData, isLoading: projectsLoading } = useQuery({
     queryKey: ["projects", { status: "active" }],
@@ -35,6 +36,7 @@ export function ConvertToTaskModal({
       ideasService.convertToTask(idea!.id, {
         project_id: projectId,
         task_title: taskTitle || undefined,
+        initial_status: initialStatus,
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["ideas"] });
@@ -133,6 +135,50 @@ export function ConvertToTaskModal({
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Leave empty to use the idea content as the task title
             </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              How should this be added?
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-start gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer hover:bg-gray-50 dark:border-dark-border dark:hover:bg-dark-base">
+                <input
+                  type="radio"
+                  name="initialStatus"
+                  value="idea"
+                  checked={initialStatus === "idea"}
+                  onChange={() => setInitialStatus("idea")}
+                  className="mt-0.5 h-4 w-4 text-primary-600 focus:ring-primary-500"
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    For team review (recommended)
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Appears in Ideas column for voting and scoring before becoming actionable
+                  </p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer hover:bg-gray-50 dark:border-dark-border dark:hover:bg-dark-base">
+                <input
+                  type="radio"
+                  name="initialStatus"
+                  value="todo"
+                  checked={initialStatus === "todo"}
+                  onChange={() => setInitialStatus("todo")}
+                  className="mt-0.5 h-4 w-4 text-primary-600 focus:ring-primary-500"
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    Ready for action
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Goes directly to Todo column, skipping team review
+                  </p>
+                </div>
+              </label>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">

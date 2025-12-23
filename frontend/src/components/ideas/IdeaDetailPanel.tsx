@@ -22,6 +22,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import toast from "react-hot-toast";
 import { ideasService } from "@/services/ideas";
 import type { Idea } from "@/types";
+import OwnerDisplay from "@/components/common/OwnerDisplay";
 
 interface IdeaDetailPanelProps {
   isOpen: boolean;
@@ -189,10 +190,26 @@ export default function IdeaDetailPanel({
 
   const handleClose = () => {
     if (hasChanges) {
-      // Auto-save on close
-      handleSave();
+      // Auto-save on close with user feedback
+      toast.loading("Saving changes...", { id: "auto-save" });
+      updateMutation.mutate(
+        { title: title || undefined, content, tags },
+        {
+          onSuccess: () => {
+            toast.success("Changes saved", { id: "auto-save" });
+            setHasChanges(false);
+            onClose();
+          },
+          onError: () => {
+            toast.error("Failed to save changes", { id: "auto-save" });
+            // Still close but user knows save failed
+            onClose();
+          },
+        }
+      );
+    } else {
+      onClose();
     }
-    onClose();
   };
 
   return (
@@ -422,6 +439,22 @@ export default function IdeaDetailPanel({
                           {/* Metadata */}
                           <div className="border-t border-gray-200 pt-4 dark:border-dark-border">
                             <div className="grid grid-cols-2 gap-4 text-sm text-gray-500 dark:text-gray-400">
+                              <div>
+                                <span className="font-medium">Created by</span>
+                                <div className="mt-1">
+                                  {idea?.user_name ? (
+                                    <OwnerDisplay
+                                      name={idea.user_name}
+                                      email={idea.user_email}
+                                      id={idea.user_id}
+                                      size="sm"
+                                      showName
+                                    />
+                                  ) : (
+                                    <span className="text-gray-400">Unknown</span>
+                                  )}
+                                </div>
+                              </div>
                               <div>
                                 <span className="font-medium">Created</span>
                                 <p>

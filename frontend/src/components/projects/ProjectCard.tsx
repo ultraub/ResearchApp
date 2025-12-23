@@ -17,6 +17,7 @@ import { clsx } from "clsx";
 import type { Project } from "@/types";
 import { TeamBadge } from "./TeamBadge";
 import { ProjectBreadcrumb } from "./ProjectBreadcrumb";
+import OwnerDisplay from "@/components/common/OwnerDisplay";
 
 interface ProjectCardProps {
   project: Project;
@@ -75,6 +76,18 @@ export function ProjectCard({
               teamName={project.team_name}
               isPersonal={project.team_is_personal}
             />
+            {/* Creator */}
+            {project.created_by_name && (
+              <span className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
+                <span className="text-[10px]">by</span>
+                <OwnerDisplay
+                  name={project.created_by_name}
+                  email={project.created_by_email}
+                  id={project.created_by_id}
+                  size="xs"
+                />
+              </span>
+            )}
           </div>
           {project.description && (
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 truncate">
@@ -192,8 +205,22 @@ export function ProjectCard({
           </div>
         )}
 
-        <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-          Updated {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+        <div className="mt-4 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+          {/* Creator */}
+          {project.created_by_name && (
+            <span className="flex items-center gap-1">
+              <span className="text-[10px]">by</span>
+              <OwnerDisplay
+                name={project.created_by_name}
+                email={project.created_by_email}
+                id={project.created_by_id}
+                size="xs"
+              />
+            </span>
+          )}
+          <span>
+            Updated {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+          </span>
         </div>
       </Link>
     </div>

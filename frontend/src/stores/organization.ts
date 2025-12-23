@@ -23,15 +23,18 @@ export interface Team {
 
 interface OrganizationState {
   organization: Organization | null;
+  organizations: Organization[];  // All user's organizations
   teams: Team[];
   currentTeamId: string | null;
   isLoading: boolean;
 
   // Actions
   setOrganization: (org: Organization | null) => void;
+  setOrganizations: (orgs: Organization[]) => void;
   setTeams: (teams: Team[]) => void;
   setCurrentTeam: (teamId: string) => void;
   fetchOrganizationsAndTeams: () => Promise<void>;
+  refreshOrganizations: () => Promise<void>;
   refreshTeams: () => Promise<void>;
   initializeDevOrganization: () => Promise<void>;
   clear: () => void;
@@ -41,12 +44,17 @@ export const useOrganizationStore = create<OrganizationState>()(
   persist(
     (set, get) => ({
       organization: null,
+      organizations: [],
       teams: [],
       currentTeamId: null,
       isLoading: false,
 
       setOrganization: (org: Organization | null) => {
         set({ organization: org });
+      },
+
+      setOrganizations: (orgs: Organization[]) => {
+        set({ organizations: orgs });
       },
 
       setTeams: (teams: Team[]) => {
@@ -70,6 +78,10 @@ export const useOrganizationStore = create<OrganizationState>()(
           const orgsResponse = await api.get<Organization[]>("/organizations/");
           const orgs = orgsResponse.data || [];
 
+          // Store all organizations
+          set({ organizations: orgs });
+
+          // Set first org as current if none selected
           if (orgs.length > 0) {
             set({ organization: orgs[0] });
           }
@@ -92,6 +104,31 @@ export const useOrganizationStore = create<OrganizationState>()(
           console.error("Failed to fetch organizations and teams:", error);
         } finally {
           set({ isLoading: false });
+        }
+      },
+
+      refreshOrganizations: async () => {
+        try {
+          const orgsResponse = await api.get<Organization[]>("/organizations/");
+          const orgs = orgsResponse.data || [];
+          set({ organizations: orgs });
+
+          // Update current organization if it still exists
+          const currentOrg = get().organization;
+          if (currentOrg) {
+            const updatedOrg = orgs.find(o => o.id === currentOrg.id);
+            if (updatedOrg) {
+              set({ organization: updatedOrg });
+            } else if (orgs.length > 0) {
+              // Current org no longer exists, select first
+              set({ organization: orgs[0] });
+            }
+          } else if (orgs.length > 0) {
+            // No org selected, select first
+            set({ organization: orgs[0] });
+          }
+        } catch (error) {
+          console.error("Failed to refresh organizations:", error);
         }
       },
 
@@ -124,6 +161,7 @@ export const useOrganizationStore = create<OrganizationState>()(
       clear: () => {
         set({
           organization: null,
+          organizations: [],
           teams: [],
           currentTeamId: null,
           isLoading: false,

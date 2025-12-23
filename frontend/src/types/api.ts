@@ -101,10 +101,24 @@ export interface Document {
   project_id: string;
   title: string;
   content: Record<string, unknown>;
+  content_text?: string | null;
   document_type: string;
   status: "draft" | "in_review" | "approved" | "published";
   version: number;
   created_by_id: string;
+  // Creator info
+  created_by_name?: string | null;
+  created_by_email?: string | null;
+  last_edited_by_id?: string | null;
+  // Last editor info
+  last_edited_by_name?: string | null;
+  last_edited_by_email?: string | null;
+  template_id?: string | null;
+  allow_comments?: boolean;
+  allow_suggestions?: boolean;
+  word_count?: number;
+  tags?: string[];
+  is_archived?: boolean;
   created_at: string;
   updated_at: string;
 }

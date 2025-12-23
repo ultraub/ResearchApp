@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import structlog
 
-from researchhub.models.organization import Team, TeamMember, OrganizationMember
+from researchhub.models.organization import Organization, Team, TeamMember, OrganizationMember
 from researchhub.models.project import Project, ProjectMember, ProjectTeam, ProjectExclusion
 from researchhub.models.collaboration import ProjectShare
 from researchhub.models.user import User
@@ -314,6 +314,98 @@ async def get_or_create_personal_team(
     await db.refresh(personal_team)
 
     return personal_team
+
+
+def _generate_org_slug(name: str, user_id: str) -> str:
+    """
+    Generate a unique slug for an organization.
+
+    Format: {sanitized-name}-{uuid[:8]}
+    Example: "robert-barretts-org-a1b2c3d4"
+    """
+    import re
+    # Sanitize: lowercase, replace non-alphanumeric with hyphens
+    slug_base = name.lower()
+    slug_base = re.sub(r"[^a-z0-9]+", "-", slug_base)
+    slug_base = re.sub(r"^-+|-+$", "", slug_base)  # Trim leading/trailing hyphens
+    slug_base = re.sub(r"-+", "-", slug_base)  # Collapse multiple hyphens
+
+    # Add UUID suffix for uniqueness (first 8 chars)
+    uuid_suffix = user_id.replace("-", "")[:8]
+
+    return f"{slug_base}-{uuid_suffix}"
+
+
+async def get_or_create_personal_organization(
+    db: AsyncSession,
+    user: User,
+) -> Organization:
+    """
+    Get or create user's default personal organization.
+
+    Personal organizations:
+    - Named "{display_name}'s Organization"
+    - User is added as admin
+    - Created automatically on first login
+
+    Args:
+        db: Database session
+        user: User to get/create personal organization for
+
+    Returns:
+        The user's personal organization
+    """
+    # Check if user already has any organization membership
+    result = await db.execute(
+        select(OrganizationMember).where(
+            OrganizationMember.user_id == user.id,
+        )
+    )
+    existing_membership = result.scalar_one_or_none()
+
+    if existing_membership:
+        # User already has an organization, get it
+        org_result = await db.execute(
+            select(Organization).where(
+                Organization.id == existing_membership.organization_id
+            )
+        )
+        org = org_result.scalar_one_or_none()
+        if org:
+            return org
+
+    # Create personal organization
+    display_name = user.display_name or user.email.split("@")[0]
+    org_name = f"{display_name}'s Organization"
+    org_slug = _generate_org_slug(display_name, str(user.id))
+
+    organization = Organization(
+        name=org_name,
+        slug=org_slug,
+        settings={},
+    )
+    db.add(organization)
+    await db.flush()
+
+    # Add user as admin
+    org_member = OrganizationMember(
+        organization_id=organization.id,
+        user_id=user.id,
+        role="admin",
+    )
+    db.add(org_member)
+
+    logger.info(
+        "Created personal organization for user",
+        user_id=str(user.id),
+        organization_id=str(organization.id),
+        organization_name=org_name,
+    )
+
+    await db.commit()
+    await db.refresh(organization)
+
+    return organization
 
 
 async def ensure_org_membership(

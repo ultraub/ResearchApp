@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from researchhub.config import get_settings
 from researchhub.db.session import get_db_session
 from researchhub.models.user import User
-from researchhub.services.access_control import get_or_create_personal_team
+from researchhub.services.access_control import get_or_create_personal_team, get_or_create_personal_organization
 from researchhub.services.google_oauth import GoogleOAuthService
 
 router = APIRouter()
@@ -294,6 +294,9 @@ async def google_login(
 
         # Ensure user has a personal team (creates one if missing)
         await get_or_create_personal_team(db, user)
+
+        # Ensure user has a default organization (creates one if missing)
+        await get_or_create_personal_organization(db, user)
 
         await db.commit()
 

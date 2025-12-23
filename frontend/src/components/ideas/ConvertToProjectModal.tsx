@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { XMarkIcon, FolderIcon } from "@heroicons/react/24/outline";
 import { ideasService } from "@/services/ideas";
+import { useTeams } from "@/hooks/useTeams";
 import type { Idea } from "@/types";
 
 interface ConvertToProjectModalProps {
@@ -20,15 +21,23 @@ export function ConvertToProjectModal({
   const queryClient = useQueryClient();
   const [projectName, setProjectName] = useState("");
   const [projectType, setProjectType] = useState("research");
+  const [selectedTeamId, setSelectedTeamId] = useState("");
 
-  // For now, use a placeholder team_id - in a real app this would come from context/store
-  const teamId = "default-team";
+  // Get teams from hook
+  const { teams, currentTeamId, isLoading: teamsLoading } = useTeams();
+
+  // Set default team when teams load or modal opens
+  useEffect(() => {
+    if (isOpen && currentTeamId && !selectedTeamId) {
+      setSelectedTeamId(currentTeamId);
+    }
+  }, [isOpen, currentTeamId, selectedTeamId]);
 
   const convertMutation = useMutation({
     mutationFn: () =>
       ideasService.convertToProject(idea!.id, {
         project_name: projectName || idea?.title || "New Project",
-        team_id: teamId,
+        team_id: selectedTeamId,
         project_type: projectType,
       }),
     onSuccess: (data) => {
@@ -114,6 +123,35 @@ export function ConvertToProjectModal({
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Team *
+            </label>
+            {teamsLoading ? (
+              <div className="mt-1 flex h-10 items-center justify-center rounded-lg border border-gray-300 dark:border-dark-border">
+                <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600" />
+              </div>
+            ) : teams.length === 0 ? (
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                No teams available. Join or create a team first.
+              </p>
+            ) : (
+              <select
+                value={selectedTeamId}
+                onChange={(e) => setSelectedTeamId(e.target.value)}
+                required
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-border dark:bg-dark-elevated dark:text-white"
+              >
+                <option value="">Select a team...</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
           <div className="flex gap-3 pt-2">
             <button
               type="button"
@@ -124,7 +162,7 @@ export function ConvertToProjectModal({
             </button>
             <button
               type="submit"
-              disabled={convertMutation.isPending}
+              disabled={convertMutation.isPending || !selectedTeamId || teams.length === 0}
               className="flex-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
             >
               {convertMutation.isPending ? "Converting..." : "Convert to Project"}

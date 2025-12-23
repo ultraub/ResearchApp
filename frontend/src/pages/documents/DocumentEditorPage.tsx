@@ -24,6 +24,7 @@ import {
 } from '../../services/documents';
 import { DocumentCommentsSidebar } from '../../components/documents';
 import { AISidebar } from '../../components/ai';
+import OwnerDisplay from '@/components/common/OwnerDisplay';
 import { useDocumentComments } from '../../hooks/useDocumentComments';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 
@@ -340,6 +341,37 @@ export function DocumentEditorPage() {
             </Menu>
           </div>
         </div>
+
+        {/* Creator/Editor info */}
+        {(document.created_by_name || document.last_edited_by_name) && (
+          <div className="flex items-center gap-4 mt-2 ml-12 text-xs text-gray-500 dark:text-gray-400">
+            {document.created_by_name && (
+              <span className="flex items-center gap-1">
+                <span>Created by</span>
+                <OwnerDisplay
+                  name={document.created_by_name}
+                  email={document.created_by_email}
+                  id={document.created_by_id}
+                  size="xs"
+                  showName
+                />
+              </span>
+            )}
+            {document.last_edited_by_name && document.last_edited_by_id !== document.created_by_id && (
+              <span className="flex items-center gap-1">
+                <span>•</span>
+                <span>Last edited by</span>
+                <OwnerDisplay
+                  name={document.last_edited_by_name}
+                  email={document.last_edited_by_email}
+                  id={document.last_edited_by_id}
+                  size="xs"
+                  showName
+                />
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main content area */}

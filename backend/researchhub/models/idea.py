@@ -11,7 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from researchhub.db.base import BaseModel
 
 if TYPE_CHECKING:
-    from researchhub.models.project import Project
+    from researchhub.models.project import Project, Task
     from researchhub.models.user import User
 
 
@@ -84,6 +84,9 @@ class Idea(BaseModel):
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
     converted_to_project: Mapped["Project | None"] = relationship(
         "Project", foreign_keys=[converted_to_project_id]
+    )
+    converted_to_task: Mapped["Task | None"] = relationship(
+        "Task", foreign_keys=[converted_to_task_id]
     )
     ai_suggested_project: Mapped["Project | None"] = relationship(
         "Project", foreign_keys=[ai_suggested_project_id]

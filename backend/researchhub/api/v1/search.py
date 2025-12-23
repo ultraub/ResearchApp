@@ -20,6 +20,7 @@ from researchhub.models import (
     User,
     JournalEntry,
 )
+from researchhub.models.organization import Team
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -88,11 +89,12 @@ async def global_search(
     # Determine which types to search
     search_types = types or ["project", "task", "document", "idea", "paper", "collection", "user", "journal"]
 
-    # Search Projects
+    # Search Projects (join through Team to get organization_id)
     if "project" in search_types:
         project_query = (
             select(Project)
-            .where(Project.organization_id == organization_id)
+            .join(Team, Project.team_id == Team.id)
+            .where(Team.organization_id == organization_id)
             .where(
                 or_(
                     func.lower(Project.name).like(search_term),
@@ -122,12 +124,13 @@ async def global_search(
                 },
             ))
 
-    # Search Tasks (scoped to organization via project)
+    # Search Tasks (scoped to organization via project -> team)
     if "task" in search_types:
         task_query = (
             select(Task)
             .join(Project, Task.project_id == Project.id)
-            .where(Project.organization_id == organization_id)
+            .join(Team, Project.team_id == Team.id)
+            .where(Team.organization_id == organization_id)
             .where(
                 or_(
                     func.lower(Task.title).like(search_term),
@@ -160,15 +163,17 @@ async def global_search(
                 },
             ))
 
-    # Search Documents
+    # Search Documents (join through Project -> Team to get organization_id)
     if "document" in search_types:
         doc_query = (
             select(Document)
-            .where(Document.organization_id == organization_id)
+            .join(Project, Document.project_id == Project.id)
+            .join(Team, Project.team_id == Team.id)
+            .where(Team.organization_id == organization_id)
             .where(
                 or_(
                     func.lower(Document.title).like(search_term),
-                    func.lower(Document.content).like(search_term),
+                    func.lower(Document.content_text).like(search_term),
                 )
             )
         )
@@ -186,7 +191,7 @@ async def global_search(
                 type="document",
                 title=doc.title,
                 description=None,
-                snippet=_get_snippet(doc.content, q) if doc.content else None,
+                snippet=_get_snippet(doc.content_text, q) if doc.content_text else None,
                 url=f"/documents/{doc.id}",
                 created_at=doc.created_at,
                 updated_at=doc.updated_at,

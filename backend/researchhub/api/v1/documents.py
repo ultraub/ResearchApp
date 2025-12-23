@@ -75,7 +75,13 @@ class DocumentResponse(BaseModel):
     version: int
     project_id: UUID
     created_by_id: UUID | None
+    # Creator info
+    created_by_name: str | None = None
+    created_by_email: str | None = None
     last_edited_by_id: UUID | None
+    # Last editor info
+    last_edited_by_name: str | None = None
+    last_edited_by_email: str | None = None
     template_id: UUID | None
     allow_comments: bool
     allow_suggestions: bool
@@ -173,6 +179,34 @@ class DocumentTemplateResponse(BaseModel):
         from_attributes = True
 
 
+def document_to_response(document: Document) -> dict:
+    """Convert document model to response dict with user info."""
+    return {
+        "id": document.id,
+        "title": document.title,
+        "content": document.content,
+        "content_text": document.content_text,
+        "document_type": document.document_type,
+        "status": document.status,
+        "version": document.version,
+        "project_id": document.project_id,
+        "created_by_id": document.created_by_id,
+        "created_by_name": document.created_by.display_name if document.created_by else None,
+        "created_by_email": document.created_by.email if document.created_by else None,
+        "last_edited_by_id": document.last_edited_by_id,
+        "last_edited_by_name": document.last_edited_by.display_name if document.last_edited_by else None,
+        "last_edited_by_email": document.last_edited_by.email if document.last_edited_by else None,
+        "template_id": document.template_id,
+        "allow_comments": document.allow_comments,
+        "allow_suggestions": document.allow_suggestions,
+        "word_count": document.word_count,
+        "tags": document.tags,
+        "is_archived": document.is_archived,
+        "created_at": document.created_at,
+        "updated_at": document.updated_at,
+    }
+
+
 def count_words(content: dict) -> int:
     """Count words in TipTap content."""
 
@@ -239,7 +273,7 @@ async def create_document(
     )
     db.add(document)
     await db.commit()
-    await db.refresh(document)
+    await db.refresh(document, ["created_by", "last_edited_by"])
 
     logger.info(
         "Document created",
@@ -263,7 +297,7 @@ async def create_document(
             error=str(e),
         )
 
-    return document
+    return document_to_response(document)
 
 
 @router.get("/", response_model=DocumentListResponse)
@@ -315,11 +349,17 @@ async def list_documents(
     query = query.order_by(Document.updated_at.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
+    # Load user relationships
+    query = query.options(
+        selectinload(Document.created_by),
+        selectinload(Document.last_edited_by),
+    )
+
     result = await db.execute(query)
     documents = list(result.scalars().all())
 
     return {
-        "items": documents,
+        "items": [document_to_response(doc) for doc in documents],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -358,10 +398,15 @@ async def get_document(
     document_id: UUID,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> Document:
+) -> dict:
     """Get a specific document."""
     result = await db.execute(
-        select(Document).where(Document.id == document_id)
+        select(Document)
+        .options(
+            selectinload(Document.created_by),
+            selectinload(Document.last_edited_by),
+        )
+        .where(Document.id == document_id)
     )
     document = result.scalar_one_or_none()
 
@@ -374,7 +419,7 @@ async def get_document(
     # Verify project access
     await check_project_access(db, document.project_id, current_user.id)
 
-    return document
+    return document_to_response(document)
 
 
 @router.patch("/{document_id}", response_model=DocumentResponse)
@@ -431,7 +476,7 @@ async def update_document(
     document.last_edited_by_id = current_user.id
 
     await db.commit()
-    await db.refresh(document)
+    await db.refresh(document, ["created_by", "last_edited_by"])
 
     logger.info("Document updated", document_id=str(document_id))
 
@@ -452,7 +497,7 @@ async def update_document(
                 error=str(e),
             )
 
-    return document
+    return document_to_response(document)
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -607,14 +652,14 @@ async def restore_document_version(
     document.last_edited_by_id = current_user.id
 
     await db.commit()
-    await db.refresh(document)
+    await db.refresh(document, ["created_by", "last_edited_by"])
 
     logger.info(
         "Document restored to version",
         document_id=str(document_id),
         restored_version=version,
     )
-    return document
+    return document_to_response(document)
 
 
 # Comment endpoints

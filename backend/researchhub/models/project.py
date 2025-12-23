@@ -24,6 +24,7 @@ MAX_HIERARCHY_DEPTH = 2
 
 if TYPE_CHECKING:
     from researchhub.models.document import Document
+    from researchhub.models.idea import Idea
     from researchhub.models.organization import Team
     from researchhub.models.user import User
 
@@ -364,6 +365,14 @@ class Task(BaseModel):
         index=True,
     )
 
+    # Link to source idea if task was created from personal idea capture
+    source_idea_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("ideas.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="tasks")
     created_by: Mapped["User | None"] = relationship(
@@ -393,6 +402,9 @@ class Task(BaseModel):
     )
     votes: Mapped[list["IdeaVote"]] = relationship(
         "IdeaVote", back_populates="task", lazy="selectin"
+    )
+    source_idea: Mapped["Idea | None"] = relationship(
+        "Idea", foreign_keys=[source_idea_id]
     )
 
     def __repr__(self) -> str:

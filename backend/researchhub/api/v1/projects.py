@@ -112,6 +112,9 @@ class ProjectResponse(BaseModel):
     is_archived: bool
     settings: dict
     created_by_id: UUID | None
+    # Creator info
+    created_by_name: str | None = None
+    created_by_email: str | None = None
     created_at: datetime
     updated_at: datetime
     task_count: int = 0
@@ -446,13 +449,14 @@ async def list_projects(
     query = query.order_by(Project.updated_at.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
-    # Load subprojects, tasks, project_teams, exclusions, and team for computed fields
+    # Load subprojects, tasks, project_teams, exclusions, team, and creator for computed fields
     query = query.options(
         selectinload(Project.subprojects),
         selectinload(Project.tasks),
         selectinload(Project.project_teams),
         selectinload(Project.exclusions),
         selectinload(Project.team).selectinload(Team.organization),
+        selectinload(Project.created_by),
     )
 
     result = await db.execute(query)
@@ -527,6 +531,8 @@ async def list_projects(
             is_archived=project.is_archived,
             settings=project.settings,
             created_by_id=project.created_by_id,
+            created_by_name=project.created_by.display_name if project.created_by else None,
+            created_by_email=project.created_by.email if project.created_by else None,
             created_at=project.created_at,
             updated_at=project.updated_at,
             task_count=len(project.tasks) if project.tasks else 0,
@@ -585,13 +591,14 @@ async def get_project(
     # Check access first
     await check_project_access(db, project_id, current_user.id)
 
-    # Load project with subprojects, tasks, and team for computed fields
+    # Load project with subprojects, tasks, team, and creator for computed fields
     result = await db.execute(
         select(Project)
         .options(
             selectinload(Project.subprojects),
             selectinload(Project.tasks),
             selectinload(Project.team).selectinload(Team.organization),
+            selectinload(Project.created_by),
         )
         .where(Project.id == project_id)
     )
@@ -632,6 +639,8 @@ async def get_project(
         is_archived=project.is_archived,
         settings=project.settings,
         created_by_id=project.created_by_id,
+        created_by_name=project.created_by.display_name if project.created_by else None,
+        created_by_email=project.created_by.email if project.created_by else None,
         created_at=project.created_at,
         updated_at=project.updated_at,
         task_count=len(project.tasks) if project.tasks else 0,
@@ -667,6 +676,7 @@ async def update_project(
             selectinload(Project.subprojects),
             selectinload(Project.tasks),
             selectinload(Project.team).selectinload(Team.organization),
+            selectinload(Project.created_by),
         )
         .where(Project.id == project_id)
     )
@@ -716,6 +726,8 @@ async def update_project(
         is_archived=project.is_archived,
         settings=project.settings,
         created_by_id=project.created_by_id,
+        created_by_name=project.created_by.display_name if project.created_by else None,
+        created_by_email=project.created_by.email if project.created_by else None,
         created_at=project.created_at,
         updated_at=project.updated_at,
         task_count=len(project.tasks) if project.tasks else 0,
@@ -1158,10 +1170,10 @@ async def change_project_scope(
     )
     exclusion_count = exclusions_result.scalar() or 0
 
-    # Load for task counts
+    # Load for task counts and creator
     result = await db.execute(
         select(Project)
-        .options(selectinload(Project.subprojects), selectinload(Project.tasks))
+        .options(selectinload(Project.subprojects), selectinload(Project.tasks), selectinload(Project.created_by))
         .where(Project.id == project_id)
     )
     project = result.scalar_one()
@@ -1190,6 +1202,8 @@ async def change_project_scope(
         is_archived=project.is_archived,
         settings=project.settings,
         created_by_id=project.created_by_id,
+        created_by_name=project.created_by.display_name if project.created_by else None,
+        created_by_email=project.created_by.email if project.created_by else None,
         created_at=project.created_at,
         updated_at=project.updated_at,
         task_count=len(project.tasks) if project.tasks else 0,

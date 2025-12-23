@@ -44,6 +44,10 @@ export interface Idea {
   converted_at: string | null;
   created_at: string;
   updated_at: string;
+  // Owner info
+  user_id?: string;
+  user_name?: string | null;
+  user_email?: string | null;
 }
 
 // Project ancestor for breadcrumb display
@@ -72,6 +76,9 @@ export interface Project {
   is_archived: boolean;
   settings: Record<string, unknown>;
   created_by_id: string | null;
+  // Creator info
+  created_by_name?: string | null;
+  created_by_email?: string | null;
   created_at: string;
   updated_at: string;
   task_count?: number;
@@ -120,6 +127,9 @@ export interface Task {
   project_name?: string | null; // Populated when fetching aggregated tasks
   assignee_id: string | null;
   created_by_id: string | null;
+  // Creator info
+  created_by_name?: string | null;
+  created_by_email?: string | null;
   due_date: string | null;
   completed_at: string | null;
   position: number;
@@ -140,6 +150,19 @@ export interface Task {
   user_voted?: boolean;
   impact_score?: number | null;
   effort_score?: number | null;
+  // Source idea (if task was created from personal idea capture)
+  source_idea_id?: string | null;
+  source_idea?: SourceIdea | null;
+}
+
+// Source idea info for task context
+export interface SourceIdea {
+  id: string;
+  content: string;
+  title: string | null;
+  tags: string[];
+  source: string;
+  created_at: string;
 }
 
 export interface TasksByStatus {

@@ -61,7 +61,11 @@ export const ideasService = {
 
   convertToTask: async (
     id: string,
-    data: { project_id: string; task_title?: string }
+    data: {
+      project_id: string;
+      task_title?: string;
+      initial_status?: "idea" | "todo"; // "idea" for team review, "todo" for direct action
+    }
   ) => {
     const response = await apiClient.post<Idea>(`/ideas/${id}/convert-to-task`, data);
     return response.data;

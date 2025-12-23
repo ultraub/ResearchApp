@@ -36,6 +36,7 @@ import { BlockerList, CreateBlockerModal } from "@/components/blockers";
 import { DocumentList, CreateDocumentModal } from "@/components/documents";
 import { useOrganizationStore } from "@/stores/organization";
 import type { Task, Project, JournalEntry } from "@/types";
+import OwnerDisplay from "@/components/common/OwnerDisplay";
 
 type ViewMode = "kanban" | "list";
 type TabType = "tasks" | "documents" | "papers" | "notebook" | "blockers" | "timeline";
@@ -371,6 +372,19 @@ export default function ProjectDetailPage() {
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {project.description}
                 </p>
+              )}
+              {/* Creator info */}
+              {project.created_by_name && (
+                <div className="mt-2 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                  <span>Created by</span>
+                  <OwnerDisplay
+                    name={project.created_by_name}
+                    email={project.created_by_email}
+                    id={project.created_by_id}
+                    size="xs"
+                    showName
+                  />
+                </div>
               )}
             </div>
           </div>

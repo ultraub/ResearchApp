@@ -568,6 +568,43 @@ export default function TaskDetailModal({
                                 </div>
                               )}
 
+                              {/* Source Idea section - show when task was created from personal idea */}
+                              {task.source_idea && (
+                                <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-soft dark:border-purple-800 dark:bg-purple-900/20">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <span className="text-lg">💭</span>
+                                    <h3 className="font-medium text-purple-900 dark:text-purple-100">
+                                      Created from Personal Idea
+                                    </h3>
+                                    <span className="ml-auto text-xs text-purple-600 dark:text-purple-400">
+                                      {task.source_idea.source}
+                                    </span>
+                                  </div>
+                                  <div className="rounded-lg bg-white/50 dark:bg-dark-card/50 p-3">
+                                    {task.source_idea.title && (
+                                      <p className="font-medium text-purple-900 dark:text-purple-100 mb-1">
+                                        {task.source_idea.title}
+                                      </p>
+                                    )}
+                                    <p className="text-sm text-purple-800 dark:text-purple-200 whitespace-pre-wrap line-clamp-4">
+                                      {task.source_idea.content}
+                                    </p>
+                                    {task.source_idea.tags.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-2">
+                                        {task.source_idea.tags.map((tag) => (
+                                          <span
+                                            key={tag}
+                                            className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700 dark:bg-purple-800 dark:text-purple-200"
+                                          >
+                                            #{tag}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Status and Priority Row */}
                               <div className="flex gap-4">
                                 {/* Status */}

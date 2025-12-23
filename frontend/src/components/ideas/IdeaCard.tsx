@@ -14,6 +14,7 @@ import { Menu, Transition } from "@headlessui/react";
 import type { Idea } from "@/types";
 import { ideasService } from "@/services/ideas";
 import { clsx } from "clsx";
+import OwnerDisplay from "@/components/common/OwnerDisplay";
 
 interface IdeaCardProps {
   idea: Idea;
@@ -114,6 +115,14 @@ export default function IdeaCard({
           <span className={clsx("rounded-full px-2 py-0.5 text-xs", statusColors[idea.status])}>
             {idea.status}
           </span>
+          {idea.user_name && (
+            <OwnerDisplay
+              name={idea.user_name}
+              email={idea.user_email}
+              id={idea.user_id}
+              size="xs"
+            />
+          )}
           <span className="text-xs text-gray-400">
             {formatDistanceToNow(new Date(idea.created_at), { addSuffix: true })}
           </span>

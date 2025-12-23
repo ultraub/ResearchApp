@@ -16,6 +16,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid";
 import type { Document } from "@/services/documents";
+import OwnerDisplay from "@/components/common/OwnerDisplay";
 
 export const DOCUMENT_STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700 dark:bg-dark-card dark:text-gray-300",
@@ -115,6 +116,18 @@ export function DocumentCard({
           <span className="text-xs text-gray-500 dark:text-gray-400">
             v{document.version}
           </span>
+          {/* Creator */}
+          {document.created_by_name && (
+            <span className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
+              <span className="text-[10px]">by</span>
+              <OwnerDisplay
+                name={document.created_by_name}
+                email={document.created_by_email}
+                id={document.created_by_id}
+                size="xs"
+              />
+            </span>
+          )}
           {/* Comment count indicator */}
           {hasComments && (
             <span

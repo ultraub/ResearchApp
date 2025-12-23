@@ -7,7 +7,7 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select, func, or_, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -297,6 +297,9 @@ class TaskResponse(BaseModel):
     updated_at: datetime
     comment_count: int = 0
     subtask_count: int = 0
+    # Creator info
+    created_by_name: str | None = None
+    created_by_email: str | None = None
     # Idea-specific fields
     vote_count: int = 0
     user_voted: bool = False
@@ -304,6 +307,36 @@ class TaskResponse(BaseModel):
     effort_score: int | None = None
     # Assignments
     assignments: list[TaskAssignmentResponse] | None = None
+    # Source idea (if task was created from personal idea capture)
+    source_idea_id: UUID | None = None
+    source_idea: "SourceIdeaResponse | None" = None
+
+    class Config:
+        from_attributes = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_creator_info(cls, data: Any) -> Any:
+        """Extract creator name/email from the created_by relationship."""
+        if hasattr(data, "__dict__"):
+            # SQLAlchemy model - extract from relationship
+            d = dict(data.__dict__)
+            if hasattr(data, "created_by") and data.created_by:
+                d["created_by_name"] = data.created_by.display_name
+                d["created_by_email"] = data.created_by.email
+            return d
+        return data
+
+
+class SourceIdeaResponse(BaseModel):
+    """Minimal idea info for task source context."""
+
+    id: UUID
+    content: str
+    title: str | None
+    tags: list[str]
+    source: str
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -365,7 +398,7 @@ async def create_task(
     )
     db.add(task)
     await db.commit()
-    await db.refresh(task)
+    await db.refresh(task, ["created_by"])
 
     logger.info(
         "Task created",
@@ -398,12 +431,13 @@ async def list_tasks(
     # Verify project access
     await check_project_access(db, project_id, current_user.id)
 
-    # Base query with assignments loaded
+    # Base query with assignments and creator loaded
     query = (
         select(Task)
         .options(
             selectinload(Task.assignments).selectinload(TaskAssignment.user),
             selectinload(Task.project),
+            selectinload(Task.created_by),
         )
         .where(Task.project_id == project_id)
     )
@@ -482,6 +516,7 @@ async def get_tasks_by_status(
             selectinload(Task.project),
             selectinload(Task.comments),
             selectinload(Task.subtasks),
+            selectinload(Task.created_by),
         )
         .where(Task.project_id == project_id, Task.parent_task_id.is_(None))
         .order_by(Task.position.asc())
@@ -535,6 +570,7 @@ async def get_tasks_by_status_aggregated(
         selectinload(Task.project),
         selectinload(Task.comments),
         selectinload(Task.subtasks),
+        selectinload(Task.created_by),
     ]
 
     if include_children:
@@ -622,6 +658,8 @@ def _task_to_response(task: Task) -> dict:
         "project_name": task.project.name if hasattr(task, "project") and task.project else None,
         "assignee_id": task.assignee_id,
         "created_by_id": task.created_by_id,
+        "created_by_name": task.created_by.display_name if hasattr(task, "created_by") and task.created_by else None,
+        "created_by_email": task.created_by.email if hasattr(task, "created_by") and task.created_by else None,
         "due_date": task.due_date,
         "completed_at": task.completed_at,
         "position": task.position,
@@ -680,6 +718,8 @@ async def get_task(
             selectinload(Task.comments),
             selectinload(Task.assignments).selectinload(TaskAssignment.user),
             selectinload(Task.project),
+            selectinload(Task.source_idea),
+            selectinload(Task.created_by),
         )
         .where(Task.id == task_id)
     )
@@ -706,6 +746,8 @@ async def get_task(
         "project_name": task.project.name if task.project else None,
         "assignee_id": task.assignee_id,
         "created_by_id": task.created_by_id,
+        "created_by_name": task.created_by.display_name if task.created_by else None,
+        "created_by_email": task.created_by.email if task.created_by else None,
         "due_date": task.due_date,
         "completed_at": task.completed_at,
         "position": task.position,
@@ -722,6 +764,15 @@ async def get_task(
         "impact_score": task.impact_score if hasattr(task, 'impact_score') else None,
         "effort_score": task.effort_score if hasattr(task, 'effort_score') else None,
         "assignments": [_assignment_to_response(a) for a in (task.assignments or [])],
+        "source_idea_id": task.source_idea_id,
+        "source_idea": {
+            "id": task.source_idea.id,
+            "content": task.source_idea.content,
+            "title": task.source_idea.title,
+            "tags": task.source_idea.tags or [],
+            "source": task.source_idea.source,
+            "created_at": task.source_idea.created_at,
+        } if task.source_idea else None,
     }
 
     return response_data
@@ -760,7 +811,7 @@ async def update_task(
         setattr(task, field, value)
 
     await db.commit()
-    await db.refresh(task)
+    await db.refresh(task, ["created_by"])
 
     logger.info("Task updated", task_id=str(task_id))
     return task
@@ -850,7 +901,7 @@ async def move_task(
         task.completed_at = None
 
     await db.commit()
-    await db.refresh(task)
+    await db.refresh(task, ["created_by"])
 
     logger.info(
         "Task moved",
@@ -2426,7 +2477,7 @@ async def update_idea_score(
     task.extra_data = extra_data
 
     await db.commit()
-    await db.refresh(task)
+    await db.refresh(task, ["created_by"])
 
     logger.info(
         "Idea score updated",
@@ -2486,7 +2537,7 @@ async def convert_idea_to_task(
     task.extra_data = extra_data
 
     await db.commit()
-    await db.refresh(task)
+    await db.refresh(task, ["created_by"])
 
     logger.info("Idea converted to task", task_id=str(task_id), new_status=convert_data.target_status)
 

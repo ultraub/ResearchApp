@@ -13,7 +13,13 @@ export interface Document {
   project_id: string;
   template_id: string | null;
   created_by_id: string;
+  // Creator info
+  created_by_name?: string | null;
+  created_by_email?: string | null;
   last_edited_by_id: string | null;
+  // Last editor info
+  last_edited_by_name?: string | null;
+  last_edited_by_email?: string | null;
   is_pinned: boolean;
   is_archived: boolean;
   metadata: Record<string, unknown> | null;

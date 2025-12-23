@@ -58,6 +58,18 @@ export default function IdeasPage() {
     }
   }, [searchParams, setSearchParams]);
 
+  // Keyboard shortcut: Cmd/Ctrl+I to open quick capture
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "i") {
+        e.preventDefault();
+        setIsQuickCaptureOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const { data, isLoading } = useQuery({
     queryKey: ["ideas", { status: statusFilter, search: searchQuery, pinned_only: pinnedOnly }],
     queryFn: () =>

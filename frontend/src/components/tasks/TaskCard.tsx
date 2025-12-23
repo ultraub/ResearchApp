@@ -15,6 +15,7 @@ import { clsx } from "clsx";
 import type { Task } from "@/types";
 import AssigneeAvatarGroup from "./AssigneeAvatarGroup";
 import { ReviewStatusBadge, type ReviewStatusSummary } from "@/components/common/ReviewStatusBadge";
+import OwnerDisplay from "@/components/common/OwnerDisplay";
 import { HoverCard, HoverCardHeader, HoverCardContent, HoverCardFooter } from "@/components/common/HoverCard";
 import { tasksService } from "@/services/tasks";
 
@@ -433,6 +434,19 @@ export default function TaskCard({ task, onClick, isDragging, reviewStatus, bloc
           {/* Review status badge */}
           {reviewStatus && reviewStatus.status !== "none" && (
             <ReviewStatusBadge summary={reviewStatus} size="sm" />
+          )}
+
+          {/* Creator */}
+          {task.created_by_name && (
+            <span className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
+              <span className="text-[10px]">by</span>
+              <OwnerDisplay
+                name={task.created_by_name}
+                email={task.created_by_email}
+                id={task.created_by_id}
+                size="xs"
+              />
+            </span>
           )}
         </div>
 

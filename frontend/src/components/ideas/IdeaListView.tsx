@@ -14,6 +14,7 @@ import { BookmarkIcon as BookmarkSolidIcon } from "@heroicons/react/24/solid";
 import { clsx } from "clsx";
 import type { Idea } from "@/types";
 import { ideasService } from "@/services/ideas";
+import OwnerDisplay from "@/components/common/OwnerDisplay";
 
 interface IdeaListViewProps {
   ideas: Idea[];
@@ -97,6 +98,14 @@ function IdeaListItem({ idea, onClick }: IdeaListItemProps) {
                 <span className={clsx("rounded-full px-2 py-0.5 text-xs font-medium", statusColors[idea.status])}>
                   {idea.status}
                 </span>
+                {idea.user_name && (
+                  <OwnerDisplay
+                    name={idea.user_name}
+                    email={idea.user_email}
+                    id={idea.user_id}
+                    size="xs"
+                  />
+                )}
                 <span className="text-xs text-gray-400">
                   {formatDistanceToNow(new Date(idea.created_at), { addSuffix: true })}
                 </span>

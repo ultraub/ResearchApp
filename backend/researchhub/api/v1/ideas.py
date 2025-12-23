@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from researchhub.api.v1.auth import CurrentUser
 from researchhub.db.session import get_db_session
 from researchhub.models.idea import Idea
+from researchhub.models.organization import TeamMember
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -54,6 +56,10 @@ class IdeaResponse(BaseModel):
     converted_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    # Owner info
+    user_id: UUID
+    user_name: str | None = None
+    user_email: str | None = None
 
     class Config:
         from_attributes = True
@@ -82,6 +88,34 @@ class ConvertToTaskRequest(BaseModel):
 
     project_id: UUID
     task_title: str | None = None  # Uses idea content if not provided
+    initial_status: str = Field(
+        default="idea",
+        pattern="^(idea|todo)$",
+        description="Task status: 'idea' for team review, 'todo' for direct action"
+    )
+
+
+def idea_to_response(idea: Idea) -> dict:
+    """Convert idea model to response dict with user info."""
+    return {
+        "id": idea.id,
+        "content": idea.content,
+        "title": idea.title,
+        "tags": idea.tags,
+        "status": idea.status,
+        "source": idea.source,
+        "is_pinned": idea.is_pinned,
+        "ai_summary": idea.ai_summary,
+        "ai_suggested_tags": idea.ai_suggested_tags,
+        "converted_to_project_id": idea.converted_to_project_id,
+        "converted_to_task_id": idea.converted_to_task_id,
+        "converted_at": idea.converted_at,
+        "created_at": idea.created_at,
+        "updated_at": idea.updated_at,
+        "user_id": idea.user_id,
+        "user_name": idea.user.display_name if idea.user else None,
+        "user_email": idea.user.email if idea.user else None,
+    }
 
 
 @router.post("/", response_model=IdeaResponse, status_code=status.HTTP_201_CREATED)
@@ -89,7 +123,7 @@ async def create_idea(
     idea_data: IdeaCreate,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> Idea:
+) -> dict:
     """Create a new idea - fastest path to capture."""
     idea = Idea(
         content=idea_data.content,
@@ -100,10 +134,10 @@ async def create_idea(
     )
     db.add(idea)
     await db.commit()
-    await db.refresh(idea)
+    await db.refresh(idea, ["user"])
 
     logger.info("Idea created", idea_id=str(idea.id), user_id=str(current_user.id))
-    return idea
+    return idea_to_response(idea)
 
 
 @router.get("/", response_model=IdeaListResponse)
@@ -118,8 +152,8 @@ async def list_ideas(
     tag: str | None = Query(None),
 ) -> dict:
     """List user's ideas with filtering and pagination."""
-    # Base query
-    query = select(Idea).where(Idea.user_id == current_user.id)
+    # Base query with user relationship loaded
+    query = select(Idea).options(selectinload(Idea.user)).where(Idea.user_id == current_user.id)
 
     # Apply filters
     if status:
@@ -135,8 +169,17 @@ async def list_ideas(
         )
         query = query.where(search_filter)
 
-    # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
+    # Get total count (without the options for performance)
+    count_base = select(Idea).where(Idea.user_id == current_user.id)
+    if status:
+        count_base = count_base.where(Idea.status == status)
+    if pinned_only:
+        count_base = count_base.where(Idea.is_pinned == True)
+    if tag:
+        count_base = count_base.where(Idea.tags.contains([tag]))
+    if search:
+        count_base = count_base.where(search_filter)
+    count_query = select(func.count()).select_from(count_base.subquery())
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
@@ -148,7 +191,7 @@ async def list_ideas(
     ideas = list(result.scalars().all())
 
     return {
-        "items": ideas,
+        "items": [idea_to_response(idea) for idea in ideas],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -161,10 +204,12 @@ async def get_idea(
     idea_id: UUID,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> Idea:
+) -> dict:
     """Get a specific idea."""
     result = await db.execute(
-        select(Idea).where(Idea.id == idea_id, Idea.user_id == current_user.id)
+        select(Idea)
+        .options(selectinload(Idea.user))
+        .where(Idea.id == idea_id, Idea.user_id == current_user.id)
     )
     idea = result.scalar_one_or_none()
 
@@ -174,7 +219,7 @@ async def get_idea(
             detail="Idea not found",
         )
 
-    return idea
+    return idea_to_response(idea)
 
 
 @router.patch("/{idea_id}", response_model=IdeaResponse)
@@ -183,10 +228,12 @@ async def update_idea(
     updates: IdeaUpdate,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> Idea:
+) -> dict:
     """Update an idea."""
     result = await db.execute(
-        select(Idea).where(Idea.id == idea_id, Idea.user_id == current_user.id)
+        select(Idea)
+        .options(selectinload(Idea.user))
+        .where(Idea.id == idea_id, Idea.user_id == current_user.id)
     )
     idea = result.scalar_one_or_none()
 
@@ -201,10 +248,10 @@ async def update_idea(
         setattr(idea, field, value)
 
     await db.commit()
-    await db.refresh(idea)
+    await db.refresh(idea, ["user"])
 
     logger.info("Idea updated", idea_id=str(idea_id))
-    return idea
+    return idea_to_response(idea)
 
 
 @router.delete("/{idea_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -236,10 +283,12 @@ async def toggle_pin_idea(
     idea_id: UUID,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> Idea:
+) -> dict:
     """Toggle pin status of an idea."""
     result = await db.execute(
-        select(Idea).where(Idea.id == idea_id, Idea.user_id == current_user.id)
+        select(Idea)
+        .options(selectinload(Idea.user))
+        .where(Idea.id == idea_id, Idea.user_id == current_user.id)
     )
     idea = result.scalar_one_or_none()
 
@@ -251,9 +300,9 @@ async def toggle_pin_idea(
 
     idea.is_pinned = not idea.is_pinned
     await db.commit()
-    await db.refresh(idea)
+    await db.refresh(idea, ["user"])
 
-    return idea
+    return idea_to_response(idea)
 
 
 @router.post("/{idea_id}/convert-to-project", response_model=IdeaResponse)
@@ -262,12 +311,14 @@ async def convert_idea_to_project(
     request: ConvertToProjectRequest,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> Idea:
+) -> dict:
     """Convert an idea to a new project."""
     from researchhub.models.project import Project
 
     result = await db.execute(
-        select(Idea).where(Idea.id == idea_id, Idea.user_id == current_user.id)
+        select(Idea)
+        .options(selectinload(Idea.user))
+        .where(Idea.id == idea_id, Idea.user_id == current_user.id)
     )
     idea = result.scalar_one_or_none()
 
@@ -281,6 +332,19 @@ async def convert_idea_to_project(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Idea already converted to a project",
+        )
+
+    # Validate user has access to the target team
+    team_membership = await db.execute(
+        select(TeamMember).where(
+            TeamMember.team_id == request.team_id,
+            TeamMember.user_id == current_user.id,
+        )
+    )
+    if not team_membership.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this team",
         )
 
     # Create project from idea
@@ -301,14 +365,14 @@ async def convert_idea_to_project(
     idea.status = "converted"
 
     await db.commit()
-    await db.refresh(idea)
+    await db.refresh(idea, ["user"])
 
     logger.info(
         "Idea converted to project",
         idea_id=str(idea_id),
         project_id=str(project.id),
     )
-    return idea
+    return idea_to_response(idea)
 
 
 @router.post("/{idea_id}/convert-to-task", response_model=IdeaResponse)
@@ -317,12 +381,14 @@ async def convert_idea_to_task(
     request: ConvertToTaskRequest,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> Idea:
+) -> dict:
     """Convert an idea to a task in an existing project."""
     from researchhub.models.project import Task
 
     result = await db.execute(
-        select(Idea).where(Idea.id == idea_id, Idea.user_id == current_user.id)
+        select(Idea)
+        .options(selectinload(Idea.user))
+        .where(Idea.id == idea_id, Idea.user_id == current_user.id)
     )
     idea = result.scalar_one_or_none()
 
@@ -336,6 +402,31 @@ async def convert_idea_to_task(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Idea already converted to a task",
+        )
+
+    # Validate user has access to the target project via team membership
+    from researchhub.models.project import Project
+
+    project_result = await db.execute(
+        select(Project).where(Project.id == request.project_id)
+    )
+    project = project_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    team_membership = await db.execute(
+        select(TeamMember).where(
+            TeamMember.team_id == project.team_id,
+            TeamMember.user_id == current_user.id,
+        )
+    )
+    if not team_membership.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this project",
         )
 
     # Create task from idea
@@ -358,6 +449,8 @@ async def convert_idea_to_task(
         project_id=request.project_id,
         created_by_id=current_user.id,
         tags=idea.tags or [],
+        status=request.initial_status,  # "idea" for team review, "todo" for direct action
+        source_idea_id=idea.id,  # Link back to originating idea
     )
     db.add(task)
     await db.flush()
@@ -368,11 +461,11 @@ async def convert_idea_to_task(
     idea.status = "converted"
 
     await db.commit()
-    await db.refresh(idea)
+    await db.refresh(idea, ["user"])
 
     logger.info(
         "Idea converted to task",
         idea_id=str(idea_id),
         task_id=str(task.id),
     )
-    return idea
+    return idea_to_response(idea)
