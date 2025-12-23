@@ -1,8 +1,15 @@
+# Production Docker Compose configuration
+# Uses pre-built images from ECR (pushed by CI/CD pipeline)
+#
+# Required environment variables:
+#   ECR_REGISTRY - ECR registry URL (e.g., 123456789.dkr.ecr.us-east-1.amazonaws.com)
+#   GOOGLE_CLIENT_ID - Google OAuth client ID (for frontend build args if rebuilding)
+
 services:
-  # Redis Cache
+  # Redis Cache (runs on EC2)
   redis:
     image: redis:7-alpine
-    container_name: researchhub-redis
+    container_name: pasteur-redis
     restart: unless-stopped
     volumes:
       - redis_data:/data
@@ -14,10 +21,8 @@ services:
 
   # Backend API
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: researchhub-backend
+    image: ${ECR_REGISTRY}/pasteur-backend:latest
+    container_name: pasteur-backend
     restart: unless-stopped
     env_file:
       - ./backend/.env
@@ -31,13 +36,17 @@ services:
       redis:
         condition: service_healthy
     command: uvicorn researchhub.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Celery Worker
   celery-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: researchhub-celery-worker
+    image: ${ECR_REGISTRY}/pasteur-backend:latest
+    container_name: pasteur-celery-worker
     restart: unless-stopped
     env_file:
       - ./backend/.env
@@ -52,16 +61,13 @@ services:
 
   # Frontend (production build served by nginx)
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
-      args:
-        - VITE_API_URL=https://research.milkfree.world/api/v1
-        - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-    container_name: researchhub-frontend
+    image: ${ECR_REGISTRY}/pasteur-frontend:latest
+    container_name: pasteur-frontend
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "80:80"
+    depends_on:
+      - backend
 
 volumes:
   redis_data:

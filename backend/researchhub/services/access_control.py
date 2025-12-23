@@ -275,13 +275,14 @@ async def get_or_create_personal_team(
             return team
 
     # Check by owner_id (in case personal_team_id wasn't set)
+    # Use scalars().first() in case there are duplicate personal teams
     result = await db.execute(
         select(Team).where(
             Team.owner_id == user.id,
             Team.is_personal == True,
         )
     )
-    existing_team = result.scalar_one_or_none()
+    existing_team = result.scalars().first()
     if existing_team:
         # Update user reference
         user.personal_team_id = existing_team.id
@@ -356,12 +357,13 @@ async def get_or_create_personal_organization(
         The user's personal organization
     """
     # Check if user already has any organization membership
+    # Use scalars().first() since user may have multiple org memberships
     result = await db.execute(
         select(OrganizationMember).where(
             OrganizationMember.user_id == user.id,
         )
     )
-    existing_membership = result.scalar_one_or_none()
+    existing_membership = result.scalars().first()
 
     if existing_membership:
         # User already has an organization, get it
