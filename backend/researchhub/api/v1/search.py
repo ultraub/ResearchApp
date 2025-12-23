@@ -125,18 +125,14 @@ async def global_search(
             ))
 
     # Search Tasks (scoped to organization via project -> team)
+    # Note: Task.description is JSONB (TipTap format), so we only search title
     if "task" in search_types:
         task_query = (
             select(Task)
             .join(Project, Task.project_id == Project.id)
             .join(Team, Project.team_id == Team.id)
             .where(Team.organization_id == organization_id)
-            .where(
-                or_(
-                    func.lower(Task.title).like(search_term),
-                    func.lower(Task.description).like(search_term),
-                )
-            )
+            .where(func.lower(Task.title).like(search_term))
         )
         if project_id:
             task_query = task_query.where(Task.project_id == project_id)
@@ -147,12 +143,13 @@ async def global_search(
 
         task_results = await db.execute(task_query)
         for task in task_results.scalars().all():
+            # Task description is JSONB (TipTap format), not searchable text
             results.append(SearchResultItem(
                 id=task.id,
                 type="task",
                 title=task.title,
-                description=task.description,
-                snippet=_get_snippet(task.description, q) if task.description else None,
+                description=None,  # JSONB can't be displayed as string
+                snippet=None,
                 url=f"/projects/{task.project_id}/tasks/{task.id}",
                 created_at=task.created_at,
                 updated_at=task.updated_at,
@@ -201,7 +198,7 @@ async def global_search(
                 },
             ))
 
-    # Search Ideas
+    # Search Ideas (Idea model has 'content' not 'description')
     if "idea" in search_types:
         idea_query = (
             select(Idea)
@@ -209,7 +206,7 @@ async def global_search(
             .where(
                 or_(
                     func.lower(Idea.title).like(search_term),
-                    func.lower(Idea.description).like(search_term),
+                    func.lower(Idea.content).like(search_term),
                 )
             )
         )
@@ -223,15 +220,15 @@ async def global_search(
             results.append(SearchResultItem(
                 id=idea.id,
                 type="idea",
-                title=idea.title,
-                description=idea.description,
-                snippet=_get_snippet(idea.description, q) if idea.description else None,
+                title=idea.title or idea.content[:100],  # Use content start if no title
+                description=idea.content[:200] if idea.content else None,
+                snippet=_get_snippet(idea.content, q) if idea.content else None,
                 url=f"/ideas/{idea.id}",
                 created_at=idea.created_at,
                 updated_at=idea.updated_at,
                 metadata={
                     "status": idea.status,
-                    "category": idea.category,
+                    "source": idea.source,
                 },
             ))
 
@@ -423,10 +420,11 @@ async def search_suggestions(
     search_term = f"{q.lower()}%"
     suggestions: list[SearchSuggestion] = []
 
-    # Get project name suggestions
+    # Get project name suggestions (Project -> Team -> organization_id)
     project_query = (
         select(Project.id, Project.name)
-        .where(Project.organization_id == organization_id)
+        .join(Team, Project.team_id == Team.id)
+        .where(Team.organization_id == organization_id)
         .where(func.lower(Project.name).like(search_term))
         .limit(3)
     )
@@ -438,10 +436,12 @@ async def search_suggestions(
             id=row.id,
         ))
 
-    # Get document title suggestions
+    # Get document title suggestions (Document -> Project -> Team -> organization_id)
     doc_query = (
         select(Document.id, Document.title)
-        .where(Document.organization_id == organization_id)
+        .join(Project, Document.project_id == Project.id)
+        .join(Team, Project.team_id == Team.id)
+        .where(Team.organization_id == organization_id)
         .where(func.lower(Document.title).like(search_term))
         .limit(3)
     )
@@ -453,17 +453,22 @@ async def search_suggestions(
             id=row.id,
         ))
 
-    # Get idea title suggestions
+    # Get idea suggestions (title can be null, also search content)
     idea_query = (
-        select(Idea.id, Idea.title)
+        select(Idea.id, Idea.title, Idea.content)
         .where(Idea.organization_id == organization_id)
-        .where(func.lower(Idea.title).like(search_term))
+        .where(
+            or_(
+                func.lower(Idea.title).like(search_term),
+                func.lower(Idea.content).like(search_term),
+            )
+        )
         .limit(2)
     )
     idea_results = await db.execute(idea_query)
     for row in idea_results.all():
         suggestions.append(SearchSuggestion(
-            text=row.title,
+            text=row.title or row.content[:50],  # Fallback to content start if no title
             type="idea",
             id=row.id,
         ))
