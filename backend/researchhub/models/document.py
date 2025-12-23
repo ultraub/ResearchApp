@@ -103,7 +103,10 @@ class Document(BaseModel):
         try:
             return f"<Document {self.title[:30]}>"
         except Exception:
-            return f"<Document id={self.id}>"
+            try:
+                return f"<Document id={self.id}>"
+            except Exception:
+                return "<Document detached>"
 
 
 class DocumentVersion(BaseModel):
@@ -275,4 +278,7 @@ class DocumentTemplate(BaseModel):
         try:
             return f"<DocumentTemplate {self.name}>"
         except Exception:
-            return f"<DocumentTemplate id={self.id}>"
+            try:
+                return f"<DocumentTemplate id={self.id}>"
+            except Exception:
+                return "<DocumentTemplate detached>"

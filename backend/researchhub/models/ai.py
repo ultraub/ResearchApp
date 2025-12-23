@@ -195,7 +195,10 @@ class AIPromptTemplate(BaseModel):
         try:
             return f"<AIPromptTemplate {self.template_key}>"
         except Exception:
-            return f"<AIPromptTemplate id={self.id}>"
+            try:
+                return f"<AIPromptTemplate id={self.id}>"
+            except Exception:
+                return "<AIPromptTemplate detached>"
 
 
 class AIUsageLog(BaseModel):

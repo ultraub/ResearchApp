@@ -149,7 +149,10 @@ class JournalEntry(BaseModel):
             title_preview = self.title[:30] if self.title else f"Entry {self.entry_date}"
             return f"<JournalEntry {title_preview}>"
         except Exception:
-            return f"<JournalEntry id={self.id}>"
+            try:
+                return f"<JournalEntry id={self.id}>"
+            except Exception:
+                return "<JournalEntry detached>"
 
 
 class JournalEntryLink(BaseModel):

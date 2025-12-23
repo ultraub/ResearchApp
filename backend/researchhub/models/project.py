@@ -144,7 +144,10 @@ class Project(BaseModel):
         try:
             return f"<Project {self.name}>"
         except Exception:
-            return f"<Project id={self.id}>"
+            try:
+                return f"<Project id={self.id}>"
+            except Exception:
+                return "<Project detached>"
 
     def get_depth(self) -> int:
         """Calculate the depth of this project in the hierarchy (1 = top-level).
@@ -414,7 +417,10 @@ class Task(BaseModel):
         try:
             return f"<Task {self.title[:30]}>"
         except Exception:
-            return f"<Task id={self.id}>"
+            try:
+                return f"<Task id={self.id}>"
+            except Exception:
+                return "<Task detached>"
 
 
 class IdeaVote(BaseModel):
@@ -602,7 +608,10 @@ class ProjectTemplate(BaseModel):
         try:
             return f"<ProjectTemplate {self.name}>"
         except Exception:
-            return f"<ProjectTemplate id={self.id}>"
+            try:
+                return f"<ProjectTemplate id={self.id}>"
+            except Exception:
+                return "<ProjectTemplate detached>"
 
 
 class TaskAssignment(BaseModel):
@@ -790,7 +799,10 @@ class RecurringTaskRule(BaseModel):
         try:
             return f"<RecurringTaskRule {self.title[:30]}>"
         except Exception:
-            return f"<RecurringTaskRule id={self.id}>"
+            try:
+                return f"<RecurringTaskRule id={self.id}>"
+            except Exception:
+                return "<RecurringTaskRule detached>"
 
 
 class ProjectCustomField(BaseModel):
@@ -853,7 +865,10 @@ class ProjectCustomField(BaseModel):
         try:
             return f"<ProjectCustomField {self.name} project={self.project_id}>"
         except Exception:
-            return f"<ProjectCustomField id={self.id}>"
+            try:
+                return f"<ProjectCustomField id={self.id}>"
+            except Exception:
+                return "<ProjectCustomField detached>"
 
 
 class TaskCustomFieldValue(BaseModel):
@@ -963,7 +978,10 @@ class Blocker(BaseModel):
         try:
             return f"<Blocker {self.title[:30]}>"
         except Exception:
-            return f"<Blocker id={self.id}>"
+            try:
+                return f"<Blocker id={self.id}>"
+            except Exception:
+                return "<Blocker detached>"
 
 
 class BlockerLink(BaseModel):

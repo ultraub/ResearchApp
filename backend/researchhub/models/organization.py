@@ -42,7 +42,10 @@ class Organization(BaseModel):
         try:
             return f"<Organization {self.slug}>"
         except Exception:
-            return f"<Organization id={self.id}>"
+            try:
+                return f"<Organization id={self.id}>"
+            except Exception:
+                return "<Organization detached>"
 
 
 class OrganizationMember(BaseModel):
@@ -101,7 +104,10 @@ class Department(BaseModel):
         try:
             return f"<Department {self.name}>"
         except Exception:
-            return f"<Department id={self.id}>"
+            try:
+                return f"<Department id={self.id}>"
+            except Exception:
+                return "<Department detached>"
 
 
 class Team(BaseModel):
@@ -163,7 +169,10 @@ class Team(BaseModel):
         try:
             return f"<Team {self.name}>"
         except Exception:
-            return f"<Team id={self.id}>"
+            try:
+                return f"<Team id={self.id}>"
+            except Exception:
+                return "<Team detached>"
 
 
 class TeamMember(BaseModel):
@@ -254,7 +263,10 @@ class InviteCode(BaseModel):
             target = f"org={self.organization_id}" if self.organization_id else f"team={self.team_id}"
             return f"<InviteCode {self.code} {target}>"
         except Exception:
-            return f"<InviteCode id={self.id}>"
+            try:
+                return f"<InviteCode id={self.id}>"
+            except Exception:
+                return "<InviteCode detached>"
 
     def is_valid(self) -> bool:
         """Check if invitation is still valid."""

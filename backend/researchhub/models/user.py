@@ -78,7 +78,10 @@ class User(BaseModel):
         try:
             return f"<User {self.email}>"
         except Exception:
-            return f"<User id={self.id}>"
+            try:
+                return f"<User id={self.id}>"
+            except Exception:
+                return "<User detached>"
 
 
 class UserPreferences(BaseModel):

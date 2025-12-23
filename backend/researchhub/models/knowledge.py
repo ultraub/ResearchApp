@@ -109,7 +109,10 @@ class Paper(BaseModel):
         try:
             return f"<Paper {self.title[:50]}>"
         except Exception:
-            return f"<Paper id={self.id}>"
+            try:
+                return f"<Paper id={self.id}>"
+            except Exception:
+                return "<Paper detached>"
 
 
 class Collection(BaseModel):
@@ -159,7 +162,10 @@ class Collection(BaseModel):
         try:
             return f"<Collection {self.name}>"
         except Exception:
-            return f"<Collection id={self.id}>"
+            try:
+                return f"<Collection id={self.id}>"
+            except Exception:
+                return "<Collection detached>"
 
 
 class CollectionPaper(BaseModel):
