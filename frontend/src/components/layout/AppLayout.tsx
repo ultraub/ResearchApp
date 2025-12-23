@@ -37,7 +37,7 @@ export default function AppLayout() {
   const organizationId = useOrganizationId();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-dark-base">
+    <div className="h-screen overflow-hidden bg-gray-50 dark:bg-dark-base flex flex-col">
 
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-gray-200/80 bg-gradient-to-b from-white to-gray-50/50 dark:border-dark-border dark:from-dark-card dark:to-dark-base lg:block">
@@ -79,9 +79,9 @@ export default function AppLayout() {
       </aside>
 
       {/* Main content area */}
-      <div className="lg:pl-64">
+      <div className="flex-1 flex flex-col overflow-hidden lg:pl-64">
         {/* Top header */}
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-gray-200/80 bg-white/95 backdrop-blur-sm px-3 shadow-sm dark:border-dark-border dark:bg-dark-card/95 sm:px-4 lg:px-6">
+        <header className="flex-shrink-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-gray-200/80 bg-white/95 backdrop-blur-sm px-3 shadow-sm dark:border-dark-border dark:bg-dark-card/95 sm:px-4 lg:px-6">
           {/* Left section */}
           <div className="flex items-center gap-4">
             {/* Mobile: App name */}
@@ -101,7 +101,7 @@ export default function AppLayout() {
         </header>
 
         {/* Page content - bottom padding for mobile tab bar */}
-        <main className="min-h-[calc(100vh-4rem)] pb-20 md:pb-0">
+        <main className="flex-1 overflow-y-auto overscroll-contain pb-20 md:pb-0">
           <Outlet />
         </main>
       </div>

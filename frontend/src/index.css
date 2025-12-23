@@ -3,6 +3,22 @@
 @tailwind utilities;
 
 /* ============================================
+   Mobile Scroll Containment
+   Prevents pull-to-refresh and scroll bounce
+   ============================================ */
+html, body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ============================================
    Theme CSS Variables
    ============================================ */
 :root {

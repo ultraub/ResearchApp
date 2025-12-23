@@ -111,6 +111,20 @@ export default {
         88: "22rem",
         112: "28rem",
         128: "32rem",
+        // Safe area insets for notched devices
+        'safe-top': 'env(safe-area-inset-top)',
+        'safe-bottom': 'env(safe-area-inset-bottom)',
+        'safe-left': 'env(safe-area-inset-left)',
+        'safe-right': 'env(safe-area-inset-right)',
+      },
+      // Safe area height utilities
+      height: {
+        'safe-area-inset-bottom': 'env(safe-area-inset-bottom)',
+        'safe-area-inset-top': 'env(safe-area-inset-top)',
+      },
+      // Safe area padding utilities
+      padding: {
+        'safe': 'env(safe-area-inset-bottom)',
       },
       borderRadius: {
         "4xl": "2rem",
