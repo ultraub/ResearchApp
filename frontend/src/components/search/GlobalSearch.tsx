@@ -206,14 +206,15 @@ export function GlobalSearch({ organizationId }: GlobalSearchProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4">
-      {/* Backdrop */}
+      {/* Backdrop - click anywhere to close */}
       <div
-        className="absolute inset-0 bg-gray-900/50 dark:bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 z-0 bg-gray-900/50 dark:bg-black/60 backdrop-blur-sm cursor-pointer"
         onClick={() => setIsOpen(false)}
+        aria-label="Close search"
       />
 
       {/* Search panel */}
-      <div className="relative w-full max-w-2xl bg-white dark:bg-dark-card rounded-2xl shadow-2xl overflow-hidden border border-gray-200/50 dark:border-dark-border animate-in fade-in slide-in-from-top-4 duration-200">
+      <div className="relative z-10 w-full max-w-2xl bg-white dark:bg-dark-card rounded-2xl shadow-2xl overflow-hidden border border-gray-200/50 dark:border-dark-border animate-in fade-in slide-in-from-top-4 duration-200">
         {/* Search input */}
         <div className="flex items-center gap-4 p-5 border-b border-gray-100 dark:border-dark-border">
           <div className="p-2 rounded-xl bg-primary-50 dark:bg-primary-900/30">
