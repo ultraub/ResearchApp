@@ -273,7 +273,13 @@ async def create_document(
     )
     db.add(document)
     await db.commit()
-    await db.refresh(document, ["created_by", "last_edited_by"])
+    # Re-query with fresh data (including updated_at) and relationships
+    stmt = select(Document).options(
+        selectinload(Document.created_by),
+        selectinload(Document.last_edited_by)
+    ).where(Document.id == document.id)
+    result = await db.execute(stmt)
+    document = result.scalar_one()
 
     logger.info(
         "Document created",
@@ -476,7 +482,13 @@ async def update_document(
     document.last_edited_by_id = current_user.id
 
     await db.commit()
-    await db.refresh(document, ["created_by", "last_edited_by"])
+    # Re-query with fresh data (including updated_at) and relationships
+    stmt = select(Document).options(
+        selectinload(Document.created_by),
+        selectinload(Document.last_edited_by)
+    ).where(Document.id == document_id)
+    result = await db.execute(stmt)
+    document = result.scalar_one()
 
     logger.info("Document updated", document_id=str(document_id))
 
@@ -652,7 +664,13 @@ async def restore_document_version(
     document.last_edited_by_id = current_user.id
 
     await db.commit()
-    await db.refresh(document, ["created_by", "last_edited_by"])
+    # Re-query with fresh data (including updated_at) and relationships
+    stmt = select(Document).options(
+        selectinload(Document.created_by),
+        selectinload(Document.last_edited_by)
+    ).where(Document.id == document_id)
+    result = await db.execute(stmt)
+    document = result.scalar_one()
 
     logger.info(
         "Document restored to version",

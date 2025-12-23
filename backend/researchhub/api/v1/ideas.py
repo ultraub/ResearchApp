@@ -134,7 +134,10 @@ async def create_idea(
     )
     db.add(idea)
     await db.commit()
-    await db.refresh(idea, ["user"])
+    # Re-query with fresh data (including updated_at) and user relationship
+    stmt = select(Idea).options(selectinload(Idea.user)).where(Idea.id == idea.id)
+    result = await db.execute(stmt)
+    idea = result.scalar_one()
 
     logger.info("Idea created", idea_id=str(idea.id), user_id=str(current_user.id))
     return idea_to_response(idea)
@@ -248,7 +251,10 @@ async def update_idea(
         setattr(idea, field, value)
 
     await db.commit()
-    await db.refresh(idea, ["user"])
+    # Re-query with fresh data (including updated_at) and user relationship
+    stmt = select(Idea).options(selectinload(Idea.user)).where(Idea.id == idea_id)
+    result = await db.execute(stmt)
+    idea = result.scalar_one()
 
     logger.info("Idea updated", idea_id=str(idea_id))
     return idea_to_response(idea)
@@ -300,7 +306,10 @@ async def toggle_pin_idea(
 
     idea.is_pinned = not idea.is_pinned
     await db.commit()
-    await db.refresh(idea, ["user"])
+    # Re-query with fresh data (including updated_at) and user relationship
+    stmt = select(Idea).options(selectinload(Idea.user)).where(Idea.id == idea_id)
+    result = await db.execute(stmt)
+    idea = result.scalar_one()
 
     return idea_to_response(idea)
 
@@ -365,7 +374,10 @@ async def convert_idea_to_project(
     idea.status = "converted"
 
     await db.commit()
-    await db.refresh(idea, ["user"])
+    # Re-query with fresh data (including updated_at) and user relationship
+    stmt = select(Idea).options(selectinload(Idea.user)).where(Idea.id == idea_id)
+    result = await db.execute(stmt)
+    idea = result.scalar_one()
 
     logger.info(
         "Idea converted to project",
@@ -461,7 +473,10 @@ async def convert_idea_to_task(
     idea.status = "converted"
 
     await db.commit()
-    await db.refresh(idea, ["user"])
+    # Re-query with fresh data (including updated_at) and user relationship
+    stmt = select(Idea).options(selectinload(Idea.user)).where(Idea.id == idea_id)
+    result = await db.execute(stmt)
+    idea = result.scalar_one()
 
     logger.info(
         "Idea converted to task",
