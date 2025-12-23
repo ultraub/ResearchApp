@@ -233,6 +233,7 @@ async def global_search(
             ))
 
     # Search Papers
+    # Note: Paper.authors is ARRAY type, can't use .like() - only search title and abstract
     if "paper" in search_types:
         paper_query = (
             select(Paper)
@@ -241,7 +242,6 @@ async def global_search(
                 or_(
                     func.lower(Paper.title).like(search_term),
                     func.lower(Paper.abstract).like(search_term),
-                    func.lower(Paper.authors).like(search_term),
                 )
             )
         )
@@ -262,7 +262,7 @@ async def global_search(
                 created_at=paper.created_at,
                 updated_at=paper.updated_at,
                 metadata={
-                    "year": paper.year,
+                    "year": paper.publication_year,
                     "journal": paper.journal,
                     "doi": paper.doi,
                 },
@@ -297,7 +297,7 @@ async def global_search(
                 created_at=coll.created_at,
                 updated_at=coll.updated_at,
                 metadata={
-                    "is_public": coll.is_public,
+                    "visibility": coll.visibility,
                 },
             ))
 
