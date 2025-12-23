@@ -104,6 +104,14 @@ export default function TaskDetailModal({
     ? "Task is completed"
     : null;
 
+  // Reset editing state when modal opens with a new task
+  useEffect(() => {
+    if (isOpen && taskId) {
+      setIsEditing(true);
+      setSelectedTab(0);
+    }
+  }, [isOpen, taskId]);
+
   // Update local state when task loads
   useEffect(() => {
     if (task) {
