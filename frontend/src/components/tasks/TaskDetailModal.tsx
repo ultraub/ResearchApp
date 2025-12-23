@@ -11,6 +11,7 @@ import {
   ChatBubbleLeftRightIcon,
   HandThumbUpIcon,
   ArrowPathIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
 import { HandThumbUpIcon as HandThumbUpSolidIcon } from "@heroicons/react/24/solid";
 import { clsx } from "clsx";
@@ -72,6 +73,9 @@ export default function TaskDetailModal({
   const [showBlockerWarning, setShowBlockerWarning] = useState(false);
   const [activeBlockers, setActiveBlockers] = useState<Blocker[]>([]);
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
+
+  // Delete confirmation state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Fetch task details
   const { data: task, isLoading } = useQuery({
@@ -188,6 +192,19 @@ export default function TaskDetailModal({
     },
     onError: () => {
       toast.error("Failed to convert idea");
+    },
+  });
+
+  // Delete task mutation
+  const deleteMutation = useMutation({
+    mutationFn: () => tasksService.delete(taskId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast.success("Task deleted");
+      handleClose();
+    },
+    onError: () => {
+      toast.error("Failed to delete task");
     },
   });
 
@@ -391,6 +408,13 @@ export default function TaskDetailModal({
                               Edit
                             </button>
                           )}
+                          <button
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="rounded-xl p-1.5 text-gray-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-all"
+                            title="Delete task"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
                           <button
                             onClick={handleClose}
                             className="rounded-xl p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-elevated transition-all"
@@ -804,6 +828,77 @@ export default function TaskDetailModal({
         entityType="task"
         entityTitle={task?.title}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Transition show={showDeleteConfirm} as={Fragment}>
+        <Dialog
+          as="div"
+          className="relative z-[60]"
+          onClose={() => setShowDeleteConfirm(false)}
+        >
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/50" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-dark-card">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                      <TrashIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Delete Task
+                    </Dialog.Title>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                    Are you sure you want to delete{" "}
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      "{task?.title}"
+                    </span>
+                    ? This action cannot be undone.
+                  </p>
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-elevated transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDeleteConfirm(false);
+                        deleteMutation.mutate();
+                      }}
+                      disabled={deleteMutation.isPending}
+                      className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-all"
+                    >
+                      {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
     </Transition>
   );
 }

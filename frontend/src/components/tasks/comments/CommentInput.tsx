@@ -67,20 +67,27 @@ export default function CommentInput({
 
     // Create a hidden div to measure text
     const measureDiv = document.createElement("div");
-    measureDiv.style.cssText = `
-      position: absolute;
-      visibility: hidden;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      font: ${getComputedStyle(textarea).font};
-      width: ${textarea.clientWidth}px;
-      padding: ${getComputedStyle(textarea).padding};
-    `;
-    measureDiv.textContent = content.slice(0, cursorPosition);
-    document.body.appendChild(measureDiv);
+    let lines = 1;
 
-    const lines = measureDiv.clientHeight / parseFloat(getComputedStyle(textarea).lineHeight);
-    document.body.removeChild(measureDiv);
+    try {
+      measureDiv.style.cssText = `
+        position: absolute;
+        visibility: hidden;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font: ${getComputedStyle(textarea).font};
+        width: ${textarea.clientWidth}px;
+        padding: ${getComputedStyle(textarea).padding};
+      `;
+      measureDiv.textContent = content.slice(0, cursorPosition);
+      document.body.appendChild(measureDiv);
+
+      lines = measureDiv.clientHeight / parseFloat(getComputedStyle(textarea).lineHeight);
+      document.body.removeChild(measureDiv);
+    } catch (error) {
+      // Suppress DOM manipulation errors (often caused by browser extensions)
+      console.debug("Suppressed DOM measurement error:", error);
+    }
 
     return {
       top: rect.top + Math.min(lines, 3) * parseFloat(getComputedStyle(textarea).lineHeight) + 20,
