@@ -25,6 +25,8 @@ interface HierarchicalProjectListProps {
   statusFilter?: string;
   searchQuery?: string;
   onCreateProject?: () => void;
+  /** If true, only show tasks assigned to the current user */
+  showOnlyMyTasks?: boolean;
 }
 
 function loadExpandedIds(): string[] {
@@ -51,16 +53,22 @@ export default function HierarchicalProjectList({
   statusFilter,
   searchQuery,
   onCreateProject,
+  showOnlyMyTasks = false,
 }: HierarchicalProjectListProps) {
   const { organization } = useOrganizationStore();
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(
-    () => new Set(loadExpandedIds())
-  );
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
+    // Start with saved expanded state or empty set
+    const saved = loadExpandedIds();
+    return new Set(saved);
+  });
+  const [hasInitializedExpanded, setHasInitializedExpanded] = useState(false);
 
   // Save expanded state when it changes
   useEffect(() => {
-    saveExpandedIds(Array.from(expandedIds));
-  }, [expandedIds]);
+    if (hasInitializedExpanded) {
+      saveExpandedIds(Array.from(expandedIds));
+    }
+  }, [expandedIds, hasInitializedExpanded]);
 
   // Fetch top-level projects only
   const { data, isLoading, error } = useQuery({
@@ -100,6 +108,19 @@ export default function HierarchicalProjectList({
   }, [analytics]);
 
   const projects = data?.items || [];
+
+  // Default to all projects expanded on first load (if no saved state)
+  useEffect(() => {
+    if (projects.length > 0 && !hasInitializedExpanded) {
+      const savedIds = loadExpandedIds();
+      // If no saved state, expand all projects with children by default
+      if (savedIds.length === 0) {
+        const allExpandableIds = projects.filter((p) => p.has_children).map((p) => p.id);
+        setExpandedIds(new Set(allExpandableIds));
+      }
+      setHasInitializedExpanded(true);
+    }
+  }, [projects, hasInitializedExpanded]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -204,6 +225,7 @@ export default function HierarchicalProjectList({
             onToggleExpand={toggleExpand}
             attentionInfo={attentionMap[project.id]}
             attentionMap={attentionMap}
+            showOnlyMyTasks={showOnlyMyTasks}
           />
         ))}
       </div>

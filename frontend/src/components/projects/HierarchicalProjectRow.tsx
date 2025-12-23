@@ -35,6 +35,8 @@ interface HierarchicalProjectRowProps {
   attentionInfo?: ProjectAttentionInfo;
   /** Map of all project attention info (for passing to children) */
   attentionMap?: Record<string, ProjectAttentionInfo>;
+  /** If true, only show tasks assigned to the current user */
+  showOnlyMyTasks?: boolean;
 }
 
 export default function HierarchicalProjectRow({
@@ -44,6 +46,7 @@ export default function HierarchicalProjectRow({
   onToggleExpand,
   attentionInfo,
   attentionMap = {},
+  showOnlyMyTasks = false,
 }: HierarchicalProjectRowProps) {
   const navigate = useNavigate();
   const isExpanded = expandedIds.has(project.id);
@@ -205,7 +208,7 @@ export default function HierarchicalProjectRow({
         className="pb-2 border-l-2 border-gray-200 dark:border-dark-border ml-4"
         style={{ marginLeft: `${depth * 24 + 28}px` }}
       >
-        <InlineTaskList projectId={project.id} />
+        <InlineTaskList projectId={project.id} showOnlyMyTasks={showOnlyMyTasks} />
       </div>
 
       {/* Child Projects (when expanded) */}
@@ -253,6 +256,7 @@ export default function HierarchicalProjectRow({
                   onToggleExpand={onToggleExpand}
                   attentionInfo={attentionMap[child.id]}
                   attentionMap={attentionMap}
+                  showOnlyMyTasks={showOnlyMyTasks}
                 />
               </div>
             ))

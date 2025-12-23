@@ -1,9 +1,18 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ExclamationTriangleIcon, UserIcon } from "@heroicons/react/24/outline";
+import { clsx } from "clsx";
 import { tasksService } from "@/services/tasks";
+import { blockersService } from "@/services/blockers";
+import { useAuthStore } from "@/stores/auth";
 import type { Task } from "@/types";
 
-const MAX_VISIBLE_TASKS = 5;
+/** Blocker info for a task */
+export interface TaskBlockerInfo {
+  isBlocked: boolean;
+  maxImpact: "low" | "medium" | "high" | "critical" | null;
+  blockerCount: number;
+}
 
 const statusIcons: Record<string, { icon: string; className: string }> = {
   todo: { icon: "○", className: "text-gray-400" },
@@ -51,7 +60,7 @@ function getDueDateInfo(dueDate: string): { text: string; isOverdue: boolean; da
   }
 }
 
-// Sort tasks: overdue first (most overdue at top), then by due date, then by status
+// Sort tasks: Urgent priority first, then overdue tasks, then by due date, then by status
 function sortTasksByUrgency(tasks: Task[]): Task[] {
   const statusOrder: Record<string, number> = {
     in_progress: 0,
@@ -59,11 +68,24 @@ function sortTasksByUrgency(tasks: Task[]): Task[] {
     todo: 2,
   };
 
+  const priorityOrder: Record<string, number> = {
+    urgent: 0,
+    high: 1,
+    medium: 2,
+    low: 3,
+  };
+
   return [...tasks].sort((a, b) => {
+    // Urgent priority always first
+    const aIsUrgent = a.priority === "urgent";
+    const bIsUrgent = b.priority === "urgent";
+    if (aIsUrgent && !bIsUrgent) return -1;
+    if (!aIsUrgent && bIsUrgent) return 1;
+
     const aInfo = a.due_date ? getDueDateInfo(a.due_date) : null;
     const bInfo = b.due_date ? getDueDateInfo(b.due_date) : null;
 
-    // Overdue tasks first
+    // Overdue tasks next (most overdue at top)
     const aOverdue = aInfo?.isOverdue ? aInfo.daysOverdue : -Infinity;
     const bOverdue = bInfo?.isOverdue ? bInfo.daysOverdue : -Infinity;
 
@@ -78,6 +100,13 @@ function sortTasksByUrgency(tasks: Task[]): Task[] {
     if (a.due_date) return -1;
     if (b.due_date) return 1;
 
+    // Then by priority
+    const aPriority = priorityOrder[a.priority] ?? 2;
+    const bPriority = priorityOrder[b.priority] ?? 2;
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+
     // Then by status
     return (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
   });
@@ -86,30 +115,51 @@ function sortTasksByUrgency(tasks: Task[]): Task[] {
 interface InlineTaskListProps {
   projectId: string;
   className?: string;
+  /** If true, only show tasks assigned to the current user */
+  showOnlyMyTasks?: boolean;
 }
 
-export default function InlineTaskList({ projectId, className = "" }: InlineTaskListProps) {
+export default function InlineTaskList({
+  projectId,
+  className = "",
+  showOnlyMyTasks = false
+}: InlineTaskListProps) {
+  const { user } = useAuthStore();
+
   // Fetch tasks grouped by status
   const { data: tasksByStatus, isLoading } = useQuery({
     queryKey: ["tasks", projectId, "by-status"],
     queryFn: () => tasksService.getByStatus(projectId),
   });
 
+  // Fetch blocker info for all tasks in this project
+  const { data: taskBlockerInfo } = useQuery({
+    queryKey: ["project", projectId, "task-blocker-info"],
+    queryFn: () => blockersService.getTaskBlockerInfo(projectId),
+    staleTime: 30000, // Cache for 30 seconds
+  });
+
   // Combine active tasks (exclude done) and sort by urgency
-  const activeTasks: Task[] = [];
+  let activeTasks: Task[] = [];
   if (tasksByStatus) {
     activeTasks.push(...(tasksByStatus.in_progress || []));
     activeTasks.push(...(tasksByStatus.in_review || []));
     activeTasks.push(...(tasksByStatus.todo || []));
   }
 
-  // Sort by overdue status, then due date, then status
+  // Filter by assigned user if requested
+  if (showOnlyMyTasks && user?.id) {
+    activeTasks = activeTasks.filter(task =>
+      task.assignments?.some(assignment => assignment.user_id === user.id)
+    );
+  }
+
+  // Sort by urgency (Urgent priority first, then deadline, then status)
   const sortedTasks = sortTasksByUrgency(activeTasks);
-  const visibleTasks = sortedTasks.slice(0, MAX_VISIBLE_TASKS);
-  const remainingCount = activeTasks.length - visibleTasks.length;
   const doneCount = tasksByStatus?.done?.length ?? 0;
-  const allDone = tasksByStatus && activeTasks.length === 0 && doneCount > 0;
-  const noTasks = tasksByStatus && activeTasks.length === 0 && doneCount === 0;
+  const allDone = tasksByStatus && activeTasks.length === 0 && doneCount > 0 && !showOnlyMyTasks;
+  const noTasks = tasksByStatus && activeTasks.length === 0 && doneCount === 0 && !showOnlyMyTasks;
+  const noMyTasks = showOnlyMyTasks && activeTasks.length === 0;
 
   if (isLoading) {
     return (
@@ -127,6 +177,14 @@ export default function InlineTaskList({ projectId, className = "" }: InlineTask
     );
   }
 
+  if (noMyTasks) {
+    return (
+      <div className={`pl-8 py-2 text-sm text-gray-400 dark:text-gray-500 italic ${className}`}>
+        No tasks assigned to you
+      </div>
+    );
+  }
+
   if (allDone) {
     return (
       <div className={`pl-8 py-2 text-sm text-green-600 dark:text-green-400 ${className}`}>
@@ -138,59 +196,103 @@ export default function InlineTaskList({ projectId, className = "" }: InlineTask
   return (
     <div className={`pl-8 py-1 ${className}`}>
       <div className="space-y-1">
-        {visibleTasks.map((task) => (
-          <TaskRow key={task.id} task={task} projectId={projectId} />
+        {sortedTasks.map((task) => (
+          <TaskRow
+            key={task.id}
+            task={task}
+            projectId={projectId}
+            blockerInfo={taskBlockerInfo?.[task.id]}
+          />
         ))}
       </div>
-
-      {remainingCount > 0 && (
-        <Link
-          to={`/projects/${projectId}`}
-          className="mt-1 inline-block text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-        >
-          + {remainingCount} more task{remainingCount !== 1 ? "s" : ""}...
-        </Link>
-      )}
     </div>
   );
 }
 
-function TaskRow({ task, projectId }: { task: Task; projectId: string }) {
+interface TaskRowProps {
+  task: Task;
+  projectId: string;
+  blockerInfo?: TaskBlockerInfo;
+}
+
+function TaskRow({ task, projectId, blockerInfo }: TaskRowProps) {
   const statusConfig = statusIcons[task.status] || statusIcons.todo;
   const dueDateInfo = task.due_date ? getDueDateInfo(task.due_date) : null;
+
+  // Get assignees names (first 2)
+  const assigneeNames = task.assignments?.slice(0, 2).map(a => a.user_name || a.user_email?.split('@')[0] || 'Unknown');
+  const moreAssignees = task.assignments && task.assignments.length > 2 ? task.assignments.length - 2 : 0;
 
   return (
     <Link
       to={`/projects/${projectId}?task=${task.id}`}
-      className="flex items-center gap-2 py-1 rounded hover:bg-gray-50 dark:hover:bg-dark-elevated/50 group transition-colors"
+      className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-gray-50 dark:hover:bg-dark-elevated/50 group transition-colors"
     >
       {/* Status icon */}
-      <span className={`text-sm font-medium ${statusConfig.className}`}>
+      <span className={`text-sm font-medium flex-shrink-0 ${statusConfig.className}`}>
         {statusConfig.icon}
       </span>
 
       {/* Task title */}
-      <span className="text-sm text-gray-700 dark:text-gray-300 truncate group-hover:text-gray-900 dark:group-hover:text-white">
+      <span className="text-sm text-gray-700 dark:text-gray-300 truncate group-hover:text-gray-900 dark:group-hover:text-white flex-1 min-w-0">
         {task.title}
       </span>
 
+      {/* Blocker indicator */}
+      {blockerInfo?.isBlocked && (
+        <span
+          className={clsx(
+            "flex items-center gap-0.5 px-1.5 py-0.5 text-xs rounded flex-shrink-0",
+            blockerInfo.maxImpact === "critical"
+              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+              : blockerInfo.maxImpact === "high"
+                ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+          )}
+          title={`${blockerInfo.blockerCount} blocker${blockerInfo.blockerCount !== 1 ? "s" : ""} (${blockerInfo.maxImpact})`}
+        >
+          <ExclamationTriangleIcon className="h-3 w-3" />
+          {blockerInfo.blockerCount}
+        </span>
+      )}
+
       {/* Priority tag */}
-      <span className={`px-1.5 py-0.5 text-xs rounded ${priorityColors[task.priority] || priorityColors.medium}`}>
+      <span className={`px-1.5 py-0.5 text-xs rounded flex-shrink-0 ${priorityColors[task.priority] || priorityColors.medium}`}>
         {task.priority}
       </span>
 
       {/* Due date tag */}
       {dueDateInfo && (
         <span
-          className={`px-1.5 py-0.5 text-xs rounded whitespace-nowrap ${
+          className={clsx(
+            "px-1.5 py-0.5 text-xs rounded whitespace-nowrap flex-shrink-0",
             dueDateInfo.isOverdue
               ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
               : dueDateInfo.text === "Today"
                 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                 : "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-          }`}
+          )}
         >
           {dueDateInfo.text}
+        </span>
+      )}
+
+      {/* Assignees */}
+      {assigneeNames && assigneeNames.length > 0 && (
+        <span
+          className="flex items-center gap-0.5 px-1.5 py-0.5 text-xs rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 flex-shrink-0"
+          title={`Assigned to: ${task.assignments?.map(a => a.user_name || a.user_email).join(', ')}`}
+        >
+          <UserIcon className="h-3 w-3" />
+          {assigneeNames.join(', ')}
+          {moreAssignees > 0 && ` +${moreAssignees}`}
+        </span>
+      )}
+
+      {/* Creator info */}
+      {task.created_by_name && (
+        <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 hidden sm:inline">
+          by {task.created_by_name.split(' ')[0]}
         </span>
       )}
     </Link>

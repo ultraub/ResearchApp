@@ -11,6 +11,7 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   ChatBubbleLeftIcon,
+  UserIcon,
 } from "@heroicons/react/24/outline";
 import { clsx } from "clsx";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
@@ -124,6 +125,7 @@ export default function ProjectsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [showOnlyMyTasks, setShowOnlyMyTasks] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Auto-open create modal when navigating with ?create=true
@@ -224,6 +226,20 @@ export default function ProjectsPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* My Tasks toggle */}
+            <button
+              onClick={() => setShowOnlyMyTasks(!showOnlyMyTasks)}
+              className={clsx(
+                "flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors",
+                showOnlyMyTasks
+                  ? "border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-dark-border dark:bg-dark-elevated dark:text-gray-400 dark:hover:border-gray-600"
+              )}
+            >
+              <UserIcon className="h-4 w-4" />
+              My Tasks
+            </button>
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -269,6 +285,7 @@ export default function ProjectsPage() {
             statusFilter={statusFilter}
             searchQuery={searchQuery}
             onCreateProject={() => setIsCreateModalOpen(true)}
+            showOnlyMyTasks={showOnlyMyTasks}
           />
         ) : isLoading ? (
           <div className="flex items-center justify-center py-12">
