@@ -192,7 +192,10 @@ class AIPromptTemplate(BaseModel):
     created_by: Mapped["User | None"] = relationship("User")
 
     def __repr__(self) -> str:
-        return f"<AIPromptTemplate {self.template_key}>"
+        try:
+            return f"<AIPromptTemplate {self.template_key}>"
+        except Exception:
+            return f"<AIPromptTemplate id={self.id}>"
 
 
 class AIUsageLog(BaseModel):

@@ -100,7 +100,10 @@ class Document(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Document {self.title[:30]}>"
+        try:
+            return f"<Document {self.title[:30]}>"
+        except Exception:
+            return f"<Document id={self.id}>"
 
 
 class DocumentVersion(BaseModel):
@@ -269,4 +272,7 @@ class DocumentTemplate(BaseModel):
     usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     def __repr__(self) -> str:
-        return f"<DocumentTemplate {self.name}>"
+        try:
+            return f"<DocumentTemplate {self.name}>"
+        except Exception:
+            return f"<DocumentTemplate id={self.id}>"

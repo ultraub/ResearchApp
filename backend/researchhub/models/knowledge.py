@@ -106,7 +106,10 @@ class Paper(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Paper {self.title[:50]}>"
+        try:
+            return f"<Paper {self.title[:50]}>"
+        except Exception:
+            return f"<Paper id={self.id}>"
 
 
 class Collection(BaseModel):
@@ -153,7 +156,10 @@ class Collection(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Collection {self.name}>"
+        try:
+            return f"<Collection {self.name}>"
+        except Exception:
+            return f"<Collection id={self.id}>"
 
 
 class CollectionPaper(BaseModel):

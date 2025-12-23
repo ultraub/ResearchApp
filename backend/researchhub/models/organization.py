@@ -39,7 +39,10 @@ class Organization(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Organization {self.slug}>"
+        try:
+            return f"<Organization {self.slug}>"
+        except Exception:
+            return f"<Organization id={self.id}>"
 
 
 class OrganizationMember(BaseModel):
@@ -95,7 +98,10 @@ class Department(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Department {self.name}>"
+        try:
+            return f"<Department {self.name}>"
+        except Exception:
+            return f"<Department id={self.id}>"
 
 
 class Team(BaseModel):
@@ -154,7 +160,10 @@ class Team(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Team {self.name}>"
+        try:
+            return f"<Team {self.name}>"
+        except Exception:
+            return f"<Team id={self.id}>"
 
 
 class TeamMember(BaseModel):
@@ -241,8 +250,11 @@ class InviteCode(BaseModel):
     creator: Mapped["User | None"] = relationship("User")
 
     def __repr__(self) -> str:
-        target = f"org={self.organization_id}" if self.organization_id else f"team={self.team_id}"
-        return f"<InviteCode {self.code} {target}>"
+        try:
+            target = f"org={self.organization_id}" if self.organization_id else f"team={self.team_id}"
+            return f"<InviteCode {self.code} {target}>"
+        except Exception:
+            return f"<InviteCode id={self.id}>"
 
     def is_valid(self) -> bool:
         """Check if invitation is still valid."""

@@ -128,7 +128,10 @@ class Review(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Review {self.title[:30]} on doc={self.document_id}>"
+        try:
+            return f"<Review {self.title[:30]} on doc={self.document_id}>"
+        except Exception:
+            return f"<Review id={self.id}>"
 
 
 class ReviewAssignment(BaseModel):

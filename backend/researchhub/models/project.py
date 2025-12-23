@@ -141,7 +141,10 @@ class Project(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Project {self.name}>"
+        try:
+            return f"<Project {self.name}>"
+        except Exception:
+            return f"<Project id={self.id}>"
 
     def get_depth(self) -> int:
         """Calculate the depth of this project in the hierarchy (1 = top-level).
@@ -408,7 +411,10 @@ class Task(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Task {self.title[:30]}>"
+        try:
+            return f"<Task {self.title[:30]}>"
+        except Exception:
+            return f"<Task id={self.id}>"
 
 
 class IdeaVote(BaseModel):
@@ -593,7 +599,10 @@ class ProjectTemplate(BaseModel):
     usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     def __repr__(self) -> str:
-        return f"<ProjectTemplate {self.name}>"
+        try:
+            return f"<ProjectTemplate {self.name}>"
+        except Exception:
+            return f"<ProjectTemplate id={self.id}>"
 
 
 class TaskAssignment(BaseModel):
@@ -778,7 +787,10 @@ class RecurringTaskRule(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<RecurringTaskRule {self.title[:30]}>"
+        try:
+            return f"<RecurringTaskRule {self.title[:30]}>"
+        except Exception:
+            return f"<RecurringTaskRule id={self.id}>"
 
 
 class ProjectCustomField(BaseModel):
@@ -838,7 +850,10 @@ class ProjectCustomField(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<ProjectCustomField {self.name} project={self.project_id}>"
+        try:
+            return f"<ProjectCustomField {self.name} project={self.project_id}>"
+        except Exception:
+            return f"<ProjectCustomField id={self.id}>"
 
 
 class TaskCustomFieldValue(BaseModel):
@@ -945,7 +960,10 @@ class Blocker(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Blocker {self.title[:30]}>"
+        try:
+            return f"<Blocker {self.title[:30]}>"
+        except Exception:
+            return f"<Blocker id={self.id}>"
 
 
 class BlockerLink(BaseModel):

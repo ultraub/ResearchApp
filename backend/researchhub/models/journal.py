@@ -145,8 +145,11 @@ class JournalEntry(BaseModel):
     )
 
     def __repr__(self) -> str:
-        title_preview = self.title[:30] if self.title else f"Entry {self.entry_date}"
-        return f"<JournalEntry {title_preview}>"
+        try:
+            title_preview = self.title[:30] if self.title else f"Entry {self.entry_date}"
+            return f"<JournalEntry {title_preview}>"
+        except Exception:
+            return f"<JournalEntry id={self.id}>"
 
 
 class JournalEntryLink(BaseModel):
