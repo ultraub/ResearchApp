@@ -214,6 +214,7 @@ class AIProvider(ABC):
         model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        system: Optional[str] = None,
     ) -> "AIResponseWithTools":
         """Generate a completion with tool calling support.
 
@@ -228,6 +229,7 @@ class AIProvider(ABC):
             model: Model identifier (uses default if not specified)
             temperature: Sampling temperature (0.0 to 1.0)
             max_tokens: Maximum tokens to generate
+            system: Optional system prompt for the conversation
 
         Returns:
             AIResponseWithTools containing text and/or tool use requests

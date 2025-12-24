@@ -231,6 +231,7 @@ class AnthropicProvider(AIProvider):
         model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        system: Optional[str] = None,
     ) -> AIResponseWithTools:
         """Generate a completion with tool calling support using Claude.
 
@@ -241,6 +242,7 @@ class AnthropicProvider(AIProvider):
             model: Model identifier (uses default if not specified)
             temperature: Sampling temperature (0.0 to 1.0)
             max_tokens: Maximum tokens to generate
+            system: Optional system prompt for the conversation
 
         Returns:
             AIResponseWithTools containing text and/or tool use requests
@@ -255,17 +257,20 @@ class AnthropicProvider(AIProvider):
         start_time = time.perf_counter()
 
         # Separate system message from conversation messages
-        system_content = None
+        system_from_messages = None
         conversation_messages = []
 
         for msg in messages:
             if msg.role == "system":
-                system_content = msg.content
+                system_from_messages = msg.content
             else:
                 conversation_messages.append({
                     "role": msg.role,
                     "content": msg.content,
                 })
+
+        # Use explicit system parameter if provided, otherwise use system from messages
+        system_content = system if system else system_from_messages
 
         # If we have tool results, add them to the conversation
         if tool_results:

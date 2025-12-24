@@ -272,6 +272,7 @@ class GeminiProvider(AIProvider):
         model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        system: Optional[str] = None,
     ) -> AIResponseWithTools:
         """Generate a completion with tool calling support using Gemini.
 
@@ -295,7 +296,9 @@ class GeminiProvider(AIProvider):
         model = model or self._default_model
         start_time = time.perf_counter()
 
-        system_instruction, contents = self._build_contents(messages)
+        system_from_messages, contents = self._build_contents(messages)
+        # Use explicit system parameter if provided, otherwise use system from messages
+        system_instruction = system if system else system_from_messages
 
         # Convert ToolDefinition to Gemini function declarations
         function_declarations = []
