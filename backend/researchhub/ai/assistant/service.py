@@ -242,15 +242,16 @@ Common filter patterns for dynamic_query:
             base_prompt += """
 
 ## Dynamic Query Mode (Experimental)
-You are running in dynamic query mode. The specialized query tools (get_projects, get_tasks, get_blockers, get_documents, get_project_details, get_task_details, get_document_details) are NOT available.
+You are running in dynamic query mode. Use `dynamic_query` for ALL data retrieval.
 
-Instead, use `dynamic_query` for ALL data retrieval. This tool is more flexible and can handle any query pattern:
-- To list projects: dynamic_query with tables=["projects"]
-- To get tasks: dynamic_query with tables=["tasks"] and appropriate filters
-- To find blockers: dynamic_query with tables=["blockers"]
-- To search documents: dynamic_query with tables=["documents"]
+Key principles:
+1. **One query per data need** - Design a single well-filtered query rather than multiple narrow queries
+2. **Combine when possible** - Query multiple tables in one call if you need related data
+3. **Filter at query time** - Use filters (assigned_to_me, is_overdue, project_name, etc.) to get relevant results
+4. **Never repeat** - If you already queried something, use those results; don't re-query
+5. **Respond after querying** - Get the data you need, then synthesize and respond to the user
 
-The dynamic_query tool supports all the filter patterns listed above and can query multiple tables at once."""
+The dynamic_query tool accepts: tables (array), filters (object), limit (number), and include_relationships (boolean)."""
 
         if page_context:
             context_info = f"""

@@ -213,6 +213,12 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
         ReadSystemDocTool,
     )
     from researchhub.ai.assistant.queries.dynamic import DynamicQueryTool
+    from researchhub.ai.assistant.queries.collaboration import (
+        GetTeamActivityTool,
+        GetUserWorkloadTool,
+        GetCollaboratorsTool,
+        GetRecentActivityTool,
+    )
 
     from researchhub.ai.assistant.actions.tasks import (
         CreateTaskTool,
@@ -230,6 +236,16 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
         UpdateDocumentTool,
         LinkDocumentToTaskTool,
     )
+    from researchhub.ai.assistant.actions.projects import (
+        CreateProjectTool,
+        UpdateProjectTool,
+        ArchiveProjectTool,
+    )
+    from researchhub.ai.assistant.actions.journal import (
+        CreateJournalEntryTool,
+        UpdateJournalEntryTool,
+        LinkJournalEntryTool,
+    )
 
     registry = ToolRegistry()
 
@@ -244,10 +260,12 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
         registry.register_query(GetDocumentsTool())
         registry.register_query(GetDocumentDetailsTool())
 
-    # These tools have unique functionality not replicated by dynamic_query
-    registry.register_query(SearchContentTool())  # Full-text search
-    registry.register_query(GetAttentionSummaryTool())  # Complex aggregation
-    registry.register_query(GetTeamMembersTool())  # User lookup
+    # These tools have unique functionality not fully replicated by dynamic_query
+    # but we disable them in dynamic mode to force pure dynamic_query testing
+    if not use_dynamic_queries:
+        registry.register_query(SearchContentTool())  # Full-text search
+        registry.register_query(GetAttentionSummaryTool())  # Complex aggregation
+    registry.register_query(GetTeamMembersTool())  # User lookup (keep for name resolution)
 
     # Register system documentation tools
     registry.register_query(ListSystemDocsTool())
@@ -257,6 +275,12 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
     # Register dynamic query tool
     # When use_dynamic_queries=True, this is the primary query mechanism
     registry.register_query(DynamicQueryTool())
+
+    # Register collaboration/team awareness tools
+    registry.register_query(GetTeamActivityTool())
+    registry.register_query(GetUserWorkloadTool())
+    registry.register_query(GetCollaboratorsTool())
+    registry.register_query(GetRecentActivityTool())
 
     # Register action tools
     registry.register_action(CreateTaskTool())
@@ -269,5 +293,15 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
     registry.register_action(CreateDocumentTool())
     registry.register_action(UpdateDocumentTool())
     registry.register_action(LinkDocumentToTaskTool())
+
+    # Register project action tools
+    registry.register_action(CreateProjectTool())
+    registry.register_action(UpdateProjectTool())
+    registry.register_action(ArchiveProjectTool())
+
+    # Register journal entry action tools
+    registry.register_action(CreateJournalEntryTool())
+    registry.register_action(UpdateJournalEntryTool())
+    registry.register_action(LinkJournalEntryTool())
 
     return registry
