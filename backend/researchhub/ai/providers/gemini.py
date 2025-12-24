@@ -300,14 +300,15 @@ class GeminiProvider(AIProvider):
         # Use explicit system parameter if provided, otherwise use system from messages
         system_instruction = system if system else system_from_messages
 
-        # Convert ToolDefinition to Gemini function declarations
+        # Convert ToolDefinition to Gemini function declarations (as dicts)
         function_declarations = []
         for tool in tools:
-            function_declarations.append({
+            func_decl = {
                 "name": tool.name,
                 "description": tool.description,
                 "parameters": tool.input_schema,
-            })
+            }
+            function_declarations.append(func_decl)
 
         # If we have tool results, add them to the contents
         if tool_results:
@@ -326,12 +327,11 @@ class GeminiProvider(AIProvider):
 
         try:
             # Build generation config with tools
-            gemini_tools = types.Tool(function_declarations=function_declarations)
-
+            # Pass function declarations directly - the SDK will wrap them appropriately
             generation_config = types.GenerateContentConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
-                tools=[gemini_tools],
+                tools=[{"function_declarations": function_declarations}] if function_declarations else None,
             )
 
             if system_instruction:
