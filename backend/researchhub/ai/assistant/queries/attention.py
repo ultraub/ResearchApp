@@ -162,7 +162,7 @@ class GetAttentionSummaryTool(QueryTool):
             select(Blocker)
             .options(
                 selectinload(Blocker.assignee),
-                selectinload(Blocker.blocker_links),
+                selectinload(Blocker.blocked_items),
             )
             .where(and_(*blocker_filters))
             .where(Blocker.status.in_(["open", "in_progress"]))
@@ -182,7 +182,7 @@ class GetAttentionSummaryTool(QueryTool):
                 "impact_level": blocker.impact_level,
                 "blocker_type": blocker.blocker_type,
                 "assignee": blocker.assignee.display_name if blocker.assignee else None,
-                "blocked_items_count": len(blocker.blocker_links) if blocker.blocker_links else 0,
+                "blocked_items_count": len(blocker.blocked_items) if blocker.blocked_items else 0,
                 "days_open": (datetime.now(blocker.created_at.tzinfo) - blocker.created_at).days if blocker.created_at else 0,
             }
             for blocker in blockers

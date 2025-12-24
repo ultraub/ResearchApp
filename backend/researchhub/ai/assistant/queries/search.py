@@ -189,7 +189,7 @@ class SearchContentTool(QueryTool):
                 select(Blocker)
                 .options(
                     selectinload(Blocker.project),
-                    selectinload(Blocker.blocker_links),
+                    selectinload(Blocker.blocked_items),
                 )
                 .where(Blocker.project_id.in_(accessible_project_ids))
                 .where(
@@ -213,7 +213,7 @@ class SearchContentTool(QueryTool):
                     "status": blocker.status,
                     "priority": blocker.priority,
                     "project_name": blocker.project.name if blocker.project else None,
-                    "blocked_items_count": len(blocker.blocker_links) if blocker.blocker_links else 0,
+                    "blocked_items_count": len(blocker.blocked_items) if blocker.blocked_items else 0,
                     "type": "blocker",
                 }
                 for blocker in blockers
