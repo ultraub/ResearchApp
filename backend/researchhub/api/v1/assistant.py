@@ -180,9 +180,10 @@ async def assistant_chat(
             event_count = 0
             async for event in service.chat(chat_request):
                 event_count += 1
-                logger.info("Yielding event", event_type=str(event.event), event_count=event_count)
+                event_type = event.event.value if hasattr(event.event, 'value') else str(event.event)
+                logger.info("Yielding event", event_type=event_type, event_count=event_count)
                 event_data = json.dumps(event.data)
-                yield f"event: {event.event}\ndata: {event_data}\n\n"
+                yield f"event: {event_type}\ndata: {event_data}\n\n"
             logger.info("Chat stream completed", total_events=event_count)
         except Exception as e:
             logger.error("Assistant chat error", error=str(e), error_type=type(e).__name__)
