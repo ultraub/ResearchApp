@@ -8,9 +8,9 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from researchhub.ai.assistant.queries.access import get_accessible_project_ids
 from researchhub.ai.assistant.tools import QueryTool
 from researchhub.models.project import Blocker, BlockerLink, Project, Task, TaskComment
-from researchhub.models.organization import Team
 
 
 class GetTasksTool(QueryTool):
@@ -84,17 +84,16 @@ class GetTasksTool(QueryTool):
         due_after = input.get("due_after")
         limit = min(input.get("limit", 20), 50)
 
-        # Build query - join through Project and Team to filter by org or personal team
+        # Get accessible project IDs for the user
+        accessible_project_ids = await get_accessible_project_ids(db, user_id)
+
+        if not accessible_project_ids:
+            return {"tasks": [], "count": 0}
+
+        # Build query - filter by accessible projects
         query = (
             select(Task)
-            .join(Project, Task.project_id == Project.id)
-            .join(Team, Project.team_id == Team.id)
-            .where(
-                or_(
-                    Team.organization_id == org_id,
-                    and_(Team.is_personal == True, Team.owner_id == user_id),
-                )
-            )
+            .where(Task.project_id.in_(accessible_project_ids))
             .options(selectinload(Task.assignee))
         )
 
@@ -180,22 +179,18 @@ class GetTaskDetailsTool(QueryTool):
         """Execute the query and return task details."""
         task_id = UUID(input["task_id"])
 
-        # Get task with relationships - join through Project and Team to verify org access
+        # Get accessible project IDs for the user
+        accessible_project_ids = await get_accessible_project_ids(db, user_id)
+
+        # Get task with relationships - verify user has access to the project
         query = (
             select(Task)
-            .join(Project, Task.project_id == Project.id)
-            .join(Team, Project.team_id == Team.id)
             .options(
                 selectinload(Task.assignee),
                 selectinload(Task.project),
             )
             .where(Task.id == task_id)
-            .where(
-                or_(
-                    Team.organization_id == org_id,
-                    and_(Team.is_personal == True, Team.owner_id == user_id),
-                )
-            )
+            .where(Task.project_id.in_(accessible_project_ids) if accessible_project_ids else False)
         )
 
         result = await db.execute(query)

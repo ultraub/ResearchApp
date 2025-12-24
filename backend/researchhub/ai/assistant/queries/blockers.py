@@ -3,13 +3,13 @@
 from typing import Any, Dict
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from researchhub.ai.assistant.queries.access import get_accessible_project_ids
 from researchhub.ai.assistant.tools import QueryTool
-from researchhub.models.project import Blocker, BlockerLink, Project
-from researchhub.models.organization import Team
+from researchhub.models.project import Blocker, BlockerLink
 
 
 class GetBlockersTool(QueryTool):
@@ -59,17 +59,16 @@ class GetBlockersTool(QueryTool):
         status = input.get("status")
         limit = min(input.get("limit", 20), 50)
 
-        # Build query - join through Project and Team to filter by org or personal team
+        # Get accessible project IDs for the user
+        accessible_project_ids = await get_accessible_project_ids(db, user_id)
+
+        if not accessible_project_ids:
+            return {"blockers": [], "count": 0}
+
+        # Build query - filter by accessible projects
         query = (
             select(Blocker)
-            .join(Project, Blocker.project_id == Project.id)
-            .join(Team, Project.team_id == Team.id)
-            .where(
-                or_(
-                    Team.organization_id == org_id,
-                    and_(Team.is_personal == True, Team.owner_id == user_id),
-                )
-            )
+            .where(Blocker.project_id.in_(accessible_project_ids))
             .options(
                 selectinload(Blocker.assignee),
                 selectinload(Blocker.blocker_links),

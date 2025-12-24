@@ -5,7 +5,9 @@ from uuid import UUID
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from researchhub.ai.assistant.queries.access import get_accessible_project_ids
 from researchhub.ai.assistant.tools import QueryTool
 from researchhub.models.project import Blocker, Project, Task
 from researchhub.models.document import Document
@@ -21,7 +23,7 @@ class SearchContentTool(QueryTool):
 
     @property
     def description(self) -> str:
-        return "Search across tasks, projects, documents, and blockers by keyword. Returns matching items with their type and basic info."
+        return "Search across tasks, projects, documents, and blockers by keyword. Use this to find entities when you only have a name or partial match. Returns IDs and context (project name, assignee, etc.) for disambiguation."
 
     @property
     def input_schema(self) -> dict:
@@ -68,21 +70,28 @@ class SearchContentTool(QueryTool):
         project_id = input.get("project_id")
         limit = min(input.get("limit", 10), 30)
 
+        # Get accessible project IDs for the user
+        accessible_project_ids = await get_accessible_project_ids(db, user_id)
+
+        if not accessible_project_ids:
+            return {
+                "query": query_text,
+                "results": {},
+                "total_count": 0,
+            }
+
         search_pattern = f"%{query_text}%"
         results: Dict[str, List[Dict[str, Any]]] = {}
 
-        # Search tasks - join through Project and Team to filter by org or personal team
+        # Search tasks - include project and assignee for disambiguation
         if "task" in entity_types:
             task_query = (
                 select(Task)
-                .join(Project, Task.project_id == Project.id)
-                .join(Team, Project.team_id == Team.id)
-                .where(
-                    or_(
-                        Team.organization_id == org_id,
-                        and_(Team.is_personal == True, Team.owner_id == user_id),
-                    )
+                .options(
+                    selectinload(Task.project),
+                    selectinload(Task.assignee),
                 )
+                .where(Task.project_id.in_(accessible_project_ids))
                 .where(
                     or_(
                         Task.title.ilike(search_pattern),
@@ -102,22 +111,21 @@ class SearchContentTool(QueryTool):
                     "id": str(task.id),
                     "title": task.title,
                     "status": task.status,
+                    "priority": task.priority,
+                    "project_name": task.project.name if task.project else None,
+                    "assignee": task.assignee.display_name if task.assignee else None,
+                    "due_date": task.due_date.isoformat() if task.due_date else None,
                     "type": "task",
                 }
                 for task in tasks
             ]
 
-        # Search projects (join with Team to verify org or personal team access)
+        # Search projects - include team for context
         if "project" in entity_types:
             project_query = (
                 select(Project)
-                .join(Team, Project.team_id == Team.id)
-                .where(
-                    or_(
-                        Team.organization_id == org_id,
-                        and_(Team.is_personal == True, Team.owner_id == user_id),
-                    )
-                )
+                .options(selectinload(Project.team))
+                .where(Project.id.in_(accessible_project_ids))
                 .where(
                     or_(
                         Project.name.ilike(search_pattern),
@@ -134,24 +142,20 @@ class SearchContentTool(QueryTool):
                     "id": str(project.id),
                     "name": project.name,
                     "status": project.status,
+                    "emoji": project.emoji,
+                    "team_name": project.team.name if project.team else None,
                     "type": "project",
                 }
                 for project in projects
             ]
 
-        # Search documents - join through Project and Team to filter by org or personal team
+        # Search documents - include project for context
         # (excluding system docs - use search_system_docs for those)
         if "document" in entity_types:
             doc_query = (
                 select(Document)
-                .join(Project, Document.project_id == Project.id)
-                .join(Team, Project.team_id == Team.id)
-                .where(
-                    or_(
-                        Team.organization_id == org_id,
-                        and_(Team.is_personal == True, Team.owner_id == user_id),
-                    )
-                )
+                .options(selectinload(Document.project))
+                .where(Document.project_id.in_(accessible_project_ids))
                 .where(Document.is_system == False)
                 .where(
                     or_(
@@ -172,23 +176,22 @@ class SearchContentTool(QueryTool):
                     "id": str(doc.id),
                     "title": doc.title,
                     "status": doc.status,
+                    "document_type": doc.document_type,
+                    "project_name": doc.project.name if doc.project else None,
                     "type": "document",
                 }
                 for doc in documents
             ]
 
-        # Search blockers - join through Project and Team to filter by org or personal team
+        # Search blockers - include project and blocked item count for context
         if "blocker" in entity_types:
             blocker_query = (
                 select(Blocker)
-                .join(Project, Blocker.project_id == Project.id)
-                .join(Team, Project.team_id == Team.id)
-                .where(
-                    or_(
-                        Team.organization_id == org_id,
-                        and_(Team.is_personal == True, Team.owner_id == user_id),
-                    )
+                .options(
+                    selectinload(Blocker.project),
+                    selectinload(Blocker.blocker_links),
                 )
+                .where(Blocker.project_id.in_(accessible_project_ids))
                 .where(
                     or_(
                         Blocker.title.ilike(search_pattern),
@@ -208,6 +211,9 @@ class SearchContentTool(QueryTool):
                     "id": str(blocker.id),
                     "title": blocker.title,
                     "status": blocker.status,
+                    "priority": blocker.priority,
+                    "project_name": blocker.project.name if blocker.project else None,
+                    "blocked_items_count": len(blocker.blocker_links) if blocker.blocker_links else 0,
                     "type": "blocker",
                 }
                 for blocker in blockers

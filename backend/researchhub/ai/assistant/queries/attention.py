@@ -4,13 +4,13 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from researchhub.ai.assistant.queries.access import get_accessible_project_ids
 from researchhub.ai.assistant.tools import QueryTool
-from researchhub.models.project import Blocker, Project, Task
-from researchhub.models.organization import Team
+from researchhub.models.project import Blocker, Task
 
 
 class GetAttentionSummaryTool(QueryTool):
@@ -63,6 +63,24 @@ class GetAttentionSummaryTool(QueryTool):
         today = date.today()
         future_date = today + timedelta(days=days_ahead)
 
+        # Get accessible project IDs for the user
+        accessible_project_ids = await get_accessible_project_ids(db, user_id)
+
+        if not accessible_project_ids:
+            return {
+                "overdue_tasks": [],
+                "upcoming_deadlines": [],
+                "open_blockers": [],
+                "stalled_tasks": [],
+                "summary": {
+                    "overdue_count": 0,
+                    "upcoming_count": 0,
+                    "blocker_count": 0,
+                    "stalled_count": 0,
+                    "total_attention_items": 0,
+                },
+            }
+
         result: Dict[str, Any] = {
             "overdue_tasks": [],
             "upcoming_deadlines": [],
@@ -72,30 +90,22 @@ class GetAttentionSummaryTool(QueryTool):
         }
 
         # Base filters for tasks
-        task_filters = []
+        task_filters = [Task.project_id.in_(accessible_project_ids)]
         if project_id:
             task_filters.append(Task.project_id == UUID(project_id))
         if assignee_id:
             task_filters.append(Task.assignee_id == UUID(assignee_id))
 
-        # 1. Overdue tasks (due date < today, not done) - join through Project and Team for org access
+        # 1. Overdue tasks (due date < today, not done)
         overdue_query = (
             select(Task)
-            .join(Project, Task.project_id == Project.id)
-            .join(Team, Project.team_id == Team.id)
-            .where(
-                or_(
-                    Team.organization_id == org_id,
-                    and_(Team.is_personal == True, Team.owner_id == user_id),
-                )
-            )
             .options(selectinload(Task.assignee), selectinload(Task.project))
+            .where(and_(*task_filters))
             .where(Task.due_date < today)
             .where(Task.status != "done")
+            .order_by(Task.due_date.asc())
+            .limit(10)
         )
-        if task_filters:
-            overdue_query = overdue_query.where(and_(*task_filters))
-        overdue_query = overdue_query.order_by(Task.due_date.asc()).limit(10)
 
         overdue_result = await db.execute(overdue_query)
         overdue_tasks = overdue_result.scalars().all()
@@ -114,25 +124,17 @@ class GetAttentionSummaryTool(QueryTool):
             for task in overdue_tasks
         ]
 
-        # 2. Upcoming deadlines (due date between today and future_date, not done) - join for org access
+        # 2. Upcoming deadlines (due date between today and future_date, not done)
         upcoming_query = (
             select(Task)
-            .join(Project, Task.project_id == Project.id)
-            .join(Team, Project.team_id == Team.id)
-            .where(
-                or_(
-                    Team.organization_id == org_id,
-                    and_(Team.is_personal == True, Team.owner_id == user_id),
-                )
-            )
             .options(selectinload(Task.assignee), selectinload(Task.project))
+            .where(and_(*task_filters))
             .where(Task.due_date >= today)
             .where(Task.due_date <= future_date)
             .where(Task.status != "done")
+            .order_by(Task.due_date.asc())
+            .limit(10)
         )
-        if task_filters:
-            upcoming_query = upcoming_query.where(and_(*task_filters))
-        upcoming_query = upcoming_query.order_by(Task.due_date.asc()).limit(10)
 
         upcoming_result = await db.execute(upcoming_query)
         upcoming_tasks = upcoming_result.scalars().all()
@@ -151,28 +153,22 @@ class GetAttentionSummaryTool(QueryTool):
             for task in upcoming_tasks
         ]
 
-        # 3. Open blockers - join through Project and Team for org access
+        # 3. Open blockers
+        blocker_filters = [Blocker.project_id.in_(accessible_project_ids)]
+        if project_id:
+            blocker_filters.append(Blocker.project_id == UUID(project_id))
+
         blocker_query = (
             select(Blocker)
-            .join(Project, Blocker.project_id == Project.id)
-            .join(Team, Project.team_id == Team.id)
-            .where(
-                or_(
-                    Team.organization_id == org_id,
-                    and_(Team.is_personal == True, Team.owner_id == user_id),
-                )
-            )
             .options(
                 selectinload(Blocker.assignee),
                 selectinload(Blocker.blocker_links),
             )
+            .where(and_(*blocker_filters))
             .where(Blocker.status.in_(["open", "in_progress"]))
+            .order_by(Blocker.priority.desc(), Blocker.created_at.asc())
+            .limit(10)
         )
-        if project_id:
-            blocker_query = blocker_query.where(Blocker.project_id == UUID(project_id))
-        blocker_query = blocker_query.order_by(
-            Blocker.priority.desc(), Blocker.created_at.asc()
-        ).limit(10)
 
         blocker_result = await db.execute(blocker_query)
         blockers = blocker_result.scalars().all()
@@ -192,25 +188,17 @@ class GetAttentionSummaryTool(QueryTool):
             for blocker in blockers
         ]
 
-        # 4. Stalled tasks (in_progress for >7 days without updates) - join for org access
+        # 4. Stalled tasks (in_progress for >7 days without updates)
         stale_date = datetime.now() - timedelta(days=7)
         stalled_query = (
             select(Task)
-            .join(Project, Task.project_id == Project.id)
-            .join(Team, Project.team_id == Team.id)
-            .where(
-                or_(
-                    Team.organization_id == org_id,
-                    and_(Team.is_personal == True, Team.owner_id == user_id),
-                )
-            )
             .options(selectinload(Task.assignee), selectinload(Task.project))
+            .where(and_(*task_filters))
             .where(Task.status == "in_progress")
             .where(Task.updated_at < stale_date)
+            .order_by(Task.updated_at.asc())
+            .limit(10)
         )
-        if task_filters:
-            stalled_query = stalled_query.where(and_(*task_filters))
-        stalled_query = stalled_query.order_by(Task.updated_at.asc()).limit(10)
 
         stalled_result = await db.execute(stalled_query)
         stalled_tasks = stalled_result.scalars().all()
