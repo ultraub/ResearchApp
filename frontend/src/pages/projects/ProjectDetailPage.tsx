@@ -10,7 +10,6 @@ import {
   UserGroupIcon,
   Cog6ToothIcon,
   DocumentTextIcon,
-  ClockIcon,
   ChevronRightIcon,
   BookOpenIcon,
   ExclamationTriangleIcon,
@@ -18,6 +17,7 @@ import {
   BeakerIcon,
   SparklesIcon,
   EyeSlashIcon,
+  FolderIcon,
 } from "@heroicons/react/24/outline";
 import { useDemoProject } from "@/hooks/useDemoProject";
 import { clsx } from "clsx";
@@ -33,16 +33,17 @@ import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import ProjectHierarchyPanel from "@/components/projects/ProjectHierarchyPanel";
 import { ProjectMembersModal } from "@/components/projects/ProjectMembersModal";
 import { ProjectSettingsModal } from "@/components/projects/ProjectSettingsModal";
+import { ProjectSummaryCard } from "@/components/projects/ProjectSummaryCard";
+import { AttentionSummary } from "@/components/projects/AttentionSummary";
 import { ProjectPapersSection } from "@/components/knowledge/ProjectPapersSection";
 import { JournalEntryList, JournalEntryModal } from "@/components/journals";
-import { BlockerList, CreateBlockerModal } from "@/components/blockers";
+import { CreateBlockerModal } from "@/components/blockers";
 import { DocumentList, CreateDocumentModal } from "@/components/documents";
 import { useOrganizationStore } from "@/stores/organization";
 import type { Task, Project, JournalEntry } from "@/types";
-import OwnerDisplay from "@/components/common/OwnerDisplay";
 
 type ViewMode = "kanban" | "list";
-type TabType = "tasks" | "documents" | "papers" | "notebook" | "blockers" | "timeline";
+type TabType = "tasks" | "documents" | "papers" | "notebook";
 
 const statusColors = {
   active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
@@ -342,11 +343,11 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-6 py-4 dark:border-dark-border dark:bg-dark-card">
+      {/* Header - Simplified sticky header */}
+      <div className="sticky top-0 z-10 border-b border-gray-200 bg-white px-6 py-3 dark:border-dark-border dark:bg-dark-card">
         {/* Breadcrumb navigation */}
         {(ancestors && ancestors.length > 0) && (
-          <nav className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 mb-3">
+          <nav className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 mb-2">
             <Link
               to="/projects"
               className="hover:text-primary-600 dark:hover:text-primary-400"
@@ -364,89 +365,65 @@ export default function ProjectDetailPage() {
                 </Link>
               </span>
             ))}
-            <ChevronRightIcon className="h-3.5 w-3.5" />
-            <span className="text-gray-700 dark:text-gray-300 font-medium">
-              {project.name}
-            </span>
           </nav>
         )}
 
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link
               to={ancestors && ancestors.length > 0 ? `/projects/${ancestors[ancestors.length - 1].id}` : "/projects"}
-              className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
+              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
               title={ancestors && ancestors.length > 0 ? `Back to ${ancestors[ancestors.length - 1].name}` : "Back to projects"}
             >
               <ArrowLeftIcon className="h-5 w-5" />
             </Link>
 
-            <div>
-              <div className="flex items-center gap-3">
-                {project.color && (
-                  <div
-                    className="h-4 w-4 rounded-full"
-                    style={{ backgroundColor: project.color }}
-                  />
-                )}
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {project.name}
-                </h1>
-                {project.parent_id && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                    Subproject
-                  </span>
-                )}
-                <span
-                  className={clsx(
-                    "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    statusColors[project.status]
-                  )}
-                >
-                  {project.status}
-                </span>
-              </div>
-              {project.description && (
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {project.description}
-                </p>
+            {project.color && (
+              <div
+                className="h-5 w-5 rounded-lg flex-shrink-0"
+                style={{ backgroundColor: project.color }}
+              />
+            )}
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white truncate">
+              {project.name}
+            </h1>
+            <span
+              className={clsx(
+                "rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0",
+                statusColors[project.status]
               )}
-              {/* Creator info */}
-              {project.created_by_name && (
-                <div className="mt-2 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
-                  <span>Created by</span>
-                  <OwnerDisplay
-                    name={project.created_by_name}
-                    email={project.created_by_email}
-                    id={project.created_by_id}
-                    size="xs"
-                    showName
-                  />
-                </div>
-              )}
-            </div>
+            >
+              {project.status}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsMembersModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-dark-border dark:bg-dark-elevated dark:text-gray-300"
+              onClick={() => handleAddTask("todo")}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700"
             >
-              <UserGroupIcon className="h-4 w-4" />
-              Members
+              <PlusIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Add Task</span>
+            </button>
+            <button
+              onClick={() => setIsMembersModalOpen(true)}
+              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
+              title="Members"
+            >
+              <UserGroupIcon className="h-5 w-5" />
             </button>
             <button
               onClick={() => setIsSettingsModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-dark-border dark:bg-dark-elevated dark:text-gray-300"
+              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
+              title="Settings"
             >
-              <Cog6ToothIcon className="h-4 w-4" />
-              Settings
+              <Cog6ToothIcon className="h-5 w-5" />
             </button>
           </div>
         </div>
 
-        {/* Tabs and view toggle - DESKTOP ONLY */}
-        <div className="mt-4 hidden md:flex items-center justify-between">
+        {/* Tabs - DESKTOP ONLY */}
+        <div className="mt-3 hidden md:flex items-center justify-between">
           <nav className="flex gap-6">
             <button
               onClick={() => setActiveTab("tasks")}
@@ -492,28 +469,6 @@ export default function ProjectDetailPage() {
             >
               Lab Notebook
             </button>
-            <button
-              onClick={() => setActiveTab("blockers")}
-              className={clsx(
-                "border-b-2 pb-2 text-sm font-medium transition-colors",
-                activeTab === "blockers"
-                  ? "border-primary-600 text-primary-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
-              )}
-            >
-              Blockers
-            </button>
-            <button
-              onClick={() => setActiveTab("timeline")}
-              className={clsx(
-                "border-b-2 pb-2 text-sm font-medium transition-colors",
-                activeTab === "timeline"
-                  ? "border-primary-600 text-primary-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
-              )}
-            >
-              Timeline
-            </button>
           </nav>
 
           {activeTab === "tasks" && (
@@ -522,58 +477,51 @@ export default function ProjectDetailPage() {
                 <button
                   onClick={() => setViewMode("kanban")}
                   className={clsx(
-                    "p-2",
+                    "p-1.5",
                     viewMode === "kanban"
                       ? "bg-gray-100 text-gray-900 dark:bg-dark-elevated dark:text-white"
                       : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
                   )}
                 >
-                  <Squares2X2Icon className="h-5 w-5" />
+                  <Squares2X2Icon className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => setViewMode("list")}
                   className={clsx(
-                    "p-2",
+                    "p-1.5",
                     viewMode === "list"
                       ? "bg-gray-100 text-gray-900 dark:bg-dark-elevated dark:text-white"
                       : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
                   )}
                 >
-                  <ListBulletIcon className="h-5 w-5" />
+                  <ListBulletIcon className="h-4 w-4" />
                 </button>
               </div>
 
               <button
                 onClick={() => setIsCreateBlockerOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg border border-yellow-400 bg-yellow-50 px-4 py-2 text-sm font-medium text-yellow-700 hover:bg-yellow-100 dark:border-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400 dark:hover:bg-yellow-900/30"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-yellow-400 bg-yellow-50 px-3 py-1.5 text-sm font-medium text-yellow-700 hover:bg-yellow-100 dark:border-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400 dark:hover:bg-yellow-900/30"
               >
                 <ExclamationTriangleIcon className="h-4 w-4" />
-                Add Blocker
-              </button>
-              <button
-                onClick={() => handleAddTask("todo")}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
-              >
-                <PlusIcon className="h-4 w-4" />
-                Add Task
+                Blocker
               </button>
             </div>
           )}
 
           {activeTab === "documents" && (
-            <Link
-              to={`/projects/${projectId}/documents`}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+            <button
+              onClick={() => setIsCreateDocumentOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700"
             >
-              <DocumentTextIcon className="h-4 w-4" />
-              View All Documents
-            </Link>
+              <PlusIcon className="h-4 w-4" />
+              New Document
+            </button>
           )}
 
           {activeTab === "notebook" && (
             <button
               onClick={handleCreateJournalEntry}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700"
             >
               <PlusIcon className="h-4 w-4" />
               New Entry
@@ -617,12 +565,6 @@ export default function ProjectDetailPage() {
                         ({blocker.impact_level} impact)
                       </span>
                     </div>
-                    <button
-                      onClick={() => setActiveTab("blockers")}
-                      className="text-xs font-medium text-yellow-700 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200"
-                    >
-                      View →
-                    </button>
                   </div>
                 ))}
               </div>
@@ -631,22 +573,94 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* Tab content */}
-      <div className="p-6">
-        {/* Hierarchy Panel - shown for top-level projects */}
-        {!project.parent_id && (
-          <ProjectHierarchyPanel
-            children={children || []}
-            currentProjectId={projectId!}
-            onAddSubproject={() => setIsCreateSubprojectOpen(true)}
-            subprojectBlockers={subprojectBlockers}
-            className="mb-6"
+      {/* Summary Cards - Desktop two-column, Mobile stacked */}
+      <div className="px-6 py-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ProjectSummaryCard project={project} />
+          <AttentionSummary
+            tasks={allTasks}
+            blockers={projectBlockers}
+            unreadCounts={taskUnreadInfo}
+            onBlockersClick={() => setIsCreateBlockerOpen(true)}
           />
-        )}
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div className="px-6 pb-6">
+        {/* Hierarchy Panel - shown for top-level projects on desktop */}
+        <div className="hidden md:block">
+          {!project.parent_id && (
+            <ProjectHierarchyPanel
+              children={children || []}
+              currentProjectId={projectId!}
+              onAddSubproject={() => setIsCreateSubprojectOpen(true)}
+              subprojectBlockers={subprojectBlockers}
+              className="mb-6"
+            />
+          )}
+        </div>
 
         {/* MOBILE: Collapsible sections view */}
         <div className="md:hidden space-y-3">
           <CollapsibleSectionGroup defaultOpen="tasks">
+            {/* Subprojects Section - Mobile only */}
+            {!project.parent_id && children && children.length > 0 && (
+              <CollapsibleSection
+                id="subprojects"
+                title="Subprojects"
+                icon={FolderIcon}
+                count={children.length}
+                warning={Object.keys(subprojectBlockers || {}).length > 0}
+              >
+                <div className="pt-2 space-y-2">
+                  {children.map((child) => {
+                    const blockerInfo = subprojectBlockers?.[child.id];
+                    return (
+                      <button
+                        key={child.id}
+                        onClick={() => navigate(`/projects/${child.id}`)}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-dark-elevated dark:hover:bg-dark-elevated/80 transition-colors text-left"
+                      >
+                        <div
+                          className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: child.color || "#6366f1" }}
+                        >
+                          <FolderIcon className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-white truncate">
+                            {child.name}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {child.task_count || 0} tasks
+                          </div>
+                        </div>
+                        {blockerInfo && (
+                          <span className={clsx(
+                            "flex items-center justify-center h-6 w-6 rounded-full text-xs font-medium",
+                            blockerInfo.maxImpact === "critical" || blockerInfo.maxImpact === "high"
+                              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                              : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                          )}>
+                            {blockerInfo.blockerCount}
+                          </span>
+                        )}
+                        <ChevronRightIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => setIsCreateSubprojectOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed border-gray-200 text-gray-500 hover:border-primary-300 hover:text-primary-600 dark:border-gray-700 dark:hover:border-primary-700 transition-colors"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    Add Subproject
+                  </button>
+                </div>
+              </CollapsibleSection>
+            )}
+
             {/* Tasks Section */}
             <CollapsibleSection
               id="tasks"
@@ -656,23 +670,6 @@ export default function ProjectDetailPage() {
               defaultOpen
             >
               <div className="pt-2">
-                {/* Mobile action buttons */}
-                <div className="flex gap-2 mb-4">
-                  <button
-                    onClick={() => handleAddTask("todo")}
-                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    Add Task
-                  </button>
-                  <button
-                    onClick={() => setIsCreateBlockerOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-yellow-400 bg-yellow-50 px-3 py-2 text-sm font-medium text-yellow-700 hover:bg-yellow-100 dark:border-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400"
-                  >
-                    <ExclamationTriangleIcon className="h-4 w-4" />
-                  </button>
-                </div>
-
                 {/* Aggregation toggle for mobile */}
                 {hasChildren && (
                   <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer mb-3">
@@ -686,7 +683,7 @@ export default function ProjectDetailPage() {
                   </label>
                 )}
 
-                {/* Task list for mobile - always list view */}
+                {/* Task list for mobile - show all tasks */}
                 {tasksLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary-600" />
@@ -697,7 +694,7 @@ export default function ProjectDetailPage() {
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {allTasks.slice(0, 5).map((task) => (
+                    {allTasks.map((task) => (
                       <TaskCard
                         key={task.id}
                         task={task}
@@ -707,11 +704,6 @@ export default function ProjectDetailPage() {
                         onVote={handleVote}
                       />
                     ))}
-                    {allTasks.length > 5 && (
-                      <p className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
-                        + {allTasks.length - 5} more tasks
-                      </p>
-                    )}
                   </div>
                 )}
               </div>
@@ -787,57 +779,6 @@ export default function ProjectDetailPage() {
                     onEntryClick={handleJournalEntryClick}
                     onCreateClick={handleCreateJournalEntry}
                   />
-                )}
-              </div>
-            </CollapsibleSection>
-
-            {/* Blockers Section */}
-            <CollapsibleSection
-              id="blockers"
-              title="Blockers"
-              icon={ExclamationTriangleIcon}
-              warning={projectBlockers && projectBlockers.length > 0}
-              count={projectBlockers?.length}
-            >
-              <div className="pt-2">
-                <div className="flex justify-end mb-3">
-                  <button
-                    onClick={() => setIsCreateBlockerOpen(true)}
-                    className="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    Add Blocker
-                  </button>
-                </div>
-                {projectId && (
-                  <BlockerList
-                    projectId={projectId}
-                    showResolved={false}
-                    onCreateBlocker={() => setIsCreateBlockerOpen(true)}
-                  />
-                )}
-              </div>
-            </CollapsibleSection>
-
-            {/* Timeline Section */}
-            <CollapsibleSection
-              id="timeline"
-              title="Timeline"
-              icon={ClockIcon}
-            >
-              <div className="pt-2 text-center py-6">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Timeline view coming soon
-                </p>
-                {project?.start_date && (
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    Start: {new Date(project.start_date).toLocaleDateString()}
-                  </p>
-                )}
-                {project?.target_end_date && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Target: {new Date(project.target_end_date).toLocaleDateString()}
-                  </p>
                 )}
               </div>
             </CollapsibleSection>
@@ -984,56 +925,6 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* Blockers Tab */}
-        {activeTab === "blockers" && projectId && (
-          <div className="rounded-xl bg-white p-6 shadow-card dark:bg-dark-card">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Project Blockers
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Track and manage blockers affecting this project
-                </p>
-              </div>
-              <button
-                onClick={() => setIsCreateBlockerOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
-              >
-                <PlusIcon className="h-4 w-4" />
-                Add Blocker
-              </button>
-            </div>
-            <BlockerList
-              projectId={projectId}
-              showResolved={true}
-              onCreateBlocker={() => setIsCreateBlockerOpen(true)}
-            />
-          </div>
-        )}
-
-        {/* Timeline Tab */}
-        {activeTab === "timeline" && (
-          <div className="rounded-xl bg-white p-12 text-center shadow-card dark:bg-dark-card">
-            <ClockIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">
-              Project Timeline
-            </h3>
-            <p className="mt-2 text-gray-500 dark:text-gray-400">
-              Timeline view coming soon
-            </p>
-            {project?.start_date && (
-              <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                Start date: {new Date(project.start_date).toLocaleDateString()}
-              </p>
-            )}
-            {project?.target_end_date && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Target end: {new Date(project.target_end_date).toLocaleDateString()}
-              </p>
-            )}
-          </div>
-        )}
         </div>
         {/* End DESKTOP: Tab-based view */}
       </div>
