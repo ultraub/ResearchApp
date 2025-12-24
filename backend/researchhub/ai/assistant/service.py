@@ -245,11 +245,13 @@ Use this context to provide relevant suggestions and defaults for actions."""
         messages: List[AIMessage] = []
 
         # Add conversation history if provided
+        # Filter out messages with empty content (e.g., from tool-only responses)
         for msg in request.messages:
-            messages.append(AIMessage(
-                role=msg.role,
-                content=msg.content,
-            ))
+            if msg.content and msg.content.strip():
+                messages.append(AIMessage(
+                    role=msg.role,
+                    content=msg.content,
+                ))
 
         # Add the current user message
         messages.append(AIMessage(role="user", content=request.message))
@@ -448,6 +450,15 @@ Use this context to provide relevant suggestions and defaults for actions."""
             # If no tool calls were made, we're done
             if not pending_tool_uses:
                 break
+
+        # If we exhausted max_iterations without producing text, send a fallback message
+        # This can happen if the model keeps calling tools without generating a response
+        if iteration == max_iterations - 1 and not accumulated_text:
+            fallback_message = "I gathered the information you requested but wasn't able to formulate a complete response. Please try asking your question again, and I'll do my best to help."
+            yield SSEEvent(
+                event="text",
+                data={"content": fallback_message},
+            )
 
         # Done event
         yield SSEEvent(

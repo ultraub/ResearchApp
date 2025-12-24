@@ -112,10 +112,13 @@ export function useChatBubble(): UseChatBubbleResult {
 
       try {
         // Build message history for context
-        const messageHistory = messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
+        // Filter out messages with empty content (e.g., assistant messages that only had tool calls)
+        const messageHistory = messages
+          .filter((m) => m.content && m.content.trim() !== '')
+          .map((m) => ({
+            role: m.role,
+            content: m.content,
+          }));
 
         // Stream response
         const stream = assistantService.chatStream({

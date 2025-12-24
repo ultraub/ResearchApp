@@ -53,6 +53,7 @@ export function AIChatBubble() {
           onRejectAction={chatBubble.rejectAction}
           onClearMessages={chatBubble.clearMessages}
           contextLabel={chatBubble.contextLabel}
+          pageContext={chatBubble.pageContext}
         />
       )}
     </>

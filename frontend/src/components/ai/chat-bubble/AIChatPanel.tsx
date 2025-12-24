@@ -20,8 +20,96 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { ChatMessage, ToolActivity } from '../../../types/assistant';
+import type { ChatMessage, ToolActivity, PageContext } from '../../../types/assistant';
 import { ActionProposalCard } from './ActionProposalCard';
+
+/**
+ * Generate context-aware suggestion prompts based on page context.
+ */
+function getSuggestedPrompts(pageContext: PageContext): Array<{ text: string; icon: string }> {
+  // Context-specific prompts that showcase different capabilities
+  switch (pageContext.type) {
+    case 'dashboard':
+      return [
+        { text: "What should I focus on today?", icon: "🎯" },
+        { text: "Create a task to review weekly progress", icon: "➕" },
+        { text: "What blockers are slowing down my team?", icon: "🚧" },
+        { text: "Show me tasks that haven't been updated in a week", icon: "💤" },
+      ];
+
+    case 'project':
+      return [
+        { text: "Give me a status summary of this project", icon: "📊" },
+        { text: "Create a new task for this project", icon: "➕" },
+        { text: "What's blocking progress on this project?", icon: "🚧" },
+        { text: "Who's working on what in this project?", icon: "👥" },
+      ];
+
+    case 'projects':
+      return [
+        { text: "Which projects need the most attention?", icon: "🔥" },
+        { text: "Show me projects with overdue tasks", icon: "⏰" },
+        { text: "Compare progress across my projects", icon: "📊" },
+        { text: "What blockers exist across all projects?", icon: "🚧" },
+      ];
+
+    case 'task':
+      return [
+        { text: "Mark this task as in progress", icon: "▶️" },
+        { text: "Add a progress note to this task", icon: "📝" },
+        { text: "Change the priority of this task", icon: "⬆️" },
+        { text: "What other tasks are related to this one?", icon: "🔗" },
+      ];
+
+    case 'tasks':
+      return [
+        { text: "Show my high priority tasks", icon: "🔥" },
+        { text: "Create a new task", icon: "➕" },
+        { text: "What tasks are due this week?", icon: "📅" },
+        { text: "Mark my completed work as done", icon: "✅" },
+      ];
+
+    case 'document':
+      return [
+        { text: "Summarize this document", icon: "📄" },
+        { text: "Add a comment with my review feedback", icon: "💬" },
+        { text: "Link this document to a related task", icon: "🔗" },
+        { text: "What tasks reference this document?", icon: "🔍" },
+      ];
+
+    case 'documents':
+      return [
+        { text: "Create a new document", icon: "➕" },
+        { text: "Show me documents in draft status", icon: "📝" },
+        { text: "Which documents need review?", icon: "👀" },
+        { text: "Find documents related to a topic", icon: "🔍" },
+      ];
+
+    case 'blockers':
+      return [
+        { text: "What blockers need immediate attention?", icon: "🚨" },
+        { text: "Create a new blocker", icon: "➕" },
+        { text: "Resolve a blocker that's been fixed", icon: "✅" },
+        { text: "Which blockers have been open the longest?", icon: "⏳" },
+      ];
+
+    case 'team':
+      return [
+        { text: "What is everyone working on?", icon: "👥" },
+        { text: "Who has capacity for new work?", icon: "📊" },
+        { text: "Assign a task to a team member", icon: "👤" },
+        { text: "Show workload distribution", icon: "⚖️" },
+      ];
+
+    default:
+      return [
+        { text: "What should I focus on today?", icon: "🎯" },
+        { text: "Create a new task", icon: "➕" },
+        { text: "Show me what needs attention", icon: "👀" },
+        { text: "Help me update my task progress", icon: "📝" },
+      ];
+  }
+}
 
 /**
  * Collapsible thinking section for AI reasoning (Gemini 3+).
@@ -115,15 +203,19 @@ interface AIChatPanelProps {
   onRejectAction: (actionId: string, reason?: string) => Promise<void>;
   onClearMessages: () => void;
   contextLabel: string;
+  pageContext: PageContext;
 }
 
-// Default and min/max dimensions
+// Default and min/max dimensions (desktop only)
 const DEFAULT_WIDTH = 500;
 const DEFAULT_HEIGHT = 500;
 const MIN_WIDTH = 350;
 const MIN_HEIGHT = 300;
 const MAX_WIDTH = 900;
 const MAX_HEIGHT = 800;
+
+// Mobile breakpoint (matches Tailwind's md)
+const MOBILE_BREAKPOINT = 768;
 
 // Storage key for persisting dimensions
 const STORAGE_KEY = 'ai-chat-panel-dimensions';
@@ -165,12 +257,26 @@ export function AIChatPanel({
   onRejectAction,
   onClearMessages,
   contextLabel,
+  pageContext,
 }: AIChatPanelProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Resize state
+  // Track if we're on mobile
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile on mount and window resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Resize state (desktop only)
   const [dimensions, setDimensions] = useState(loadDimensions);
   const [isResizing, setIsResizing] = useState<'left' | 'top' | 'corner' | null>(null);
   const resizeStartRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -263,7 +369,13 @@ export function AIChatPanel({
   if (isMinimized) {
     return (
       <div
-        className="fixed bottom-24 right-6 z-50 bg-white dark:bg-dark-card rounded-lg shadow-xl border border-gray-200 dark:border-dark-border cursor-pointer hover:shadow-2xl transition-shadow"
+        className={`
+          fixed z-50 bg-white dark:bg-dark-card shadow-xl border border-gray-200 dark:border-dark-border cursor-pointer hover:shadow-2xl transition-shadow
+          ${isMobile
+            ? 'bottom-0 left-0 right-0 rounded-t-xl safe-bottom'
+            : 'bottom-24 right-6 rounded-lg'}
+        `}
+        style={isMobile ? { paddingBottom: 'env(safe-area-inset-bottom, 0px)' } : undefined}
         onClick={onMaximize}
       >
         <div className="flex items-center gap-2 px-4 py-3">
@@ -276,41 +388,76 @@ export function AIChatPanel({
               {messages.length} messages
             </span>
           )}
-          <Maximize2 className="h-4 w-4 text-gray-400 ml-2" />
+          <Maximize2 className="h-4 w-4 text-gray-400 ml-auto" />
         </div>
       </div>
     );
   }
 
+  // Mobile: full screen bottom sheet with backdrop
+  // Desktop: floating panel in bottom-right corner
   return (
-    <div
-      className="fixed bottom-24 right-6 z-50 bg-white dark:bg-dark-card rounded-xl shadow-2xl border border-gray-200 dark:border-dark-border flex flex-col overflow-hidden"
-      style={{
-        width: `min(${dimensions.width}px, calc(100vw - 3rem))`,
-        height: `min(${dimensions.height}px, calc(100vh - 8rem))`,
-      }}
-    >
-      {/* Resize handles - only visible on desktop */}
-      {/* Left edge */}
+    <>
+      {/* Backdrop for mobile */}
+      {isMobile && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+          onClick={onClose}
+        />
+      )}
+
       <div
-        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-accent-500/20 transition-colors z-10 hidden md:block"
-        onMouseDown={startResize('left')}
-      />
-      {/* Top edge */}
-      <div
-        className="absolute left-0 right-0 top-0 h-2 cursor-ns-resize hover:bg-accent-500/20 transition-colors z-10 hidden md:block"
-        onMouseDown={startResize('top')}
-      />
-      {/* Top-left corner */}
-      <div
-        className="absolute left-0 top-0 w-4 h-4 cursor-nwse-resize z-20 hidden md:block group"
-        onMouseDown={startResize('corner')}
+        className={`
+          fixed z-50 bg-white dark:bg-dark-card shadow-2xl border border-gray-200 dark:border-dark-border flex flex-col overflow-hidden
+          ${isMobile
+            ? 'inset-x-0 bottom-0 rounded-t-2xl'
+            : 'bottom-24 right-6 rounded-xl'}
+        `}
+        style={
+          isMobile
+            ? {
+                height: 'calc(100dvh - 3rem)',
+                maxHeight: 'calc(100dvh - 3rem)',
+                paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+              }
+            : {
+                width: `min(${dimensions.width}px, calc(100vw - 3rem))`,
+                height: `min(${dimensions.height}px, calc(100vh - 8rem))`,
+              }
+        }
       >
-        <GripVertical className="h-3 w-3 text-gray-300 dark:text-gray-600 group-hover:text-accent-500 transition-colors rotate-45 absolute top-0.5 left-0.5" />
-      </div>
+        {/* Mobile drag handle */}
+        {isMobile && (
+          <div className="flex justify-center pt-2 pb-1">
+            <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+          </div>
+        )}
+
+        {/* Resize handles - only visible on desktop */}
+        {!isMobile && (
+          <>
+            {/* Left edge */}
+            <div
+              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-accent-500/20 transition-colors z-10"
+              onMouseDown={startResize('left')}
+            />
+            {/* Top edge */}
+            <div
+              className="absolute left-0 right-0 top-0 h-2 cursor-ns-resize hover:bg-accent-500/20 transition-colors z-10"
+              onMouseDown={startResize('top')}
+            />
+            {/* Top-left corner */}
+            <div
+              className="absolute left-0 top-0 w-4 h-4 cursor-nwse-resize z-20 group"
+              onMouseDown={startResize('corner')}
+            >
+              <GripVertical className="h-3 w-3 text-gray-300 dark:text-gray-600 group-hover:text-accent-500 transition-colors rotate-45 absolute top-0.5 left-0.5" />
+            </div>
+          </>
+        )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gradient-to-r from-accent-50 to-accent-100 dark:from-accent-900/20 dark:to-accent-800/20">
+      <div className={`flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gradient-to-r from-accent-50 to-accent-100 dark:from-accent-900/20 dark:to-accent-800/20 ${isMobile ? 'pt-1' : ''}`}>
         <div className="flex items-center gap-3">
           <div className="p-1.5 bg-gradient-to-br from-accent-500 to-accent-600 rounded-lg shadow-soft">
             <Sparkles className="h-4 w-4 text-white" />
@@ -321,31 +468,32 @@ export function AIChatPanel({
             </h3>
             <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
               <MapPin className="h-3 w-3" />
-              <span>{contextLabel}</span>
+              <span className="truncate max-w-[150px] md:max-w-none">{contextLabel}</span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={onClearMessages}
-            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-white/50 dark:hover:bg-dark-elevated rounded-lg transition-all"
+            className="p-2 md:p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-white/50 dark:hover:bg-dark-elevated rounded-lg transition-all"
             title="Clear conversation"
           >
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-5 w-5 md:h-4 md:w-4" />
           </button>
+          {/* Hide minimize on mobile - use close instead */}
           <button
             onClick={onMinimize}
-            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-white/50 dark:hover:bg-dark-elevated rounded-lg transition-all"
+            className="hidden md:block p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-white/50 dark:hover:bg-dark-elevated rounded-lg transition-all"
             title="Minimize"
           >
             <Minus className="h-4 w-4" />
           </button>
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-white/50 dark:hover:bg-dark-elevated rounded-lg transition-all"
+            className="p-2 md:p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-white/50 dark:hover:bg-dark-elevated rounded-lg transition-all"
             title="Close"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5 md:h-4 md:w-4" />
           </button>
         </div>
       </div>
@@ -361,25 +509,17 @@ export function AIChatPanel({
             <p className="text-sm mt-1">
               Ask me about your tasks, projects, or documents.
             </p>
-            <div className="mt-4 space-y-2 text-sm">
-              <button
-                onClick={() => onSendMessage("What should I focus on today?")}
-                className="block w-full px-4 py-2 text-left bg-gray-100 dark:bg-dark-elevated rounded-lg hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
-              >
-                What should I focus on today?
-              </button>
-              <button
-                onClick={() => onSendMessage("Show me overdue tasks")}
-                className="block w-full px-4 py-2 text-left bg-gray-100 dark:bg-dark-elevated rounded-lg hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
-              >
-                Show me overdue tasks
-              </button>
-              <button
-                onClick={() => onSendMessage("What blockers need attention?")}
-                className="block w-full px-4 py-2 text-left bg-gray-100 dark:bg-dark-elevated rounded-lg hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
-              >
-                What blockers need attention?
-              </button>
+            <div className="mt-4 space-y-2 text-sm w-full max-w-sm">
+              {getSuggestedPrompts(pageContext).map((prompt, index) => (
+                <button
+                  key={index}
+                  onClick={() => onSendMessage(prompt.text)}
+                  className="flex items-center gap-3 w-full px-4 py-3 text-left bg-gray-100 dark:bg-dark-elevated rounded-lg hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
+                >
+                  <span className="text-lg flex-shrink-0">{prompt.icon}</span>
+                  <span className="text-gray-700 dark:text-gray-300">{prompt.text}</span>
+                </button>
+              ))}
             </div>
           </div>
         ) : (
@@ -451,8 +591,12 @@ export function AIChatPanel({
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="border-t border-gray-200 dark:border-dark-border p-4">
-        <div className="flex gap-2">
+      <form
+        onSubmit={handleSubmit}
+        className="border-t border-gray-200 dark:border-dark-border p-3 md:p-4"
+        style={isMobile ? { paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' } : undefined}
+      >
+        <div className="flex gap-2 items-end">
           <div className="flex-1 relative">
             <textarea
               ref={inputRef}
@@ -461,15 +605,15 @@ export function AIChatPanel({
               onKeyDown={handleKeyDown}
               placeholder="Ask anything..."
               rows={1}
-              className="w-full px-4 py-2 pr-10 bg-gray-100 dark:bg-dark-elevated border-0 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-accent-500 resize-none"
-              style={{ minHeight: '40px', maxHeight: '120px' }}
+              className="w-full px-4 py-3 md:py-2 pr-10 bg-gray-100 dark:bg-dark-elevated border-0 rounded-xl md:rounded-lg text-base md:text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-accent-500 resize-none"
+              style={{ minHeight: isMobile ? '48px' : '40px', maxHeight: '120px' }}
               disabled={isLoading}
             />
           </div>
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="p-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="p-3 md:p-2 bg-accent-500 text-white rounded-xl md:rounded-lg hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
           >
             {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -478,10 +622,11 @@ export function AIChatPanel({
             )}
           </button>
         </div>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 hidden md:block">
           Press Enter to send, Shift+Enter for new line
         </p>
       </form>
-    </div>
+      </div>
+    </>
   );
 }

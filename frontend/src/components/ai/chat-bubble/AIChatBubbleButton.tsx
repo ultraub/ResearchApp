@@ -19,7 +19,7 @@ export function AIChatBubbleButton({
     <button
       onClick={onClick}
       className={`
-        fixed bottom-6 right-6 z-50
+        fixed z-50
         w-14 h-14 rounded-full
         bg-gradient-to-br from-accent-500 to-accent-600
         shadow-lg hover:shadow-xl
@@ -27,8 +27,15 @@ export function AIChatBubbleButton({
         transition-all duration-200
         hover:scale-105 active:scale-95
         focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2
-        ${isOpen ? 'opacity-50 hover:opacity-100' : ''}
+        ${isOpen ? 'opacity-50 hover:opacity-100 md:opacity-50 md:hover:opacity-100' : ''}
+        ${isOpen ? 'hidden md:flex' : 'flex'}
+        bottom-6 right-6
+        safe-bottom
       `}
+      style={{
+        // Account for iOS safe area
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
       title="AI Assistant (Cmd+Shift+A)"
       aria-label="Toggle AI Assistant"
     >
