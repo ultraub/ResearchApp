@@ -322,12 +322,13 @@ class GeminiProvider(AIProvider):
         system_instruction = system if system else system_from_messages
 
         # Convert ToolDefinition to Gemini function declarations using SDK types
+        # NOTE: Must use parameters_json_schema, not parameters - this is critical!
         function_declarations = []
         for tool in tools:
             func_decl = types.FunctionDeclaration(
                 name=tool.name,
                 description=tool.description,
-                parameters=tool.input_schema,
+                parameters_json_schema=tool.input_schema,
             )
             function_declarations.append(func_decl)
 
@@ -472,12 +473,13 @@ class GeminiProvider(AIProvider):
         system_instruction = system if system else system_from_messages
 
         # Convert ToolDefinition to Gemini function declarations using SDK types
+        # NOTE: Must use parameters_json_schema, not parameters - this is critical!
         function_declarations = []
         for tool in tools:
             func_decl = types.FunctionDeclaration(
                 name=tool.name,
                 description=tool.description,
-                parameters=tool.input_schema,
+                parameters_json_schema=tool.input_schema,
             )
             function_declarations.append(func_decl)
 
