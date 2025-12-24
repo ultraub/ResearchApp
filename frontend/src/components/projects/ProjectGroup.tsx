@@ -4,13 +4,13 @@
  * Features:
  * - Uses CollapsibleSection for expand/collapse
  * - Shows group summary in header (project count, task count)
- * - Renders compact project rows on mobile, full rows on desktop
+ * - Renders project cards with clear visual separation
  */
 
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { clsx } from "clsx";
-import { UserGroupIcon, UserIcon, FolderIcon } from "@heroicons/react/24/outline";
+import { UserGroupIcon, UserIcon, FolderIcon, ShareIcon } from "@heroicons/react/24/outline";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import type { Project } from "@/types";
 import type { ProjectAttentionInfo } from "./HierarchicalProjectList";
@@ -22,6 +22,8 @@ interface ProjectGroupProps {
   title: string;
   /** Whether this is a personal team */
   isPersonal?: boolean;
+  /** Whether this is a shared/org-public group */
+  isShared?: boolean;
   /** Projects in this group */
   projects: Project[];
   /** Attention info map for projects */
@@ -38,6 +40,7 @@ export function ProjectGroup({
   id,
   title,
   isPersonal = false,
+  isShared = false,
   projects,
   attentionMap,
   defaultOpen = false,
@@ -62,7 +65,7 @@ export function ProjectGroup({
     return { totalTasks, hasBlockers };
   }, [projects, attentionMap]);
 
-  const Icon = isPersonal ? UserIcon : UserGroupIcon;
+  const Icon = isShared ? ShareIcon : isPersonal ? UserIcon : UserGroupIcon;
 
   return (
     <CollapsibleSection
@@ -77,12 +80,13 @@ export function ProjectGroup({
       className={className}
       headerClassName="min-h-[56px]"
     >
-      <div className="divide-y divide-gray-100 dark:divide-dark-border">
+      <div className="p-3 space-y-2">
         {projects.map((project) => (
-          <CompactProjectItem
+          <ProjectCard
             key={project.id}
             project={project}
             attentionInfo={attentionMap[project.id]}
+            showTeamBadge={isShared}
             onClick={() => navigate(`/projects/${project.id}`)}
           />
         ))}
@@ -92,11 +96,12 @@ export function ProjectGroup({
 }
 
 /**
- * CompactProjectItem - Simplified project row for grouped view
+ * ProjectCard - Individual project card with clear visual boundaries
  */
-interface CompactProjectItemProps {
+interface ProjectCardProps {
   project: Project;
   attentionInfo?: ProjectAttentionInfo;
+  showTeamBadge?: boolean;
   onClick: () => void;
 }
 
@@ -107,48 +112,57 @@ const statusColors: Record<string, string> = {
   archived: "bg-gray-100 text-gray-600 ring-1 ring-gray-200 dark:bg-dark-elevated dark:text-gray-400 dark:ring-gray-600",
 };
 
-function CompactProjectItem({
+function ProjectCard({
   project,
   attentionInfo,
+  showTeamBadge = false,
   onClick,
-}: CompactProjectItemProps) {
+}: ProjectCardProps) {
   const hasBlockers = attentionInfo && attentionInfo.activeBlockerCount > 0;
 
   return (
     <button
       onClick={onClick}
       className={clsx(
-        "w-full flex items-center gap-3 p-3 text-left",
-        "transition-all duration-200 hover:bg-gray-50 hover:pl-4 dark:hover:bg-dark-elevated",
-        "min-h-[56px]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
+        "w-full flex items-center gap-3 p-4 text-left",
+        "rounded-lg border border-gray-200 dark:border-dark-border",
+        "bg-white dark:bg-dark-card",
+        "shadow-sm hover:shadow-md",
+        "transition-all duration-200 hover:border-primary-300 dark:hover:border-primary-700",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
       )}
     >
       {/* Color indicator */}
       <div
-        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
+        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: project.color || "#6366f1" }}
       >
-        <FolderIcon className="h-4 w-4 text-white" />
+        <FolderIcon className="h-5 w-5 text-white" />
       </div>
 
       {/* Project info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="font-semibold text-gray-900 dark:text-white truncate">
             {project.name}
           </span>
-          {/* Status badge - compact */}
+          {/* Status badge */}
           <span
             className={clsx(
               "flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
               statusColors[project.status] || statusColors.active
             )}
           >
-            {project.status}
+            {project.status.replace("_", " ")}
           </span>
+          {/* Demo badge */}
+          {project.is_demo && (
+            <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 ring-1 ring-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:ring-purple-800">
+              Demo
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+        <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mt-1">
           <span>{project.task_count || 0} tasks</span>
           {project.target_end_date && (
             <span>
@@ -156,6 +170,12 @@ function CompactProjectItem({
                 month: "short",
                 day: "numeric",
               })}
+            </span>
+          )}
+          {/* Team badge for shared projects */}
+          {showTeamBadge && project.team_name && (
+            <span className="text-gray-400 dark:text-gray-500">
+              From: {project.team_name}
             </span>
           )}
         </div>
@@ -166,7 +186,7 @@ function CompactProjectItem({
         {hasBlockers && (
           <span
             className={clsx(
-              "flex items-center justify-center h-6 w-6 rounded-full text-xs font-medium",
+              "flex items-center justify-center h-7 w-7 rounded-full text-xs font-medium",
               attentionInfo.criticalBlockerCount > 0
                 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                 : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
@@ -177,7 +197,7 @@ function CompactProjectItem({
         )}
         {/* Chevron indicator */}
         <svg
-          className="h-4 w-4 text-gray-400"
+          className="h-5 w-5 text-gray-400"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

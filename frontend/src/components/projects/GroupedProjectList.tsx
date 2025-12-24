@@ -46,6 +46,7 @@ interface ProjectGroup {
   id: string;
   title: string;
   isPersonal?: boolean;
+  isShared?: boolean;
   projects: Project[];
 }
 
@@ -182,13 +183,14 @@ export function GroupedProjectList({
   }
 
   const content = (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {groups.map((group, index) => (
         <ProjectGroup
           key={group.id}
           id={group.id}
           title={group.title}
           isPersonal={group.isPersonal}
+          isShared={group.isShared}
           projects={group.projects}
           attentionMap={attentionMap}
           defaultOpen={index === 0} // First group open by default
@@ -269,6 +271,7 @@ function groupByTeam(
       id: "shared-org",
       title: "Shared with Organization",
       isPersonal: false,
+      isShared: true,
       projects: sharedProjects,
     });
   }
