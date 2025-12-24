@@ -1,9 +1,11 @@
 /**
  * Journal Link Picker - Modal to select and link items to a journal entry
+ * Fetches available projects, tasks, documents, and papers for linking.
  */
 
 import { Fragment, useState } from "react";
 import { Dialog, Transition, RadioGroup, Tab } from "@headlessui/react";
+import { useQuery } from "@tanstack/react-query";
 import {
   XMarkIcon,
   MagnifyingGlassIcon,
@@ -13,17 +15,17 @@ import {
   BookOpenIcon,
 } from "@heroicons/react/24/outline";
 import { clsx } from "clsx";
-import type { LinkedEntityType, JournalLinkType, JournalEntryLinkCreate } from "@/types";
+import { projectsService } from "@/services/projects";
+import { tasksService } from "@/services/tasks";
+import { getDocuments } from "@/services/documents";
+import { getPapers } from "@/services/knowledge";
+import { useOrganizationId } from "@/stores/organization";
+import type { LinkedEntityType, JournalLinkType, JournalEntryLinkCreate, Project, Task } from "@/types";
 
 interface JournalLinkPickerProps {
   isOpen: boolean;
   onClose: () => void;
   onLinkAdd: (link: JournalEntryLinkCreate) => void;
-  // These would be passed from parent after fetching
-  projects?: Array<{ id: string; name: string }>;
-  tasks?: Array<{ id: string; title: string; project_name?: string }>;
-  documents?: Array<{ id: string; title: string }>;
-  papers?: Array<{ id: string; title: string; authors?: string }>;
 }
 
 const entityTypes: { type: LinkedEntityType; label: string; icon: typeof FolderIcon }[] = [
@@ -44,16 +46,81 @@ export default function JournalLinkPicker({
   isOpen,
   onClose,
   onLinkAdd,
-  projects = [],
-  tasks = [],
-  documents = [],
-  papers = [],
 }: JournalLinkPickerProps) {
   const [selectedType, setSelectedType] = useState<LinkedEntityType>("project");
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [selectedLinkType, setSelectedLinkType] = useState<JournalLinkType>("reference");
   const [notes, setNotes] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const organizationId = useOrganizationId();
+
+  // Fetch projects - needed for projects tab and as a base for tasks/documents
+  const { data: projectsData, isLoading: projectsLoading } = useQuery({
+    queryKey: ["projects-for-journal-link"],
+    queryFn: () => projectsService.list({ status: "active", page_size: 100 }),
+    enabled: isOpen,
+  });
+  const projects = projectsData?.items || [];
+
+  // Fetch tasks from all active projects
+  const { data: allTasks, isLoading: tasksLoading } = useQuery({
+    queryKey: ["tasks-for-journal-link", projects.map((p: Project) => p.id)],
+    queryFn: async () => {
+      if (projects.length === 0) return [];
+
+      // Fetch tasks from each project
+      const taskPromises = projects.map((project: Project) =>
+        tasksService.getByStatus(project.id).then((tasksByStatus) => {
+          const allProjectTasks = [
+            ...(tasksByStatus.todo || []),
+            ...(tasksByStatus.in_progress || []),
+            ...(tasksByStatus.in_review || []),
+            ...(tasksByStatus.done || []),
+          ];
+          return allProjectTasks.map((task: Task) => ({
+            ...task,
+            project_name: project.name,
+          }));
+        })
+      );
+
+      const results = await Promise.all(taskPromises);
+      return results.flat();
+    },
+    enabled: isOpen && selectedType === "task" && projects.length > 0,
+  });
+  const tasks = allTasks || [];
+
+  // Fetch documents from all active projects
+  const { data: allDocuments, isLoading: documentsLoading } = useQuery({
+    queryKey: ["documents-for-journal-link", projects.map((p: Project) => p.id)],
+    queryFn: async () => {
+      if (projects.length === 0) return [];
+
+      const docPromises = projects.map((project: Project) =>
+        getDocuments(project.id).then((docs) =>
+          docs.map((doc) => ({
+            ...doc,
+            project_name: project.name,
+          }))
+        )
+      );
+
+      const results = await Promise.all(docPromises);
+      return results.flat();
+    },
+    enabled: isOpen && selectedType === "document" && projects.length > 0,
+  });
+  const documents = allDocuments || [];
+
+  // Fetch papers
+  const { data: papersData, isLoading: papersLoading } = useQuery({
+    queryKey: ["papers-for-journal-link", organizationId],
+    queryFn: () => getPapers(organizationId, { limit: 100 }),
+    enabled: isOpen && selectedType === "paper" && !!organizationId,
+  });
+  const papers = papersData || [];
 
   const handleSubmit = () => {
     if (!selectedEntityId) return;
@@ -77,16 +144,28 @@ export default function JournalLinkPicker({
 
     switch (selectedType) {
       case "project":
-        items = projects.map((p) => ({ id: p.id, title: p.name }));
+        items = projects.map((p: Project) => ({ id: p.id, title: p.name }));
         break;
       case "task":
-        items = tasks.map((t) => ({ id: t.id, title: t.title, subtitle: t.project_name }));
+        items = tasks.map((t: Task & { project_name?: string }) => ({
+          id: t.id,
+          title: t.title,
+          subtitle: t.project_name,
+        }));
         break;
       case "document":
-        items = documents.map((d) => ({ id: d.id, title: d.title }));
+        items = documents.map((d: { id: string; title: string; project_name?: string }) => ({
+          id: d.id,
+          title: d.title,
+          subtitle: d.project_name,
+        }));
         break;
       case "paper":
-        items = papers.map((p) => ({ id: p.id, title: p.title, subtitle: p.authors }));
+        items = papers.map((p: { id: string; title: string; authors?: string[] }) => ({
+          id: p.id,
+          title: p.title,
+          subtitle: p.authors?.join(", "),
+        }));
         break;
     }
 
@@ -103,6 +182,11 @@ export default function JournalLinkPicker({
   };
 
   const items = getItems();
+  const isLoading =
+    (selectedType === "project" && projectsLoading) ||
+    (selectedType === "task" && (projectsLoading || tasksLoading)) ||
+    (selectedType === "document" && (projectsLoading || documentsLoading)) ||
+    (selectedType === "paper" && papersLoading);
 
   return (
     <Transition show={isOpen} as={Fragment}>
@@ -193,7 +277,11 @@ export default function JournalLinkPicker({
 
                   {/* Items list */}
                   <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 dark:border-dark-border">
-                    {items.length === 0 ? (
+                    {isLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-primary-600" />
+                      </div>
+                    ) : items.length === 0 ? (
                       <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
                         No {selectedType}s found
                       </div>
