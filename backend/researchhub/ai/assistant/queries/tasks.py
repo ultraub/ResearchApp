@@ -11,6 +11,8 @@ from sqlalchemy.orm import selectinload
 from researchhub.ai.assistant.queries.access import get_accessible_project_ids
 from researchhub.ai.assistant.tools import QueryTool
 from researchhub.models.project import Blocker, BlockerLink, Project, Task, TaskComment
+from researchhub.models.user import User
+from researchhub.models.organization import OrganizationMember
 
 
 class GetTasksTool(QueryTool):
@@ -31,8 +33,7 @@ class GetTasksTool(QueryTool):
             "properties": {
                 "project_id": {
                     "type": "string",
-                    "format": "uuid",
-                    "description": "Filter by project ID",
+                    "description": "Filter by project - can be a project ID (UUID) or project name",
                 },
                 "status": {
                     "type": "string",
@@ -41,8 +42,7 @@ class GetTasksTool(QueryTool):
                 },
                 "assignee_id": {
                     "type": "string",
-                    "format": "uuid",
-                    "description": "Filter by assignee user ID",
+                    "description": "Filter by assignee - can be a user ID (UUID) or a person's name",
                 },
                 "priority": {
                     "type": "string",
@@ -100,13 +100,66 @@ class GetTasksTool(QueryTool):
         filters = []
 
         if project_id:
-            filters.append(Task.project_id == UUID(project_id))
+            # Try to parse as UUID first, otherwise search by name
+            resolved_project_id = None
+            try:
+                resolved_project_id = UUID(project_id)
+            except ValueError:
+                # Not a UUID, search by name
+                project_result = await db.execute(
+                    select(Project)
+                    .where(Project.id.in_(accessible_project_ids))
+                    .where(Project.name.ilike(f"%{project_id}%"))
+                    .limit(1)
+                )
+                project = project_result.scalar_one_or_none()
+                if project:
+                    resolved_project_id = project.id
+                else:
+                    return {
+                        "error": f"No project found matching '{project_id}'.",
+                        "tasks": [],
+                        "count": 0,
+                    }
+
+            filters.append(Task.project_id == resolved_project_id)
 
         if status:
             filters.append(Task.status == status)
 
         if assignee_id:
-            filters.append(Task.assignee_id == UUID(assignee_id))
+            # Try to parse as UUID first, otherwise search by name
+            resolved_assignee_id = None
+            try:
+                resolved_assignee_id = UUID(assignee_id)
+            except ValueError:
+                # Not a UUID, search by name
+                search_pattern = f"%{assignee_id}%"
+                user_result = await db.execute(
+                    select(User)
+                    .join(OrganizationMember, User.id == OrganizationMember.user_id)
+                    .where(OrganizationMember.organization_id == org_id)
+                    .where(User.is_active == True)
+                    .where(
+                        or_(
+                            User.display_name.ilike(search_pattern),
+                            User.email.ilike(search_pattern),
+                        )
+                    )
+                    .limit(1)
+                )
+                user = user_result.scalar_one_or_none()
+                if user:
+                    resolved_assignee_id = user.id
+                else:
+                    # No user found with that name
+                    return {
+                        "error": f"No user found matching '{assignee_id}'. Please check the name or use get_team_members to find the correct person.",
+                        "tasks": [],
+                        "count": 0,
+                    }
+
+            filters.append(Task.assignee_id == resolved_assignee_id)
 
         if priority:
             filters.append(Task.priority == priority)

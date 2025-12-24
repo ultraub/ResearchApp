@@ -3,7 +3,7 @@
 from typing import Any, Dict, List
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import Text, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -95,7 +95,7 @@ class SearchContentTool(QueryTool):
                 .where(
                     or_(
                         Task.title.ilike(search_pattern),
-                        Task.description.cast(str).ilike(search_pattern),
+                        Task.description.cast(Text).ilike(search_pattern),
                     )
                 )
             )
@@ -195,7 +195,7 @@ class SearchContentTool(QueryTool):
                 .where(
                     or_(
                         Blocker.title.ilike(search_pattern),
-                        Blocker.description.ilike(search_pattern),
+                        Blocker.description.cast(Text).ilike(search_pattern),
                     )
                 )
             )
