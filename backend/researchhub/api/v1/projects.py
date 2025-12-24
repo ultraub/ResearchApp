@@ -553,6 +553,7 @@ async def list_projects(
             allow_all_team_members=project.allow_all_team_members,
             team_count=len(project.project_teams) if hasattr(project, 'project_teams') and project.project_teams else 1,
             exclusion_count=len(project.exclusions) if hasattr(project, 'exclusions') and project.exclusions else 0,
+            is_demo=project.is_demo,
         )
         project_responses.append(response)
 
@@ -660,6 +661,7 @@ async def get_project(
         allow_all_team_members=project.allow_all_team_members,
         team_count=team_count,
         exclusion_count=exclusion_count,
+        is_demo=project.is_demo,
     )
 
 
@@ -747,6 +749,7 @@ async def update_project(
         allow_all_team_members=project.allow_all_team_members,
         team_count=team_count,
         exclusion_count=exclusion_count,
+        is_demo=project.is_demo,
     )
 
 
@@ -1296,6 +1299,7 @@ async def change_project_scope(
         allow_all_team_members=project.allow_all_team_members,
         team_count=team_count,
         exclusion_count=exclusion_count,
+        is_demo=project.is_demo,
     )
 
 
