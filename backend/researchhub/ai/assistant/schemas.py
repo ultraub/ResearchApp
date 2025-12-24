@@ -11,7 +11,15 @@ from pydantic import BaseModel, Field
 class PageContextType(str, Enum):
     """Types of pages the user can be viewing."""
 
+    # List views (plural)
     DASHBOARD = "dashboard"
+    PROJECTS = "projects"
+    TASKS = "tasks"
+    DOCUMENTS = "documents"
+    BLOCKERS = "blockers"
+    GENERAL = "general"
+
+    # Detail views (singular)
     PROJECT = "project"
     TASK = "task"
     DOCUMENT = "document"
