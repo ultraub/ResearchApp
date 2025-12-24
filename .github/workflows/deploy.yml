@@ -74,10 +74,13 @@ jobs:
           script: |
             cd /home/ec2-user/app
             source .env
-            # Copy docs to a location accessible by the container
+            # Pull latest code to get docs directory
+            git pull origin main || true
+            # Create docs directory in container and copy files
+            docker exec pasteur-backend mkdir -p /app/docs
             docker cp docs/. pasteur-backend:/app/docs/
             # Run sync script inside the container
-            docker exec pasteur-backend python -m researchhub.scripts.sync_system_docs /app/docs
+            docker exec pasteur-backend python -m researchhub.scripts.sync_system_docs --docs-dir /app/docs
 
       - name: Notify on failure
         if: failure()
