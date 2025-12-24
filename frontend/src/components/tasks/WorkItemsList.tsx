@@ -27,23 +27,23 @@ interface WorkItemsListProps {
 
 const PRIORITY_CONFIG: Record<string, { color: string; icon: React.ReactNode }> = {
   urgent: {
-    color: "text-red-600 bg-red-50 dark:bg-red-900/20",
+    color: "text-red-700 bg-red-100 ring-1 ring-red-200 dark:bg-red-900/30 dark:text-red-400 dark:ring-red-800",
     icon: <ExclamationCircleIcon className="h-3 w-3" />,
   },
   high: {
-    color: "text-orange-600 bg-orange-50 dark:bg-orange-900/20",
+    color: "text-orange-700 bg-orange-100 ring-1 ring-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:ring-orange-800",
     icon: <ExclamationTriangleIcon className="h-3 w-3" />,
   },
   normal: {
-    color: "text-blue-600 bg-blue-50 dark:bg-blue-900/20",
+    color: "text-blue-700 bg-blue-100 ring-1 ring-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:ring-blue-800",
     icon: null,
   },
   medium: {
-    color: "text-blue-600 bg-blue-50 dark:bg-blue-900/20",
+    color: "text-blue-700 bg-blue-100 ring-1 ring-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:ring-blue-800",
     icon: null,
   },
   low: {
-    color: "text-gray-600 bg-gray-50 dark:bg-gray-700",
+    color: "text-gray-600 bg-gray-100 ring-1 ring-gray-200 dark:bg-gray-700 dark:ring-gray-600",
     icon: null,
   },
 };
@@ -62,7 +62,8 @@ function WorkItemCard({
   return (
     <div
       className={clsx(
-        "cursor-pointer rounded-xl border bg-white p-3 shadow-soft transition-all hover:bg-gray-50 hover:shadow-md dark:bg-dark-card dark:hover:bg-dark-elevated",
+        "cursor-pointer rounded-xl border bg-white p-3 shadow-soft transition-all duration-200",
+        "hover:bg-gray-50 hover:shadow-elevated hover:scale-[1.01] dark:bg-dark-card dark:hover:bg-dark-elevated",
         isOverdue && "border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-900/10"
       )}
       onClick={onClick}
@@ -74,14 +75,14 @@ function WorkItemCard({
           ) : (
             <DocumentTextIcon className="h-4 w-4 flex-shrink-0 text-purple-500" />
           )}
-          <span className="truncate font-medium text-gray-900 dark:text-white">
+          <span className="truncate font-semibold text-gray-900 dark:text-white">
             {item.title}
           </span>
         </div>
         <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+      <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
           {item.type === "task" ? "Task" : "Review"}
         </span>

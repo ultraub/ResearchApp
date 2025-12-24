@@ -101,10 +101,10 @@ interface CompactProjectItemProps {
 }
 
 const statusColors: Record<string, string> = {
-  active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  completed: "bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400",
-  on_hold: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  archived: "bg-gray-100 text-gray-800 dark:bg-dark-elevated dark:text-gray-400",
+  active: "bg-green-100 text-green-700 ring-1 ring-green-200 dark:bg-green-900/30 dark:text-green-400 dark:ring-green-800",
+  completed: "bg-primary-100 text-primary-700 ring-1 ring-primary-200 dark:bg-primary-900/30 dark:text-primary-400 dark:ring-primary-800",
+  on_hold: "bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:ring-yellow-800",
+  archived: "bg-gray-100 text-gray-600 ring-1 ring-gray-200 dark:bg-dark-elevated dark:text-gray-400 dark:ring-gray-600",
 };
 
 function CompactProjectItem({
@@ -119,8 +119,9 @@ function CompactProjectItem({
       onClick={onClick}
       className={clsx(
         "w-full flex items-center gap-3 p-3 text-left",
-        "transition-colors hover:bg-gray-50 dark:hover:bg-dark-elevated",
-        "min-h-[56px]"
+        "transition-all duration-200 hover:bg-gray-50 hover:pl-4 dark:hover:bg-dark-elevated",
+        "min-h-[56px]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
       )}
     >
       {/* Color indicator */}
@@ -134,7 +135,7 @@ function CompactProjectItem({
       {/* Project info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-900 dark:text-white truncate">
+          <span className="font-semibold text-gray-900 dark:text-white truncate">
             {project.name}
           </span>
           {/* Status badge - compact */}

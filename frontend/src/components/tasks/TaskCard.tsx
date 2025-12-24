@@ -104,7 +104,7 @@ function BlockerHoverIndicator({
   const trigger = (
     <div
       className={clsx(
-        "flex h-6 w-6 items-center justify-center rounded-full shadow-sm cursor-default",
+        "flex h-7 w-7 items-center justify-center rounded-full shadow-sm cursor-default ring-2 ring-white dark:ring-dark-card",
         blockerInfo.maxImpact === "critical" || blockerInfo.maxImpact === "high"
           ? "bg-red-500 text-white"
           : "bg-yellow-400 text-yellow-900"
@@ -203,7 +203,7 @@ function CommentHoverIndicator({
       <span className="relative">
         <ChatBubbleLeftIcon className="h-4 w-4" />
         {hasUnread && (
-          <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary-500 text-[8px] font-bold text-white">
+          <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-500 text-[9px] font-bold text-white ring-2 ring-white dark:ring-dark-card">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -307,7 +307,8 @@ export default function TaskCard({ task, onClick, isDragging, reviewStatus, bloc
     <div
       onClick={onClick}
       className={clsx(
-        "card card-interactive relative border-l-4 p-4",
+        "card card-interactive relative border-l-4 p-4 transition-all duration-200",
+        "hover:scale-[1.01] hover:shadow-elevated",
         isIdea ? "border-l-amber-400" : priorityColors[task.priority],
         isDragging && "rotate-2 scale-105 shadow-elevated"
       )}
@@ -350,7 +351,7 @@ export default function TaskCard({ task, onClick, isDragging, reviewStatus, bloc
       </div>
 
       {/* Title */}
-      <h4 className="font-medium text-gray-900 dark:text-white line-clamp-2">
+      <h4 className="font-semibold text-gray-900 dark:text-white line-clamp-2">
         {task.title}
       </h4>
 
@@ -363,7 +364,7 @@ export default function TaskCard({ task, onClick, isDragging, reviewStatus, bloc
 
       {/* Tags */}
       {task.tags && task.tags.length > 0 && (
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
+        <div className="mt-3 flex flex-wrap gap-2">
           {task.tags.slice(0, 3).map((tag) => (
             <span
               key={tag}
@@ -386,7 +387,7 @@ export default function TaskCard({ task, onClick, isDragging, reviewStatus, bloc
             <button
               onClick={handleVoteClick}
               className={clsx(
-                "flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors",
+                "flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-dark-card",
                 task.user_voted
                   ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                   : "bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-amber-900/30 dark:hover:text-amber-400"
@@ -466,10 +467,10 @@ export default function TaskCard({ task, onClick, isDragging, reviewStatus, bloc
       {(task.priority === "high" || task.priority === "urgent") && (
         <div
           className={clsx(
-            "mt-2 rounded px-2 py-0.5 text-xs font-medium",
+            "mt-2 rounded px-2 py-0.5 text-xs font-medium ring-1",
             task.priority === "urgent"
-              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-              : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+              ? "bg-red-100 text-red-700 ring-red-200 dark:bg-red-900/30 dark:text-red-400 dark:ring-red-800"
+              : "bg-orange-100 text-orange-700 ring-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:ring-orange-800"
           )}
         >
           {priorityLabels[task.priority]}

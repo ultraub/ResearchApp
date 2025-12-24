@@ -28,10 +28,10 @@ interface ProjectCardProps {
 }
 
 const statusColors: Record<string, string> = {
-  active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-  completed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  on_hold: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-  archived: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+  active: "bg-green-100 text-green-700 ring-1 ring-green-200 dark:bg-green-900/30 dark:text-green-400 dark:ring-green-800",
+  completed: "bg-blue-100 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:ring-blue-800",
+  on_hold: "bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:ring-yellow-800",
+  archived: "bg-gray-100 text-gray-600 ring-1 ring-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:ring-gray-600",
 };
 
 export function ProjectCard({
@@ -50,10 +50,10 @@ export function ProjectCard({
     return (
       <Link
         to={`/projects/${project.id}`}
-        className="flex items-center gap-4 rounded-xl bg-white p-4 shadow-soft transition-all hover:shadow-card dark:bg-dark-card"
+        className="flex items-center gap-4 rounded-xl bg-white p-4 shadow-soft transition-all duration-200 hover:shadow-elevated hover:scale-[1.005] hover:bg-gray-50/50 dark:bg-dark-card dark:hover:bg-dark-elevated"
       >
         <div
-          className="flex h-10 w-10 items-center justify-center rounded-lg"
+          className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0"
           style={{ backgroundColor: project.color || "#6366f1" }}
         >
           <FolderIcon className="h-5 w-5 text-white" />
@@ -61,7 +61,7 @@ export function ProjectCard({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-medium text-gray-900 dark:text-white truncate">
+            <h3 className="font-semibold text-gray-900 dark:text-white truncate">
               {project.name}
             </h3>
             <span
@@ -121,7 +121,7 @@ export function ProjectCard({
 
   // Grid view
   return (
-    <div className="group relative rounded-xl bg-white p-5 shadow-soft transition-all hover:shadow-card dark:bg-dark-card">
+    <div className="group relative rounded-xl bg-white p-5 shadow-soft transition-all duration-200 hover:shadow-elevated hover:scale-[1.01] dark:bg-dark-card dark:hover:bg-dark-elevated/50">
       <div className="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100">
         <ProjectMenu
           project={project}
@@ -178,9 +178,9 @@ export function ProjectCard({
             <span>{project.task_count || 0} tasks</span>
             <span>{progress}%</span>
           </div>
-          <div className="h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden">
+          <div className="h-2 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden shadow-inner">
             <div
-              className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all"
+              className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -188,7 +188,7 @@ export function ProjectCard({
 
         {/* Tags */}
         {project.tags && project.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1">
+          <div className="mt-3 flex flex-wrap gap-2">
             {project.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
@@ -241,7 +241,7 @@ function ProjectMenu({
   return (
     <Menu as="div" className="relative">
       <Menu.Button
-        className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-elevated"
+        className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-dark-card"
         onClick={(e) => e.preventDefault()}
       >
         <EllipsisHorizontalIcon className="h-5 w-5" />

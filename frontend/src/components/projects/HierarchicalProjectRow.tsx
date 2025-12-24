@@ -20,10 +20,10 @@ import type { Project } from "@/types";
 import type { ProjectAttentionInfo } from "./HierarchicalProjectList";
 
 const priorityColors: Record<string, string> = {
-  urgent: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  high: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-  medium: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-  low: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+  urgent: "bg-red-100 text-red-700 ring-1 ring-red-200 dark:bg-red-900/30 dark:text-red-400 dark:ring-red-800",
+  high: "bg-orange-100 text-orange-700 ring-1 ring-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:ring-orange-800",
+  medium: "bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:ring-yellow-800",
+  low: "bg-gray-100 text-gray-600 ring-1 ring-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:ring-gray-600",
 };
 
 interface HierarchicalProjectRowProps {
@@ -77,8 +77,8 @@ export default function HierarchicalProjectRow({
       {/* Project Header Row */}
       <div
         className={clsx(
-          "flex items-center gap-3 py-3 pr-4 cursor-pointer transition-colors",
-          "hover:bg-gray-50 dark:hover:bg-dark-elevated/50"
+          "flex items-center gap-3 py-3 pr-4 cursor-pointer transition-all duration-200",
+          "hover:bg-gray-50 hover:pl-1 dark:hover:bg-dark-elevated"
         )}
         style={{ paddingLeft: `${depth * 24 + 16}px` }}
         onClick={() => navigate(`/projects/${project.id}`)}
@@ -94,7 +94,7 @@ export default function HierarchicalProjectRow({
           className={clsx(
             "flex h-6 w-6 items-center justify-center rounded transition-colors flex-shrink-0",
             hasChildren
-              ? "text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700"
+              ? "text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               : "text-transparent"
           )}
           disabled={!hasChildren}
@@ -121,7 +121,7 @@ export default function HierarchicalProjectRow({
         {/* Project info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-gray-900 dark:text-white">
+            <span className="font-semibold text-gray-900 dark:text-white">
               {project.name}
             </span>
             {hasChildren && (
