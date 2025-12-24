@@ -190,7 +190,15 @@ When users ask what you can do, how you work, or about definitions you use, answ
 
 **Task statuses**: idea → todo → in_progress → in_review → done
 **Blocker statuses**: open → in_progress → resolved
-**Priorities**: low, medium, high, critical"""
+**Priorities**: low, medium, high, critical
+
+## Tool Usage Efficiency
+- Most requests need only 1-3 tool calls. Avoid excessive querying.
+- After gathering relevant information, immediately synthesize and respond to the user.
+- Don't keep gathering data if you already have enough to provide a helpful answer.
+- Prefer giving a good answer with available data over exhaustive data collection.
+- If you've already queried similar information, use what you have rather than re-querying.
+- Always aim to respond within 2-4 tool calls for typical requests."""
 
         if page_context:
             context_info = f"""
@@ -262,7 +270,9 @@ Use this context to provide relevant suggestions and defaults for actions."""
 
         # Tool results for multi-turn
         tool_results: List[ToolResult] = []
-        max_iterations = 10  # Prevent infinite loops
+        max_iterations = 6  # Reduced from 10 to encourage efficient responses
+        warning_iteration = 3  # Start nudging toward synthesis
+        force_iteration = 4  # Strongly encourage response
 
         for iteration in range(max_iterations):
             # Collect tool uses and text from the streaming response
@@ -447,6 +457,21 @@ Use this context to provide relevant suggestions and defaults for actions."""
                         content=accumulated_text,
                     ))
 
+                # Inject synthesis prompts when approaching iteration limit
+                # This encourages the model to respond rather than keep querying
+                if iteration >= force_iteration and not accumulated_text:
+                    # Final warning - strongly encourage response
+                    messages.append(AIMessage(
+                        role="user",
+                        content="[System: You have made multiple tool calls. Please provide your response to the user now based on the information you have gathered. Do not make additional tool calls - synthesize what you have and respond helpfully.]",
+                    ))
+                elif iteration >= warning_iteration and not accumulated_text:
+                    # Gentle nudge toward synthesis
+                    messages.append(AIMessage(
+                        role="user",
+                        content="[System: You have gathered information. Please synthesize your findings and respond to the user. Only make additional tool calls if absolutely necessary to answer their question.]",
+                    ))
+
             # If no tool calls were made, we're done
             if not pending_tool_uses:
                 break
@@ -454,7 +479,7 @@ Use this context to provide relevant suggestions and defaults for actions."""
         # If we exhausted max_iterations without producing text, send a fallback message
         # This can happen if the model keeps calling tools without generating a response
         if iteration == max_iterations - 1 and not accumulated_text:
-            fallback_message = "I gathered the information you requested but wasn't able to formulate a complete response. Please try asking your question again, and I'll do my best to help."
+            fallback_message = "I gathered quite a bit of information but ran into my processing limit before I could summarize it all. Could you try asking a more specific question? For example, instead of 'tell me everything about my work', try 'what are my overdue tasks?' or 'summarize project X'."
             yield SSEEvent(
                 event="text",
                 data={"content": fallback_message},
