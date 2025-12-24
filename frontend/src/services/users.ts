@@ -53,6 +53,9 @@ export interface UserPreferences {
   editor_font_size: number;
   editor_line_height: number;
   ai_suggestions_enabled: boolean;
+
+  // Additional settings (for extensible preferences like hidden_demo_project)
+  additional_settings: Record<string, unknown>;
 }
 
 export interface UserPreferencesUpdate {
@@ -67,6 +70,7 @@ export interface UserPreferencesUpdate {
   editor_font_size?: number;
   editor_line_height?: number;
   ai_suggestions_enabled?: boolean;
+  additional_settings?: Record<string, unknown>;
 }
 
 export interface OnboardingStepUpdate {

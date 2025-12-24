@@ -13,7 +13,10 @@ import {
   ExclamationTriangleIcon,
   ChatBubbleLeftIcon,
   UserIcon,
+  EyeSlashIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
+import { useDemoProject } from "@/hooks/useDemoProject";
 import { clsx } from "clsx";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import ProjectTreeSidebar from "@/components/projects/ProjectTreeSidebar";
@@ -68,16 +71,42 @@ function ProjectCard({
   project,
   onClick,
   attentionInfo,
+  onHideDemo,
+  isHidingDemo,
 }: {
   project: Project;
   onClick: () => void;
   attentionInfo?: ProjectAttentionInfo;
+  onHideDemo?: (e: React.MouseEvent) => void;
+  isHidingDemo?: boolean;
 }) {
   return (
     <div
       onClick={onClick}
       className="cursor-pointer rounded-xl bg-white p-5 shadow-card transition-all hover:shadow-card dark:bg-dark-card"
     >
+      {/* Demo project banner */}
+      {project.is_demo && (
+        <div className="mb-3 flex items-center justify-between rounded-lg bg-gradient-to-r from-purple-50 to-indigo-50 px-3 py-2 dark:from-purple-900/20 dark:to-indigo-900/20">
+          <div className="flex items-center gap-2">
+            <SparklesIcon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
+              Demo Project
+            </span>
+          </div>
+          {onHideDemo && (
+            <button
+              onClick={onHideDemo}
+              disabled={isHidingDemo}
+              className="flex items-center gap-1 rounded px-2 py-1 text-xs text-purple-600 hover:bg-purple-100 dark:text-purple-400 dark:hover:bg-purple-900/30"
+            >
+              <EyeSlashIcon className="h-3 w-3" />
+              Hide
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Hierarchy breadcrumb */}
       <ProjectBreadcrumb project={project} className="mb-2" />
 
@@ -177,6 +206,7 @@ export default function ProjectsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { organization } = useOrganizationStore();
   const isMobile = useIsMobile();
+  const { filterDemoProjects, hideDemoProject, isHiding } = useDemoProject();
 
   // View mode with localStorage persistence
   const [desktopViewMode, setDesktopViewModeState] = useState<ViewMode>(() =>
@@ -294,10 +324,21 @@ export default function ProjectsPage() {
     return map;
   }, [analytics]);
 
-  const projects = data?.items || [];
+  // Filter demo projects if user has hidden them
+  const projects = useMemo(() => {
+    const rawProjects = data?.items || [];
+    return filterDemoProjects(rawProjects);
+  }, [data?.items, filterDemoProjects]);
 
   const handleProjectCreated = (projectId: string) => {
     navigate(`/projects/${projectId}`);
+  };
+
+  const handleHideDemo = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("Hide the demo project? This will remove it from all project views.")) {
+      hideDemoProject();
+    }
   };
 
   return (
@@ -498,6 +539,8 @@ export default function ProjectsPage() {
                 project={project}
                 onClick={() => navigate(`/projects/${project.id}`)}
                 attentionInfo={attentionMap[project.id]}
+                onHideDemo={project.is_demo ? handleHideDemo : undefined}
+                isHidingDemo={isHiding}
               />
             ))}
           </div>

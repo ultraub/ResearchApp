@@ -17,6 +17,7 @@ import { projectsService } from "@/services/projects";
 import { teamsService } from "@/services/teams";
 import { analyticsApi } from "@/services/analytics";
 import { useOrganizationStore } from "@/stores/organization";
+import { useDemoProject } from "@/hooks/useDemoProject";
 import type { Project, TeamDetail } from "@/types";
 import type { ProjectAttentionInfo } from "./HierarchicalProjectList";
 
@@ -77,6 +78,7 @@ export function GroupedProjectList({
   // Note: showOnlyMyTasks and personFilter are accepted for API compatibility
   // but filtering is handled differently in grouped view (future enhancement)
   const { organization } = useOrganizationStore();
+  const { filterDemoProjects } = useDemoProject();
 
   // Fetch all projects
   const { data: projectsData, isLoading: projectsLoading } = useQuery({
@@ -124,11 +126,14 @@ export function GroupedProjectList({
   const allProjects = projectsData?.items || [];
   const teams = teamsData?.items || [];
 
-  // Filter projects if teamFilter is set
+  // Filter projects by demo visibility and team filter
   const filteredProjects = useMemo(() => {
-    if (!teamFilter) return allProjects;
-    return allProjects.filter((project) => project.team_id === teamFilter);
-  }, [allProjects, teamFilter]);
+    let filtered = filterDemoProjects(allProjects);
+    if (teamFilter) {
+      filtered = filtered.filter((project) => project.team_id === teamFilter);
+    }
+    return filtered;
+  }, [allProjects, teamFilter, filterDemoProjects]);
 
   // Group projects based on groupBy option
   const groups = useMemo((): ProjectGroup[] => {

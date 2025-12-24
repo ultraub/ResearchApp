@@ -8,6 +8,7 @@ import { FolderIcon } from "@heroicons/react/24/outline";
 import { projectsService } from "@/services/projects";
 import { analyticsApi } from "@/services/analytics";
 import { useOrganizationStore } from "@/stores/organization";
+import { useDemoProject } from "@/hooks/useDemoProject";
 import HierarchicalProjectRow from "./HierarchicalProjectRow";
 
 /** Attention info for a project (blockers and comments) */
@@ -62,6 +63,7 @@ export default function HierarchicalProjectList({
   personFilter,
 }: HierarchicalProjectListProps) {
   const { organization } = useOrganizationStore();
+  const { filterDemoProjects } = useDemoProject();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     // Start with saved expanded state or empty set
     const saved = loadExpandedIds();
@@ -115,11 +117,14 @@ export default function HierarchicalProjectList({
 
   const allProjects = data?.items || [];
 
-  // Filter projects by team if teamFilter is set
+  // Filter projects by team and demo visibility
   const projects = useMemo(() => {
-    if (!teamFilter) return allProjects;
-    return allProjects.filter(project => project.team_id === teamFilter);
-  }, [allProjects, teamFilter]);
+    let filtered = filterDemoProjects(allProjects);
+    if (teamFilter) {
+      filtered = filtered.filter(project => project.team_id === teamFilter);
+    }
+    return filtered;
+  }, [allProjects, teamFilter, filterDemoProjects]);
 
   // Default to all projects expanded on first load (if no saved state)
   useEffect(() => {

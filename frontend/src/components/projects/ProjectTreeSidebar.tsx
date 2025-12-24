@@ -2,7 +2,7 @@
  * Project Tree Sidebar - Collapsible tree navigation for projects
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { clsx } from "clsx";
 import { projectsService } from "@/services/projects";
+import { useDemoProject } from "@/hooks/useDemoProject";
 import type { Project } from "@/types";
 
 interface ProjectTreeSidebarProps {
@@ -154,6 +155,7 @@ export default function ProjectTreeSidebar({
 }: ProjectTreeSidebarProps) {
   const [sidebarState, setSidebarState] = useState<SidebarState>(loadSidebarState);
   const expandedIds = new Set(sidebarState.expandedIds);
+  const { filterDemoProjects } = useDemoProject();
 
   // Save state to localStorage when it changes
   useEffect(() => {
@@ -161,7 +163,7 @@ export default function ProjectTreeSidebar({
   }, [sidebarState]);
 
   // Fetch top-level projects (all projects if no teamId provided)
-  const { data: topLevelProjects, isLoading } = useQuery({
+  const { data: rawTopLevelProjects, isLoading } = useQuery({
     queryKey: ["projects", teamId || "all", "top-level"],
     queryFn: async () => {
       const response = await projectsService.list({
@@ -172,6 +174,12 @@ export default function ProjectTreeSidebar({
       return response.items;
     },
   });
+
+  // Filter out hidden demo projects
+  const topLevelProjects = useMemo(() => {
+    if (!rawTopLevelProjects) return undefined;
+    return filterDemoProjects(rawTopLevelProjects);
+  }, [rawTopLevelProjects, filterDemoProjects]);
 
   const toggleCollapsed = () => {
     setSidebarState((prev) => ({

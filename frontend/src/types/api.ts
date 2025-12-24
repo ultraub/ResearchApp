@@ -74,6 +74,7 @@ export interface Project {
   team_id: string;
   parent_id: string | null;
   settings: Record<string, unknown>;
+  is_demo?: boolean;
   created_by_id: string;
   created_at: string;
   updated_at: string;

@@ -67,6 +67,7 @@ class UserPreferencesResponse(BaseModel):
     editor_font_size: int
     editor_line_height: float
     ai_suggestions_enabled: bool
+    additional_settings: dict = {}
 
     class Config:
         from_attributes = True
@@ -87,6 +88,7 @@ class UserPreferencesUpdate(BaseModel):
     editor_font_size: int | None = Field(None, ge=10, le=24)
     editor_line_height: float | None = Field(None, ge=1.0, le=2.5)
     ai_suggestions_enabled: bool | None = None
+    additional_settings: dict | None = None
 
 
 class OnboardingStepUpdate(BaseModel):
@@ -196,7 +198,12 @@ async def update_my_preferences(
 
     update_data = updates.model_dump(exclude_unset=True)
     for field, value in update_data.items():
-        setattr(preferences, field, value)
+        if field == "additional_settings" and value is not None:
+            # Merge additional_settings instead of overwriting
+            current_settings = preferences.additional_settings or {}
+            preferences.additional_settings = {**current_settings, **value}
+        else:
+            setattr(preferences, field, value)
 
     await db.commit()
     await db.refresh(preferences)

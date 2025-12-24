@@ -16,7 +16,10 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
   BeakerIcon,
+  SparklesIcon,
+  EyeSlashIcon,
 } from "@heroicons/react/24/outline";
+import { useDemoProject } from "@/hooks/useDemoProject";
 import { clsx } from "clsx";
 import { CollapsibleSection, CollapsibleSectionGroup } from "@/components/ui/CollapsibleSection";
 import { projectsService } from "@/services/projects";
@@ -76,6 +79,7 @@ export default function ProjectDetailPage() {
   const [isCreateDocumentOpen, setIsCreateDocumentOpen] = useState(false);
 
   const queryClient = useQueryClient();
+  const { hideDemoProject, isHiding } = useDemoProject();
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", projectId],
@@ -302,8 +306,42 @@ export default function ProjectDetailPage() {
       ]
     : [];
 
+  const handleHideDemo = () => {
+    if (confirm("Hide the demo project? This will remove it from all project views.")) {
+      hideDemoProject();
+      navigate("/projects");
+    }
+  };
+
   return (
     <div className="min-h-screen">
+      {/* Demo project banner */}
+      {project.is_demo && (
+        <div className="border-b border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50 px-6 py-3 dark:border-purple-800 dark:from-purple-900/20 dark:to-indigo-900/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <SparklesIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              <div>
+                <span className="font-medium text-purple-700 dark:text-purple-300">
+                  Demo Project
+                </span>
+                <span className="ml-2 text-sm text-purple-600 dark:text-purple-400">
+                  Explore how to organize research with subprojects, tasks, blockers, and more
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={handleHideDemo}
+              disabled={isHiding}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-purple-600 hover:bg-purple-100 dark:text-purple-400 dark:hover:bg-purple-900/30"
+            >
+              <EyeSlashIcon className="h-4 w-4" />
+              Hide Demo
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="border-b border-gray-200 bg-white px-6 py-4 dark:border-dark-border dark:bg-dark-card">
         {/* Breadcrumb navigation */}

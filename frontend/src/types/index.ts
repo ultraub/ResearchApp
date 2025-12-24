@@ -74,6 +74,7 @@ export interface Project {
   tags: string[];
   color: string | null;
   is_archived: boolean;
+  is_demo?: boolean;
   settings: Record<string, unknown>;
   created_by_id: string | null;
   // Creator info

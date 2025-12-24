@@ -105,6 +105,9 @@ class Project(BaseModel):
     # Archive flag
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # Demo project flag - for system demo projects visible to all users
+    is_demo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+
     # Relationships
     team: Mapped["Team"] = relationship("Team", back_populates="projects")
     created_by: Mapped["User | None"] = relationship("User", foreign_keys=[created_by_id])
