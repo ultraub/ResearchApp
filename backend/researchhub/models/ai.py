@@ -292,6 +292,20 @@ class AIPendingAction(BaseModel):
 
     __tablename__ = "ai_pending_actions"
 
+    # Organization and user (denormalized for efficient querying)
+    organization_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
     # Link to conversation
     conversation_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -350,6 +364,8 @@ class AIPendingAction(BaseModel):
     )
 
     # Relationships
+    organization: Mapped["Organization"] = relationship("Organization")
+    user: Mapped["User"] = relationship("User")
     conversation: Mapped["AIConversation"] = relationship("AIConversation")
     message: Mapped["AIConversationMessage | None"] = relationship(
         "AIConversationMessage"
