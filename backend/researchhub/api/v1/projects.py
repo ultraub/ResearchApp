@@ -135,6 +135,8 @@ class ProjectResponse(BaseModel):
     allow_all_team_members: bool = True
     team_count: int = 1  # Number of teams with access
     exclusion_count: int = 0  # Number of excluded users
+    # Demo project flag
+    is_demo: bool = False
 
     class Config:
         from_attributes = True
