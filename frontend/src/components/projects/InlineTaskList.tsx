@@ -252,7 +252,7 @@ function TaskRow({ task, projectId, blockerInfo }: TaskRowProps) {
   return (
     <Link
       to={`/projects/${projectId}?task=${task.id}`}
-      className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-gray-50 dark:hover:bg-dark-elevated/50 group transition-colors"
+      className="flex items-center gap-2 py-2 px-2 rounded-md hover:bg-white dark:hover:bg-dark-elevated group transition-colors"
     >
       {/* Status icon */}
       <span className={`text-sm font-medium flex-shrink-0 ${statusConfig.className}`}>

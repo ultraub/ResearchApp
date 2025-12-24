@@ -81,7 +81,7 @@ export default function HierarchicalProjectRow({
   return (
     <div
       className={clsx(
-        isTopLevel && "rounded-lg border border-gray-200 dark:border-dark-border bg-gray-50/50 dark:bg-dark-elevated/30 overflow-hidden"
+        isTopLevel && "rounded-lg border border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-elevated shadow-sm overflow-hidden"
       )}
     >
       {/* Project Header Row */}
@@ -89,7 +89,7 @@ export default function HierarchicalProjectRow({
         className={clsx(
           "flex items-center gap-3 py-3 pr-4 cursor-pointer transition-all duration-200",
           "hover:bg-gray-100/80 dark:hover:bg-dark-elevated",
-          isTopLevel ? "bg-white dark:bg-dark-card rounded-t-lg" : ""
+          isTopLevel ? "bg-white dark:bg-dark-card rounded-t-lg border-b border-gray-100 dark:border-dark-border/50" : ""
         )}
         style={{ paddingLeft: isTopLevel ? "16px" : `${depth * 24 + 16}px` }}
         onClick={() => navigate(`/projects/${project.id}`)}
@@ -246,12 +246,16 @@ export default function HierarchicalProjectRow({
       {/* Inline Tasks */}
       <div
         className={clsx(
-          "pb-2",
+          "pb-3 pt-2",
           isTopLevel
-            ? "px-4 border-l-2 border-gray-200 dark:border-dark-border ml-6"
+            ? "px-4 mx-3 mb-2 rounded-b-md bg-gray-50 dark:bg-dark-base/50 border-l-[3px]"
             : "border-l-2 border-gray-200 dark:border-dark-border"
         )}
-        style={!isTopLevel ? { marginLeft: `${depth * 24 + 28}px` } : undefined}
+        style={
+          isTopLevel
+            ? { borderLeftColor: project.color || "#6366f1" }
+            : { marginLeft: `${depth * 24 + 28}px` }
+        }
       >
         <InlineTaskList
           projectId={project.id}
