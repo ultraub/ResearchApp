@@ -141,7 +141,7 @@ Use this context to provide relevant suggestions and defaults for actions."""
                 tool_results=tool_results if tool_results else None,
                 system=system_prompt,
                 temperature=0.7,
-                max_tokens=4096,
+                max_tokens=30000,
             )
 
             # Clear tool results for next iteration

@@ -230,7 +230,7 @@ class AnthropicProvider(AIProvider):
         tool_results: Optional[List[ToolResult]] = None,
         model: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: int = 4096,
+        max_tokens: int = 30000,
         system: Optional[str] = None,
     ) -> AIResponseWithTools:
         """Generate a completion with tool calling support using Claude.
