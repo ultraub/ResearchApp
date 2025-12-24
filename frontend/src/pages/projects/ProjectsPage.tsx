@@ -7,6 +7,7 @@ import {
   MagnifyingGlassIcon,
   Squares2X2Icon,
   ListBulletIcon,
+  QueueListIcon,
   CalendarIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -17,15 +18,44 @@ import { clsx } from "clsx";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import ProjectTreeSidebar from "@/components/projects/ProjectTreeSidebar";
 import HierarchicalProjectList, { type ProjectAttentionInfo } from "@/components/projects/HierarchicalProjectList";
+import { GroupedProjectList } from "@/components/projects/GroupedProjectList";
 import { TeamBadge } from "@/components/projects/TeamBadge";
 import { ProjectBreadcrumb } from "@/components/projects/ProjectBreadcrumb";
+import { QuickFilterChips } from "@/components/projects/QuickFilterChips";
+import { FilterFAB } from "@/components/projects/FilterFAB";
+import { ProjectFiltersSheet } from "@/components/projects/ProjectFiltersSheet";
 import { projectsService } from "@/services/projects";
 import { teamsService } from "@/services/teams";
 import { analyticsApi } from "@/services/analytics";
 import { useOrganizationStore } from "@/stores/organization";
 import type { Project } from "@/types";
 
-type ViewMode = "grid" | "list";
+type ViewMode = "grid" | "list" | "grouped";
+
+// Hook to detect mobile viewport
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < 768;
+  });
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const checkMobile = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setIsMobile(window.innerWidth < 768);
+      }, 150);
+    };
+    window.addEventListener("resize", checkMobile);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, []);
+
+  return isMobile;
+}
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
@@ -119,17 +149,82 @@ function ProjectCard({
   );
 }
 
+const VIEW_MODE_STORAGE_KEY = "projects-view-mode";
+const MOBILE_VIEW_MODE_STORAGE_KEY = "projects-view-mode-mobile";
+
+function loadViewMode(key: string, defaultMode: ViewMode): ViewMode {
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved && ["grid", "list", "grouped"].includes(saved)) {
+      return saved as ViewMode;
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return defaultMode;
+}
+
+function saveViewMode(key: string, mode: ViewMode): void {
+  try {
+    localStorage.setItem(key, mode);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { organization } = useOrganizationStore();
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const isMobile = useIsMobile();
+
+  // View mode with localStorage persistence
+  const [desktopViewMode, setDesktopViewModeState] = useState<ViewMode>(() =>
+    loadViewMode(VIEW_MODE_STORAGE_KEY, "list")
+  );
+  const [mobileViewMode, setMobileViewModeState] = useState<ViewMode>(() =>
+    loadViewMode(MOBILE_VIEW_MODE_STORAGE_KEY, "grouped")
+  );
+
+  // Wrap setters to persist to localStorage
+  const setDesktopViewMode = (mode: ViewMode) => {
+    setDesktopViewModeState(mode);
+    saveViewMode(VIEW_MODE_STORAGE_KEY, mode);
+  };
+  const setMobileViewMode = (mode: ViewMode) => {
+    setMobileViewModeState(mode);
+    saveViewMode(MOBILE_VIEW_MODE_STORAGE_KEY, mode);
+  };
+
+  // Use appropriate view mode based on device
+  const viewMode = isMobile ? mobileViewMode : desktopViewMode;
+  const setViewMode = isMobile ? setMobileViewMode : setDesktopViewMode;
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showOnlyMyTasks, setShowOnlyMyTasks] = useState(false);
   const [teamFilter, setTeamFilter] = useState("");
   const [personFilter, setPersonFilter] = useState(""); // user_id or "unassigned"
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+
+  // Calculate active filter count for mobile FAB badge
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (showOnlyMyTasks) count++;
+    if (statusFilter) count++;
+    if (teamFilter) count++;
+    if (personFilter) count++;
+    return count;
+  }, [showOnlyMyTasks, statusFilter, teamFilter, personFilter]);
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setShowOnlyMyTasks(false);
+    setStatusFilter("");
+    setTeamFilter("");
+    setPersonFilter("");
+  };
 
   // Auto-open create modal when navigating with ?create=true
   useEffect(() => {
@@ -235,9 +330,9 @@ export default function ProjectsPage() {
           </button>
         </div>
 
-        {/* Filters and search */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative max-w-md flex-1">
+        {/* Search bar - always visible */}
+        <div className="mb-4">
+          <div className="relative max-w-md">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <input
               type="search"
@@ -247,7 +342,23 @@ export default function ProjectsPage() {
               className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm placeholder-gray-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-border dark:bg-dark-elevated dark:text-white"
             />
           </div>
+        </div>
 
+        {/* Mobile Quick Filters */}
+        <div className="mb-4 md:hidden">
+          <QuickFilterChips
+            showOnlyMyTasks={showOnlyMyTasks}
+            onToggleMyTasks={() => setShowOnlyMyTasks(!showOnlyMyTasks)}
+            statusFilter={statusFilter}
+            onStatusChange={setStatusFilter}
+            teamFilter={teamFilter}
+            onTeamChange={setTeamFilter}
+            teams={teams}
+          />
+        </div>
+
+        {/* Desktop Filters */}
+        <div className="mb-6 hidden md:flex md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             {/* My Tasks toggle */}
             <button
@@ -315,31 +426,42 @@ export default function ProjectsPage() {
               <option value="on_hold">On Hold</option>
               <option value="archived">Archived</option>
             </select>
+          </div>
 
-            <div className="flex rounded-lg border border-gray-200 dark:border-dark-border">
-              <button
-                onClick={() => setViewMode("grid")}
-                title="Grid view"
-                className={`p-2 ${
-                  viewMode === "grid"
-                    ? "bg-gray-100 text-gray-900 dark:bg-dark-elevated dark:text-white"
-                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
-                }`}
-              >
-                <Squares2X2Icon className="h-5 w-5" />
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                title="List view"
-                className={`p-2 ${
-                  viewMode === "list"
-                    ? "bg-gray-100 text-gray-900 dark:bg-dark-elevated dark:text-white"
-                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
-                }`}
-              >
-                <ListBulletIcon className="h-5 w-5" />
-              </button>
-            </div>
+          <div className="flex rounded-lg border border-gray-200 dark:border-dark-border">
+            <button
+              onClick={() => setViewMode("grid")}
+              title="Grid view"
+              className={`p-2 ${
+                viewMode === "grid"
+                  ? "bg-gray-100 text-gray-900 dark:bg-dark-elevated dark:text-white"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              }`}
+            >
+              <Squares2X2Icon className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              title="List view"
+              className={`p-2 ${
+                viewMode === "list"
+                  ? "bg-gray-100 text-gray-900 dark:bg-dark-elevated dark:text-white"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              }`}
+            >
+              <ListBulletIcon className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setViewMode("grouped")}
+              title="Grouped view"
+              className={`p-2 ${
+                viewMode === "grouped"
+                  ? "bg-gray-100 text-gray-900 dark:bg-dark-elevated dark:text-white"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              }`}
+            >
+              <QueueListIcon className="h-5 w-5" />
+            </button>
           </div>
         </div>
 
@@ -352,6 +474,17 @@ export default function ProjectsPage() {
             showOnlyMyTasks={showOnlyMyTasks}
             teamFilter={teamFilter}
             personFilter={personFilter}
+          />
+        ) : viewMode === "grouped" ? (
+          <GroupedProjectList
+            groupBy="team"
+            statusFilter={statusFilter}
+            searchQuery={searchQuery}
+            teamFilter={teamFilter}
+            showOnlyMyTasks={showOnlyMyTasks}
+            personFilter={personFilter}
+            onCreateProject={() => setIsCreateModalOpen(true)}
+            accordionMode={isMobile}
           />
         ) : isLoading ? (
           <div className="flex items-center justify-center py-12">
@@ -396,6 +529,32 @@ export default function ProjectsPage() {
           onSuccess={handleProjectCreated}
         />
       </div>
+
+      {/* Mobile Filter FAB */}
+      <div className="md:hidden">
+        <FilterFAB
+          activeCount={activeFilterCount}
+          onClick={() => setIsFilterSheetOpen(true)}
+        />
+      </div>
+
+      {/* Mobile Filter Bottom Sheet */}
+      <ProjectFiltersSheet
+        isOpen={isFilterSheetOpen}
+        onClose={() => setIsFilterSheetOpen(false)}
+        showOnlyMyTasks={showOnlyMyTasks}
+        onToggleMyTasks={() => setShowOnlyMyTasks(!showOnlyMyTasks)}
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        teamFilter={teamFilter}
+        onTeamChange={setTeamFilter}
+        personFilter={personFilter}
+        onPersonChange={setPersonFilter}
+        teams={teams}
+        teamMembers={teamMembers}
+        onClearAll={clearAllFilters}
+        activeFilterCount={activeFilterCount}
+      />
     </div>
   );
 }
