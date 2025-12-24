@@ -56,10 +56,24 @@ class ActionExecutor:
         """Execute task creation."""
         from datetime import date as date_type
 
+        # Convert string description to TipTap/ProseMirror JSONB format
+        description = None
+        if input.get("description"):
+            description_text = input["description"]
+            description = {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": description_text}]
+                    }
+                ]
+            }
+
         task = Task(
             project_id=UUID(input["project_id"]),
             title=input["title"],
-            description=input.get("description"),
+            description=description,
             priority=input.get("priority", "medium"),
             status=input.get("status", "todo"),
             created_by_id=self.user_id,
@@ -93,10 +107,24 @@ class ActionExecutor:
         if not task:
             return {"success": False, "error": "Task not found"}
 
-        update_fields = ["title", "description", "priority", "status"]
-        for field in update_fields:
+        # Handle simple fields
+        simple_fields = ["title", "priority", "status"]
+        for field in simple_fields:
             if field in input and input[field] is not None:
                 setattr(task, field, input[field])
+
+        # Handle description separately - convert to JSONB format
+        if "description" in input and input["description"] is not None:
+            description_text = input["description"]
+            task.description = {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": description_text}]
+                    }
+                ]
+            }
 
         if "due_date" in input and input["due_date"] is not None:
             task.due_date = date_type.fromisoformat(input["due_date"])
@@ -155,10 +183,24 @@ class ActionExecutor:
         """Execute blocker creation."""
         from datetime import date as date_type
 
+        # Convert string description to TipTap/ProseMirror JSONB format
+        description = None
+        if input.get("description"):
+            description_text = input["description"]
+            description = {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": description_text}]
+                    }
+                ]
+            }
+
         blocker = Blocker(
             project_id=UUID(input["project_id"]),
             title=input["title"],
-            description=input.get("description"),
+            description=description,
             blocker_type=input.get("blocker_type", "other"),
             priority=input.get("priority", 3),
             impact_level=input.get("impact_level", "medium"),
