@@ -27,6 +27,10 @@ interface HierarchicalProjectListProps {
   onCreateProject?: () => void;
   /** If true, only show tasks assigned to the current user */
   showOnlyMyTasks?: boolean;
+  /** Filter projects to a specific team */
+  teamFilter?: string;
+  /** Filter tasks to a specific person (user_id) or "unassigned" */
+  personFilter?: string;
 }
 
 function loadExpandedIds(): string[] {
@@ -54,6 +58,8 @@ export default function HierarchicalProjectList({
   searchQuery,
   onCreateProject,
   showOnlyMyTasks = false,
+  teamFilter,
+  personFilter,
 }: HierarchicalProjectListProps) {
   const { organization } = useOrganizationStore();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
@@ -107,7 +113,13 @@ export default function HierarchicalProjectList({
     return map;
   }, [analytics]);
 
-  const projects = data?.items || [];
+  const allProjects = data?.items || [];
+
+  // Filter projects by team if teamFilter is set
+  const projects = useMemo(() => {
+    if (!teamFilter) return allProjects;
+    return allProjects.filter(project => project.team_id === teamFilter);
+  }, [allProjects, teamFilter]);
 
   // Default to all projects expanded on first load (if no saved state)
   useEffect(() => {
@@ -226,6 +238,7 @@ export default function HierarchicalProjectList({
             attentionInfo={attentionMap[project.id]}
             attentionMap={attentionMap}
             showOnlyMyTasks={showOnlyMyTasks}
+            personFilter={personFilter}
           />
         ))}
       </div>

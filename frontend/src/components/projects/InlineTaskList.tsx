@@ -117,12 +117,15 @@ interface InlineTaskListProps {
   className?: string;
   /** If true, only show tasks assigned to the current user */
   showOnlyMyTasks?: boolean;
+  /** Filter tasks to a specific person (user_id) or "unassigned" */
+  personFilter?: string;
 }
 
 export default function InlineTaskList({
   projectId,
   className = "",
-  showOnlyMyTasks = false
+  showOnlyMyTasks = false,
+  personFilter,
 }: InlineTaskListProps) {
   const { user } = useAuthStore();
 
@@ -154,12 +157,27 @@ export default function InlineTaskList({
     );
   }
 
+  // Filter by specific person or unassigned
+  if (personFilter) {
+    if (personFilter === "unassigned") {
+      activeTasks = activeTasks.filter(task =>
+        !task.assignments || task.assignments.length === 0
+      );
+    } else {
+      activeTasks = activeTasks.filter(task =>
+        task.assignments?.some(assignment => assignment.user_id === personFilter)
+      );
+    }
+  }
+
   // Sort by urgency (Urgent priority first, then deadline, then status)
   const sortedTasks = sortTasksByUrgency(activeTasks);
   const doneCount = tasksByStatus?.done?.length ?? 0;
-  const allDone = tasksByStatus && activeTasks.length === 0 && doneCount > 0 && !showOnlyMyTasks;
-  const noTasks = tasksByStatus && activeTasks.length === 0 && doneCount === 0 && !showOnlyMyTasks;
-  const noMyTasks = showOnlyMyTasks && activeTasks.length === 0;
+  const hasPersonFilter = !!personFilter;
+  const allDone = tasksByStatus && activeTasks.length === 0 && doneCount > 0 && !showOnlyMyTasks && !hasPersonFilter;
+  const noTasks = tasksByStatus && activeTasks.length === 0 && doneCount === 0 && !showOnlyMyTasks && !hasPersonFilter;
+  const noMyTasks = showOnlyMyTasks && activeTasks.length === 0 && !hasPersonFilter;
+  const noFilteredTasks = hasPersonFilter && activeTasks.length === 0;
 
   if (isLoading) {
     return (
@@ -181,6 +199,14 @@ export default function InlineTaskList({
     return (
       <div className={`pl-8 py-2 text-sm text-gray-400 dark:text-gray-500 italic ${className}`}>
         No tasks assigned to you
+      </div>
+    );
+  }
+
+  if (noFilteredTasks) {
+    return (
+      <div className={`pl-8 py-2 text-sm text-gray-400 dark:text-gray-500 italic ${className}`}>
+        No matching tasks
       </div>
     );
   }

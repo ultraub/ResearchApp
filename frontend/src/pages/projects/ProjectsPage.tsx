@@ -20,6 +20,7 @@ import HierarchicalProjectList, { type ProjectAttentionInfo } from "@/components
 import { TeamBadge } from "@/components/projects/TeamBadge";
 import { ProjectBreadcrumb } from "@/components/projects/ProjectBreadcrumb";
 import { projectsService } from "@/services/projects";
+import { teamsService } from "@/services/teams";
 import { analyticsApi } from "@/services/analytics";
 import { useOrganizationStore } from "@/stores/organization";
 import type { Project } from "@/types";
@@ -126,6 +127,8 @@ export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showOnlyMyTasks, setShowOnlyMyTasks] = useState(false);
+  const [teamFilter, setTeamFilter] = useState("");
+  const [personFilter, setPersonFilter] = useState(""); // user_id or "unassigned"
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Auto-open create modal when navigating with ?create=true
@@ -137,6 +140,27 @@ export default function ProjectsPage() {
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  // Fetch teams for the team filter dropdown
+  const { data: teamsData } = useQuery({
+    queryKey: ["teams", { organization_id: organization?.id }],
+    queryFn: () => teamsService.list({ organization_id: organization?.id, include_personal: true }),
+    enabled: !!organization?.id,
+  });
+
+  // Fetch team members when a team is selected
+  const { data: teamMembers } = useQuery({
+    queryKey: ["team-members", teamFilter],
+    queryFn: () => teamsService.getMembers(teamFilter),
+    enabled: !!teamFilter,
+  });
+
+  // Reset person filter when team changes
+  useEffect(() => {
+    setPersonFilter("");
+  }, [teamFilter]);
+
+  const teams = teamsData?.items || [];
 
   // Fetch projects for grid view (list view uses HierarchicalProjectList which fetches its own data)
   const { data, isLoading } = useQuery({
@@ -240,6 +264,47 @@ export default function ProjectsPage() {
               My Tasks
             </button>
 
+            {/* Team filter */}
+            <select
+              value={teamFilter}
+              onChange={(e) => setTeamFilter(e.target.value)}
+              className={clsx(
+                "rounded-lg border px-3 py-2 text-sm",
+                teamFilter
+                  ? "border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
+                  : "border-gray-200 bg-white text-gray-600 dark:border-dark-border dark:bg-dark-elevated dark:text-white"
+              )}
+            >
+              <option value="">All Teams</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.is_personal ? "Personal" : team.name}
+                </option>
+              ))}
+            </select>
+
+            {/* Person filter (only shown when a team is selected) */}
+            {teamFilter && (
+              <select
+                value={personFilter}
+                onChange={(e) => setPersonFilter(e.target.value)}
+                className={clsx(
+                  "rounded-lg border px-3 py-2 text-sm",
+                  personFilter
+                    ? "border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
+                    : "border-gray-200 bg-white text-gray-600 dark:border-dark-border dark:bg-dark-elevated dark:text-white"
+                )}
+              >
+                <option value="">All People</option>
+                <option value="unassigned">Unassigned</option>
+                {teamMembers?.map((member) => (
+                  <option key={member.user_id} value={member.user_id}>
+                    {member.display_name || member.user_name || member.email || member.user_email || "Unknown"}
+                  </option>
+                ))}
+              </select>
+            )}
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -286,6 +351,8 @@ export default function ProjectsPage() {
             searchQuery={searchQuery}
             onCreateProject={() => setIsCreateModalOpen(true)}
             showOnlyMyTasks={showOnlyMyTasks}
+            teamFilter={teamFilter}
+            personFilter={personFilter}
           />
         ) : isLoading ? (
           <div className="flex items-center justify-center py-12">
