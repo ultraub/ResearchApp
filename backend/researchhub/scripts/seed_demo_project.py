@@ -242,11 +242,18 @@ async def get_or_create_demo_org_and_team(db: AsyncSession) -> tuple[Organizatio
         db.add(org)
         await db.flush()
 
-    # Try to find a team in this organization
+    # Try to find a personal team in this organization (demo appears in "Personal" section)
     result = await db.execute(
-        select(Team).where(Team.organization_id == org.id).limit(1)
+        select(Team).where(Team.organization_id == org.id, Team.is_personal == True).limit(1)
     )
     team = result.scalar_one_or_none()
+
+    # Fallback to any team if no personal team found
+    if team is None:
+        result = await db.execute(
+            select(Team).where(Team.organization_id == org.id).limit(1)
+        )
+        team = result.scalar_one_or_none()
 
     if team is None:
         print("No team found. Creating a demo team...")
