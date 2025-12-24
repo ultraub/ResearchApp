@@ -37,7 +37,7 @@ import { ProjectSummaryCard } from "@/components/projects/ProjectSummaryCard";
 import { AttentionSummary } from "@/components/projects/AttentionSummary";
 import { ProjectPapersSection } from "@/components/knowledge/ProjectPapersSection";
 import { JournalEntryList, JournalEntryModal } from "@/components/journals";
-import { CreateBlockerModal } from "@/components/blockers";
+import { BlockerListModal } from "@/components/blockers";
 import { DocumentList, CreateDocumentModal } from "@/components/documents";
 import { useOrganizationStore } from "@/stores/organization";
 import type { Task, Project, JournalEntry } from "@/types";
@@ -74,7 +74,7 @@ export default function ProjectDetailPage() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Blocker modal state
-  const [isCreateBlockerOpen, setIsCreateBlockerOpen] = useState(false);
+  const [isBlockerListOpen, setIsBlockerListOpen] = useState(false);
 
   // Document modal state
   const [isCreateDocumentOpen, setIsCreateDocumentOpen] = useState(false);
@@ -499,11 +499,11 @@ export default function ProjectDetailPage() {
               </div>
 
               <button
-                onClick={() => setIsCreateBlockerOpen(true)}
+                onClick={() => setIsBlockerListOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-yellow-400 bg-yellow-50 px-3 py-1.5 text-sm font-medium text-yellow-700 hover:bg-yellow-100 dark:border-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400 dark:hover:bg-yellow-900/30"
               >
                 <ExclamationTriangleIcon className="h-4 w-4" />
-                Blocker
+                View Blockers
               </button>
             </div>
           )}
@@ -581,7 +581,7 @@ export default function ProjectDetailPage() {
             tasks={allTasks}
             blockers={projectBlockers}
             unreadCounts={taskUnreadInfo}
-            onBlockersClick={() => setIsCreateBlockerOpen(true)}
+            onBlockersClick={() => setIsBlockerListOpen(true)}
           />
         </div>
       </div>
@@ -1025,11 +1025,11 @@ export default function ProjectDetailPage() {
         />
       )}
 
-      {/* Create blocker modal */}
+      {/* Blocker list modal */}
       {projectId && (
-        <CreateBlockerModal
-          isOpen={isCreateBlockerOpen}
-          onClose={() => setIsCreateBlockerOpen(false)}
+        <BlockerListModal
+          isOpen={isBlockerListOpen}
+          onClose={() => setIsBlockerListOpen(false)}
           projectId={projectId}
         />
       )}

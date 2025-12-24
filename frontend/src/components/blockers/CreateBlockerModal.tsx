@@ -5,10 +5,17 @@
 import { useState, Fragment } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, Transition } from "@headlessui/react";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, DocumentIcon, FolderIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import { blockersService } from "@/services/blockers";
+import { BlockerLinkPicker } from "./BlockerLinkPicker";
 import type { BlockerCreate } from "@/types";
+
+interface PendingLink {
+  entityType: "task" | "project";
+  entityId: string;
+  title: string;
+}
 
 interface CreateBlockerModalProps {
   isOpen: boolean;
@@ -51,11 +58,30 @@ export function CreateBlockerModal({
     priority: "medium",
     impact_level: "medium",
   });
+  const [pendingLinks, setPendingLinks] = useState<PendingLink[]>([]);
 
   const createMutation = useMutation({
-    mutationFn: (data: BlockerCreate) => blockersService.create(data),
+    mutationFn: async (data: BlockerCreate) => {
+      // Create the blocker first
+      const blocker = await blockersService.create(data);
+
+      // Then link any pending items
+      if (pendingLinks.length > 0) {
+        await Promise.all(
+          pendingLinks.map((link) =>
+            blockersService.linkToEntity(blocker.id, {
+              blocked_entity_type: link.entityType,
+              blocked_entity_id: link.entityId,
+            })
+          )
+        );
+      }
+
+      return blocker;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["blockers"] });
+      queryClient.invalidateQueries({ queryKey: ["task-blockers"] });
       toast.success("Blocker created");
       handleClose();
     },
@@ -72,7 +98,18 @@ export function CreateBlockerModal({
       priority: "medium",
       impact_level: "medium",
     });
+    setPendingLinks([]);
     onClose();
+  };
+
+  const handleAddLink = (entityType: "task" | "project", entityId: string, title: string) => {
+    // Don't add duplicates
+    if (pendingLinks.some((l) => l.entityId === entityId)) return;
+    setPendingLinks((prev) => [...prev, { entityType, entityId, title }]);
+  };
+
+  const handleRemoveLink = (entityId: string) => {
+    setPendingLinks((prev) => prev.filter((l) => l.entityId !== entityId));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -233,6 +270,61 @@ export function CreateBlockerModal({
                       placeholder="Add more details about this blocker..."
                       rows={3}
                       className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-gray-600 dark:bg-dark-card dark:text-white dark:placeholder-gray-400"
+                    />
+                  </div>
+
+                  {/* Link to Tasks/Projects */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      What does this block? <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+
+                    {/* Selected items */}
+                    {pendingLinks.length > 0 && (
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {pendingLinks.map((link) => (
+                          <span
+                            key={link.entityId}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-sm dark:bg-gray-700"
+                          >
+                            {link.entityType === "task" ? (
+                              <DocumentIcon className="h-3.5 w-3.5 text-blue-500" />
+                            ) : (
+                              <FolderIcon className="h-3.5 w-3.5 text-purple-500" />
+                            )}
+                            <span className="text-gray-700 dark:text-gray-300 max-w-[150px] truncate">
+                              {link.title}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLink(link.entityId)}
+                              className="ml-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                              <XMarkIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Link picker */}
+                    <BlockerLinkPicker
+                      projectId={projectId}
+                      existingLinks={pendingLinks.map((l) => ({
+                        id: l.entityId,
+                        blocker_id: "",
+                        blocked_entity_type: l.entityType,
+                        blocked_entity_id: l.entityId,
+                        blocked_entity_title: l.title,
+                        notes: null,
+                        created_by_id: null,
+                        created_at: "",
+                        updated_at: "",
+                      }))}
+                      onSelect={(entityType, entityId, title) => {
+                        handleAddLink(entityType, entityId, title || "Untitled");
+                      }}
+                      disabled={createMutation.isPending}
                     />
                   </div>
 

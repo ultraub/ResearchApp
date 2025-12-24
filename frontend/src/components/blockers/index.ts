@@ -3,6 +3,7 @@ export { BlockerStatusBadge } from "./BlockerStatusBadge";
 export { BlockerImpactBadge } from "./BlockerImpactBadge";
 export { BlockerDetailModal } from "./BlockerDetailModal";
 export { BlockerList } from "./BlockerList";
+export { BlockerListModal } from "./BlockerListModal";
 export { BlockedBySection } from "./BlockedBySection";
 export { BlockerWarningModal } from "./BlockerWarningModal";
 export { BlockerLinkPicker } from "./BlockerLinkPicker";

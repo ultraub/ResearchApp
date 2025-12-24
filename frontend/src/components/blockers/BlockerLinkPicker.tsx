@@ -22,7 +22,7 @@ import type { BlockerLink, Task, Project } from "@/types";
 interface BlockerLinkPickerProps {
   projectId: string;
   existingLinks: BlockerLink[];
-  onSelect: (entityType: "task" | "project", entityId: string) => void;
+  onSelect: (entityType: "task" | "project", entityId: string, title?: string) => void;
   disabled?: boolean;
 }
 
@@ -416,7 +416,7 @@ export function BlockerLinkPicker({
     }));
 
   const handleSelect = (item: EntityItem) => {
-    onSelect(item.type, item.id);
+    onSelect(item.type, item.id, item.title);
   };
 
   const isLoading = projectLoading || tasksLoading || subprojectsLoading || subprojectTasksLoading;
