@@ -176,11 +176,18 @@ async def assistant_chat(
 
     async def event_generator() -> AsyncIterator[str]:
         try:
+            logger.info("Starting assistant chat stream")
+            event_count = 0
             async for event in service.chat(chat_request):
+                event_count += 1
+                logger.info("Yielding event", event_type=str(event.event), event_count=event_count)
                 event_data = json.dumps(event.data)
                 yield f"event: {event.event}\ndata: {event_data}\n\n"
+            logger.info("Chat stream completed", total_events=event_count)
         except Exception as e:
-            logger.error("Assistant chat error", error=str(e))
+            logger.error("Assistant chat error", error=str(e), error_type=type(e).__name__)
+            import traceback
+            logger.error("Traceback", tb=traceback.format_exc())
             error_data = json.dumps({"message": str(e)})
             yield f"event: error\ndata: {error_data}\n\n"
 
