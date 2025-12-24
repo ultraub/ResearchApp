@@ -333,16 +333,16 @@ class GeminiProvider(AIProvider):
             function_declarations.append(func_decl)
 
         # If we have tool results, add them to the contents
+        # NOTE: Function responses must use role='tool', not 'user' per Gemini SDK docs
         if tool_results:
             for result in tool_results:
-                # Add the function response as a user message part
                 function_response_part = types.Part.from_function_response(
                     name=result.tool_use_id.split("_")[0] if "_" in result.tool_use_id else result.tool_use_id,
                     response={"result": result.content} if not isinstance(result.content, dict) else result.content,
                 )
                 contents.append(
                     types.Content(
-                        role="user",
+                        role="tool",
                         parts=[function_response_part],
                     )
                 )
@@ -484,6 +484,7 @@ class GeminiProvider(AIProvider):
             function_declarations.append(func_decl)
 
         # If we have tool results, add them to the contents
+        # NOTE: Function responses must use role='tool', not 'user' per Gemini SDK docs
         if tool_results:
             for result in tool_results:
                 function_response_part = types.Part.from_function_response(
@@ -492,7 +493,7 @@ class GeminiProvider(AIProvider):
                 )
                 contents.append(
                     types.Content(
-                        role="user",
+                        role="tool",
                         parts=[function_response_part],
                     )
                 )

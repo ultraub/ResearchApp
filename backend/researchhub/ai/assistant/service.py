@@ -13,7 +13,7 @@ from researchhub.ai.assistant.schemas import (
     PageContext,
     SSEEvent,
 )
-from researchhub.ai.assistant.tools import ActionTool, QueryTool, ToolRegistry
+from researchhub.ai.assistant.tools import ActionTool, QueryTool, create_default_registry
 from researchhub.ai.providers.base import (
     AIMessage,
     AIProvider,
@@ -39,7 +39,7 @@ class AssistantService:
         self.db = db
         self.user_id = user_id
         self.org_id = org_id
-        self.tool_registry = ToolRegistry()
+        self.tool_registry = create_default_registry()
 
     def _build_system_prompt(self, page_context: Optional[PageContext]) -> str:
         """Build the system prompt with page context."""
