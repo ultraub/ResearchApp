@@ -43,6 +43,8 @@ class SSEEventType(str, Enum):
     """Types of Server-Sent Events from the assistant."""
 
     TEXT = "text"
+    TEXT_DELTA = "text_delta"
+    THINKING = "thinking"
     TOOL_CALL = "tool_call"
     TOOL_RESULT = "tool_result"
     ACTION_PREVIEW = "action_preview"
