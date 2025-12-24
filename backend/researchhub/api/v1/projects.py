@@ -6,7 +6,7 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, or_, and_, exists
+from sqlalchemy import select, func, or_, and_, exists, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -1199,8 +1199,39 @@ async def change_project_scope(
         project.is_org_public = False
 
     elif old_scope == new_scope:
-        # Same scope - just update settings if applicable
-        if new_scope == "ORGANIZATION":
+        # Same scope - handle team transfer or settings update
+        if new_scope == "TEAM" and scope_data.team_id and scope_data.team_id != project.team_id:
+            # Transfer to a different team within TEAM scope
+            # Verify user is a member of the new team
+            membership = await db.execute(
+                select(TeamMember).where(
+                    TeamMember.team_id == scope_data.team_id,
+                    TeamMember.user_id == current_user.id,
+                )
+            )
+            if not membership.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Must be a member of the target team",
+                )
+
+            # Clear existing project teams
+            await db.execute(
+                delete(ProjectTeam).where(ProjectTeam.project_id == project_id)
+            )
+
+            # Update primary team
+            project.team_id = scope_data.team_id
+
+            # Add new primary team to project_teams
+            new_project_team = ProjectTeam(
+                project_id=project_id,
+                team_id=scope_data.team_id,
+                role="owner",
+            )
+            db.add(new_project_team)
+
+        elif new_scope == "ORGANIZATION":
             project.is_org_public = scope_data.is_org_public
             project.org_public_role = scope_data.org_public_role
 

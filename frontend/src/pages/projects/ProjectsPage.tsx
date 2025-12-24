@@ -141,11 +141,10 @@ export default function ProjectsPage() {
     }
   }, [searchParams, setSearchParams]);
 
-  // Fetch teams for the team filter dropdown
+  // Fetch teams for the team filter dropdown (all teams user is member of, not filtered by org)
   const { data: teamsData } = useQuery({
-    queryKey: ["teams", { organization_id: organization?.id }],
-    queryFn: () => teamsService.list({ organization_id: organization?.id, include_personal: true }),
-    enabled: !!organization?.id,
+    queryKey: ["teams", { include_personal: true }],
+    queryFn: () => teamsService.list({ include_personal: true }),
   });
 
   // Fetch team members when a team is selected

@@ -175,9 +175,10 @@ export const projectsService = {
     return response.data;
   },
 
-  // Transfer project to a different team
+  // Transfer project to a different team (keeps TEAM scope, changes team_id)
   transferToTeam: async (projectId: string, teamId: string) => {
     const response = await apiClient.patch<Project>(`/projects/${projectId}/scope`, {
+      new_scope: "TEAM",
       team_id: teamId,
     });
     return response.data;
