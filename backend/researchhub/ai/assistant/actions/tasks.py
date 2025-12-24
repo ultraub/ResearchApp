@@ -104,10 +104,10 @@ class CreateTaskTool(ActionTool):
         if input.get("due_date"):
             new_state["due_date"] = input["due_date"]
 
-        # Build diff entries
+        # Build diff entries - only include fields with values for create
         diff = []
         for field, value in new_state.items():
-            if field not in ["project_id", "assignee_id"]:  # Skip IDs in diff
+            if field not in ["project_id", "assignee_id"] and value is not None:  # Skip IDs and null values
                 diff.append(DiffEntry(
                     field=field,
                     old_value=None,
@@ -210,10 +210,25 @@ When making significant changes, consider also adding a comment to explain why t
         if not task:
             raise ValueError(f"Task {task_id} not found")
 
-        # Build old state
+        # Build old state - extract text from JSONB description if present
+        description_text = None
+        if task.description:
+            if isinstance(task.description, dict):
+                # Extract text from TipTap/ProseMirror JSONB format
+                try:
+                    content = task.description.get("content", [])
+                    if content and len(content) > 0:
+                        paragraph = content[0]
+                        if paragraph.get("content"):
+                            description_text = paragraph["content"][0].get("text", "")
+                except (KeyError, IndexError, TypeError):
+                    description_text = None
+            elif isinstance(task.description, str):
+                description_text = task.description
+
         old_state = {
             "title": task.title,
-            "description": task.description if isinstance(task.description, str) else None,
+            "description": description_text,
             "priority": task.priority,
             "status": task.status,
             "due_date": task.due_date.isoformat() if task.due_date else None,

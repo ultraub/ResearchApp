@@ -336,8 +336,11 @@ class GeminiProvider(AIProvider):
         # NOTE: Function responses must use role='tool', not 'user' per Gemini SDK docs
         if tool_results:
             for result in tool_results:
+                # Extract tool name from tool_use_id which is in format "{tool_name}_{8_char_uuid}"
+                # Must use rsplit to handle tool names with underscores (e.g., get_team_members_abc12345)
+                tool_name = result.tool_use_id.rsplit("_", 1)[0] if "_" in result.tool_use_id else result.tool_use_id
                 function_response_part = types.Part.from_function_response(
-                    name=result.tool_use_id.split("_")[0] if "_" in result.tool_use_id else result.tool_use_id,
+                    name=tool_name,
                     response={"result": result.content} if not isinstance(result.content, dict) else result.content,
                 )
                 contents.append(
@@ -487,8 +490,11 @@ class GeminiProvider(AIProvider):
         # NOTE: Function responses must use role='tool', not 'user' per Gemini SDK docs
         if tool_results:
             for result in tool_results:
+                # Extract tool name from tool_use_id which is in format "{tool_name}_{8_char_uuid}"
+                # Must use rsplit to handle tool names with underscores (e.g., get_team_members_abc12345)
+                tool_name = result.tool_use_id.rsplit("_", 1)[0] if "_" in result.tool_use_id else result.tool_use_id
                 function_response_part = types.Part.from_function_response(
-                    name=result.tool_use_id.split("_")[0] if "_" in result.tool_use_id else result.tool_use_id,
+                    name=tool_name,
                     response={"result": result.content} if not isinstance(result.content, dict) else result.content,
                 )
                 contents.append(

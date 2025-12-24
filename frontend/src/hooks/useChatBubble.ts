@@ -191,6 +191,16 @@ export function useChatBubble(): UseChatBubbleResult {
               // Transform snake_case API response to camelCase
               // Cast through unknown first since SSE data comes as snake_case from API
               const actionData = event.data as unknown as Record<string, unknown>;
+
+              // Transform diff entries from snake_case to camelCase
+              const rawDiff = (actionData.diff || []) as Array<Record<string, unknown>>;
+              const transformedDiff = rawDiff.map((d) => ({
+                field: String(d.field || ''),
+                oldValue: d.old_value ?? d.oldValue,
+                newValue: d.new_value ?? d.newValue,
+                changeType: (d.change_type || d.changeType || 'modified') as 'added' | 'modified' | 'removed',
+              }));
+
               const action: ProposedAction = {
                 id: String(actionData.action_id || actionData.id || ''),
                 toolName: String(actionData.tool_name || actionData.toolName || ''),
@@ -201,7 +211,7 @@ export function useChatBubble(): UseChatBubbleResult {
                   : undefined,
                 oldState: (actionData.old_state || actionData.oldState) as Record<string, unknown> | undefined,
                 newState: (actionData.new_state || actionData.newState || {}) as Record<string, unknown>,
-                diff: (actionData.diff || []) as ProposedAction['diff'],
+                diff: transformedDiff,
                 status: 'pending',
                 expiresAt: actionData.expires_at || actionData.expiresAt
                   ? String(actionData.expires_at || actionData.expiresAt)

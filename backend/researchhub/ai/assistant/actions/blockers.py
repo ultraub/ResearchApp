@@ -113,10 +113,10 @@ class CreateBlockerTool(ActionTool):
         if input.get("due_date"):
             new_state["due_date"] = input["due_date"]
 
-        # Build diff entries
+        # Build diff entries - only include fields with values for create
         diff = []
         for field, value in new_state.items():
-            if field not in ["project_id", "assignee_id"]:  # Skip IDs in diff
+            if field not in ["project_id", "assignee_id"] and value is not None:  # Skip IDs and null values
                 diff.append(DiffEntry(
                     field=field,
                     old_value=None,

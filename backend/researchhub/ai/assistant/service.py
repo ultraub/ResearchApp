@@ -23,6 +23,7 @@ from researchhub.ai.providers.base import (
     ToolUse,
 )
 from researchhub.models.ai import AIConversation, AIPendingAction
+from researchhub.models.user import User
 
 
 class AssistantService:
@@ -41,14 +42,43 @@ class AssistantService:
         self.org_id = org_id
         self.tool_registry = create_default_registry()
 
-    def _build_system_prompt(self, page_context: Optional[PageContext]) -> str:
-        """Build the system prompt with page context."""
+    async def _get_user_info(self) -> Optional[User]:
+        """Fetch the current user's information."""
+        from sqlalchemy import select
+
+        result = await self.db.execute(
+            select(User).where(User.id == self.user_id)
+        )
+        return result.scalar_one_or_none()
+
+    def _build_system_prompt(
+        self,
+        page_context: Optional[PageContext],
+        user: Optional[User] = None,
+    ) -> str:
+        """Build the system prompt with page context and user info."""
         # Include current date so the LLM knows what "today" means for overdue/upcoming calculations
         today = date.today()
         date_info = f"""Current Date: {today.strftime('%A, %B %d, %Y')} ({today.isoformat()})
 
 """
-        base_prompt = date_info + """You are a helpful AI assistant for a knowledge management application. You help users manage their projects, tasks, documents, and blockers.
+        # Include user context so the AI knows who it's talking to
+        user_info = ""
+        if user:
+            user_info = f"""Current User: {user.display_name}
+User ID: {str(self.user_id)}
+Email: {user.email}"""
+            if user.title:
+                user_info += f"\nTitle: {user.title}"
+            if user.department:
+                user_info += f"\nDepartment: {user.department}"
+            user_info += """
+
+When the user says "my tasks", "my projects", or refers to themselves, use this user's ID to filter results.
+
+"""
+
+        base_prompt = date_info + user_info + """You are a helpful AI assistant for a knowledge management application. You help users manage their projects, tasks, documents, and blockers.
 
 You have access to tools that let you:
 1. Query data (projects, tasks, documents, blockers, team members)
@@ -208,6 +238,9 @@ Use this context to provide relevant suggestions and defaults for actions."""
             request.page_context,
         )
 
+        # Fetch user info for context
+        user = await self._get_user_info()
+
         # Build messages
         messages: List[AIMessage] = []
 
@@ -223,7 +256,7 @@ Use this context to provide relevant suggestions and defaults for actions."""
 
         # Get tool definitions
         tools = self._get_tool_definitions()
-        system_prompt = self._build_system_prompt(request.page_context)
+        system_prompt = self._build_system_prompt(request.page_context, user)
 
         # Tool results for multi-turn
         tool_results: List[ToolResult] = []

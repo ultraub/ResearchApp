@@ -86,10 +86,10 @@ class CreateDocumentTool(ActionTool):
             content = input["content"]
             new_state["content_preview"] = content[:200] + "..." if len(content) > 200 else content
 
-        # Build diff entries
+        # Build diff entries - only include fields with values for create
         diff = []
         for field, value in new_state.items():
-            if field != "project_id":  # Skip IDs in diff
+            if field != "project_id" and value is not None:  # Skip IDs and null values
                 diff.append(DiffEntry(
                     field=field,
                     old_value=None,

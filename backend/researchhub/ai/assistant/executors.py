@@ -7,9 +7,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from researchhub.models.project import Blocker, Task, TaskComment
-from researchhub.models.document import Document
+from researchhub.models.project import Blocker, Task, TaskComment, TaskDocument
+from researchhub.models.document import Document, DocumentComment
 from researchhub.models.ai import AIPendingAction
+from researchhub.ai.assistant.queries.access import get_accessible_project_ids
 
 
 class ActionExecutor:
@@ -19,6 +20,20 @@ class ActionExecutor:
         self.db = db
         self.user_id = user_id
         self.org_id = org_id
+        self._accessible_project_ids: Optional[list] = None
+
+    async def _get_accessible_project_ids(self) -> list:
+        """Get and cache accessible project IDs for the user."""
+        if self._accessible_project_ids is None:
+            self._accessible_project_ids = await get_accessible_project_ids(
+                self.db, self.user_id
+            )
+        return self._accessible_project_ids
+
+    async def _verify_project_access(self, project_id: UUID) -> bool:
+        """Verify user has access to a project."""
+        accessible_ids = await self._get_accessible_project_ids()
+        return project_id in accessible_ids
 
     async def execute_action(self, pending_action: AIPendingAction) -> Dict[str, Any]:
         """Execute an approved pending action."""
@@ -55,6 +70,11 @@ class ActionExecutor:
     async def _execute_create_task(self, input: Dict[str, Any]) -> Dict[str, Any]:
         """Execute task creation."""
         from datetime import date as date_type
+
+        # Verify access to the project
+        project_id = UUID(input["project_id"])
+        if not await self._verify_project_access(project_id):
+            return {"success": False, "error": "Access denied to project"}
 
         # Convert string description to TipTap/ProseMirror JSONB format
         description = None
@@ -107,6 +127,10 @@ class ActionExecutor:
         if not task:
             return {"success": False, "error": "Task not found"}
 
+        # Verify access to the task's project
+        if not await self._verify_project_access(task.project_id):
+            return {"success": False, "error": "Access denied to task's project"}
+
         # Handle simple fields
         simple_fields = ["title", "priority", "status"]
         for field in simple_fields:
@@ -147,6 +171,10 @@ class ActionExecutor:
         if not task:
             return {"success": False, "error": "Task not found"}
 
+        # Verify access to the task's project
+        if not await self._verify_project_access(task.project_id):
+            return {"success": False, "error": "Access denied to task's project"}
+
         task.status = "done"
         task.completed_at = datetime.now(timezone.utc)
         await self.db.commit()
@@ -169,6 +197,10 @@ class ActionExecutor:
         if not task:
             return {"success": False, "error": "Task not found"}
 
+        # Verify access to the task's project
+        if not await self._verify_project_access(task.project_id):
+            return {"success": False, "error": "Access denied to task's project"}
+
         task.assignee_id = assignee_id
         await self.db.commit()
 
@@ -182,6 +214,11 @@ class ActionExecutor:
     async def _execute_create_blocker(self, input: Dict[str, Any]) -> Dict[str, Any]:
         """Execute blocker creation."""
         from datetime import date as date_type
+
+        # Verify access to the project
+        project_id = UUID(input["project_id"])
+        if not await self._verify_project_access(project_id):
+            return {"success": False, "error": "Access denied to project"}
 
         # Convert string description to TipTap/ProseMirror JSONB format
         description = None
@@ -234,6 +271,10 @@ class ActionExecutor:
         if not blocker:
             return {"success": False, "error": "Blocker not found"}
 
+        # Verify access to the blocker's project
+        if not await self._verify_project_access(blocker.project_id):
+            return {"success": False, "error": "Access denied to blocker's project"}
+
         blocker.status = "resolved"
         blocker.resolved_at = datetime.now(timezone.utc)
         blocker.resolved_by_id = self.user_id
@@ -252,8 +293,13 @@ class ActionExecutor:
 
     async def _execute_create_document(self, input: Dict[str, Any]) -> Dict[str, Any]:
         """Execute document creation."""
+        # Verify access to the project
+        project_id = UUID(input["project_id"])
+        if not await self._verify_project_access(project_id):
+            return {"success": False, "error": "Access denied to project"}
+
         document = Document(
-            project_id=UUID(input["project_id"]),
+            project_id=project_id,
             title=input["title"],
             document_type=input.get("document_type", "general"),
             status=input.get("status", "draft"),
@@ -286,6 +332,10 @@ class ActionExecutor:
         if not document:
             return {"success": False, "error": "Document not found"}
 
+        # Verify access to the document's project
+        if not await self._verify_project_access(document.project_id):
+            return {"success": False, "error": "Access denied to document's project"}
+
         if "title" in input and input["title"] is not None:
             document.title = input["title"]
 
@@ -309,9 +359,6 @@ class ActionExecutor:
 
     async def _execute_link_document_to_task(self, input: Dict[str, Any]) -> Dict[str, Any]:
         """Execute document-task linking."""
-        # This would require a TaskDocument model - for now, we'll note this as a future implementation
-        # In a full implementation, you'd create a TaskDocument record or similar
-
         document_id = UUID(input["document_id"])
         task_id = UUID(input["task_id"])
         link_type = input.get("link_type", "related")
@@ -328,12 +375,37 @@ class ActionExecutor:
         if not task:
             return {"success": False, "error": "Task not found"}
 
-        # TODO: Create actual TaskDocument link when model is available
-        # For now, we could store in task metadata or use existing relationships
+        # Verify access to both projects (document and task should be in accessible projects)
+        if not await self._verify_project_access(document.project_id):
+            return {"success": False, "error": "Access denied to document's project"}
+        if not await self._verify_project_access(task.project_id):
+            return {"success": False, "error": "Access denied to task's project"}
+
+        # Check if link already exists
+        existing_link = await self.db.execute(
+            select(TaskDocument).where(
+                TaskDocument.task_id == task_id,
+                TaskDocument.document_id == document_id,
+            )
+        )
+        if existing_link.scalar_one_or_none():
+            return {"success": False, "error": "Document is already linked to this task"}
+
+        # Create the TaskDocument link
+        task_document = TaskDocument(
+            task_id=task_id,
+            document_id=document_id,
+            link_type=link_type,
+            created_by_id=self.user_id,
+        )
+        self.db.add(task_document)
+        await self.db.commit()
+        await self.db.refresh(task_document)
 
         return {
             "success": True,
             "entity_type": "document_link",
+            "entity_id": str(task_document.id),
             "message": f"Document '{document.title}' linked to task '{task.title}' as {link_type}",
         }
 
@@ -344,6 +416,14 @@ class ActionExecutor:
         content = input["content"]
 
         if target_type == "task":
+            # Verify task exists and user has access to its project
+            task_result = await self.db.execute(select(Task).where(Task.id == target_id))
+            task = task_result.scalar_one_or_none()
+            if not task:
+                return {"success": False, "error": "Task not found"}
+            if not await self._verify_project_access(task.project_id):
+                return {"success": False, "error": "Access denied to task's project"}
+
             comment = TaskComment(
                 task_id=target_id,
                 user_id=self.user_id,
@@ -360,10 +440,27 @@ class ActionExecutor:
                 "message": "Comment added to task successfully",
             }
         elif target_type == "document":
-            # Would need DocumentComment model - similar pattern to TaskComment
+            # Verify document exists and user has access to its project
+            doc_result = await self.db.execute(select(Document).where(Document.id == target_id))
+            document = doc_result.scalar_one_or_none()
+            if not document:
+                return {"success": False, "error": "Document not found"}
+            if not await self._verify_project_access(document.project_id):
+                return {"success": False, "error": "Access denied to document's project"}
+
+            comment = DocumentComment(
+                document_id=target_id,
+                created_by_id=self.user_id,
+                content=content,
+            )
+            self.db.add(comment)
+            await self.db.commit()
+            await self.db.refresh(comment)
+
             return {
                 "success": True,
                 "entity_type": "comment",
+                "entity_id": str(comment.id),
                 "message": "Comment added to document successfully",
             }
         else:
