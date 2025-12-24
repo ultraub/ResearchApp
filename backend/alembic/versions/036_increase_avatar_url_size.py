@@ -1,7 +1,7 @@
 """Increase avatar_url column size to 2048
 
 Revision ID: 036
-Revises: 035_rename_ai_metadata_to_extra_data
+Revises: 035
 Create Date: 2024-12-24
 
 Google avatar URLs can be 800+ characters, exceeding the previous 500 limit.
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '036_increase_avatar_url_size'
-down_revision = '035_rename_ai_metadata_to_extra_data'
+revision = "036"
+down_revision = "035"
 branch_labels = None
 depends_on = None
 
