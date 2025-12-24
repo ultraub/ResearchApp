@@ -54,49 +54,49 @@ function ThinkingSection({ thinking }: { thinking: string }) {
 }
 
 /**
+ * Format tool name for display (e.g., get_projects -> Get Projects)
+ */
+function formatToolName(name: string): string {
+  return name
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/**
  * Tool activity indicator showing what tools the AI is using.
+ * Displays as compact inline chips that expand on click.
  */
 function ToolActivitySection({ tools }: { tools: ToolActivity[] }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
-    <div className="mb-2">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-      >
-        <Wrench className="h-3.5 w-3.5 text-blue-500" />
-        <span>
-          Using {tools.length} tool{tools.length > 1 ? 's' : ''}
-        </span>
-        {isExpanded ? (
-          <ChevronDown className="h-3 w-3" />
-        ) : (
-          <ChevronRight className="h-3 w-3" />
-        )}
-      </button>
-      {isExpanded && (
-        <div className="mt-2 ml-5 space-y-2">
-          {tools.map((tool) => (
-            <div
-              key={tool.id}
-              className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
-            >
-              <div className="flex items-center gap-2">
-                <Wrench className="h-3 w-3 text-blue-500" />
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-                  {tool.tool}
-                </span>
-              </div>
-              {Object.keys(tool.input).length > 0 && (
-                <pre className="mt-1 text-xs text-blue-600 dark:text-blue-400 overflow-x-auto">
-                  {JSON.stringify(tool.input, null, 2)}
-                </pre>
-              )}
+    <div className="flex flex-wrap gap-1.5 mb-2">
+      {tools.map((tool) => (
+        <div key={tool.id} className="relative">
+          <button
+            onClick={() => setExpandedId(expandedId === tool.id ? null : tool.id)}
+            className="inline-flex items-center gap-1.5 px-2 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-700 rounded-full text-xs font-medium text-blue-700 dark:text-blue-300 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/50 dark:hover:to-indigo-900/50 transition-all shadow-sm"
+          >
+            <Wrench className="h-3 w-3" />
+            <span>{formatToolName(tool.tool)}</span>
+            {Object.keys(tool.input).length > 0 && (
+              <ChevronDown
+                className={`h-3 w-3 transition-transform ${
+                  expandedId === tool.id ? 'rotate-180' : ''
+                }`}
+              />
+            )}
+          </button>
+          {expandedId === tool.id && Object.keys(tool.input).length > 0 && (
+            <div className="absolute left-0 top-full mt-1 z-10 min-w-[200px] max-w-[300px] p-2 bg-white dark:bg-dark-card border border-blue-200 dark:border-blue-700 rounded-lg shadow-lg">
+              <pre className="text-xs text-blue-600 dark:text-blue-400 overflow-x-auto whitespace-pre-wrap">
+                {JSON.stringify(tool.input, null, 2)}
+              </pre>
             </div>
-          ))}
+          )}
         </div>
-      )}
+      ))}
     </div>
   );
 }
