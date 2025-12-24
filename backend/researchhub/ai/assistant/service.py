@@ -314,11 +314,13 @@ Use this context to provide relevant suggestions and defaults for actions."""
                             data={"message": f"Tool error: {str(e)}"},
                         )
 
-                # Add assistant response with tool uses to messages for context
-                messages.append(AIMessage(
-                    role="assistant",
-                    content=accumulated_text,
-                ))
+                # Add assistant response to messages for context (only if there was text)
+                # Tool results are passed separately via tool_results parameter
+                if accumulated_text:
+                    messages.append(AIMessage(
+                        role="assistant",
+                        content=accumulated_text,
+                    ))
 
             # If no tool calls were made, we're done
             if not pending_tool_uses:
