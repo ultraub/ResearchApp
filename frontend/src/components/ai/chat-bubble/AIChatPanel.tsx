@@ -12,11 +12,94 @@ import {
   RotateCcw,
   MapPin,
   Loader2,
+  Brain,
+  Wrench,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { ChatMessage } from '../../../types/assistant';
+import type { ChatMessage, ToolActivity } from '../../../types/assistant';
 import { ActionProposalCard } from './ActionProposalCard';
+
+/**
+ * Collapsible thinking section for AI reasoning (Gemini 3+).
+ */
+function ThinkingSection({ thinking }: { thinking: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="mb-2">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+      >
+        <Brain className="h-3.5 w-3.5 text-purple-500" />
+        <span>Thinking...</span>
+        {isExpanded ? (
+          <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronRight className="h-3 w-3" />
+        )}
+      </button>
+      {isExpanded && (
+        <div className="mt-2 ml-5 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+          <p className="text-xs text-purple-700 dark:text-purple-300 whitespace-pre-wrap font-mono">
+            {thinking}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Tool activity indicator showing what tools the AI is using.
+ */
+function ToolActivitySection({ tools }: { tools: ToolActivity[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="mb-2">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+      >
+        <Wrench className="h-3.5 w-3.5 text-blue-500" />
+        <span>
+          Using {tools.length} tool{tools.length > 1 ? 's' : ''}
+        </span>
+        {isExpanded ? (
+          <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronRight className="h-3 w-3" />
+        )}
+      </button>
+      {isExpanded && (
+        <div className="mt-2 ml-5 space-y-2">
+          {tools.map((tool) => (
+            <div
+              key={tool.id}
+              className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
+            >
+              <div className="flex items-center gap-2">
+                <Wrench className="h-3 w-3 text-blue-500" />
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                  {tool.tool}
+                </span>
+              </div>
+              {Object.keys(tool.input).length > 0 && (
+                <pre className="mt-1 text-xs text-blue-600 dark:text-blue-400 overflow-x-auto">
+                  {JSON.stringify(tool.input, null, 2)}
+                </pre>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface AIChatPanelProps {
   isMinimized: boolean;
@@ -179,6 +262,16 @@ export function AIChatPanel({
         ) : (
           messages.map((message) => (
             <div key={message.id}>
+              {/* Thinking indicator (Gemini 3+) */}
+              {message.thinking && message.role === 'assistant' && (
+                <ThinkingSection thinking={message.thinking} />
+              )}
+
+              {/* Tool activity indicator */}
+              {message.toolActivity && message.toolActivity.length > 0 && message.role === 'assistant' && (
+                <ToolActivitySection tools={message.toolActivity} />
+              )}
+
               {/* Message bubble */}
               <div
                 className={`flex ${

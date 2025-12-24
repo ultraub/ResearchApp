@@ -94,6 +94,25 @@ class ToolResult:
 
 
 @dataclass
+class StreamEvent:
+    """An event from a streaming response with tools.
+
+    Used by stream_with_tools to yield incremental updates including
+    text deltas, tool calls, thinking indicators, and completion signals.
+    """
+    type: str  # "thinking", "text_delta", "text", "tool_call", "done", "error"
+    data: dict = field(default_factory=dict)
+
+    # Event type constants
+    THINKING = "thinking"
+    TEXT_DELTA = "text_delta"
+    TEXT = "text"
+    TOOL_CALL = "tool_call"
+    DONE = "done"
+    ERROR = "error"
+
+
+@dataclass
 class AIResponseWithTools(AIResponse):
     """Response from an AI provider that may include tool use requests.
 
@@ -238,6 +257,92 @@ class AIProvider(ABC):
             AIProviderError: If the provider request fails
         """
         pass
+
+    async def stream_with_tools(
+        self,
+        messages: List[AIMessage],
+        tools: List[ToolDefinition],
+        tool_results: Optional[List[ToolResult]] = None,
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 30000,
+        system: Optional[str] = None,
+        thinking_level: Optional[str] = None,
+    ) -> AsyncIterator["StreamEvent"]:
+        """Stream a completion with tool calling support.
+
+        Yields StreamEvent objects as the response is generated, enabling
+        real-time display of thinking, text, and tool calls.
+
+        Args:
+            messages: List of messages forming the conversation
+            tools: List of available tools the AI can call
+            tool_results: Results from previously requested tool calls
+            model: Model identifier (uses default if not specified)
+            temperature: Sampling temperature (0.0 to 1.0)
+            max_tokens: Maximum tokens to generate
+            system: Optional system prompt for the conversation
+            thinking_level: Optional thinking depth ('minimal', 'low', 'medium', 'high')
+                           Only supported by some models (e.g., Gemini 3)
+
+        Yields:
+            StreamEvent objects with types:
+            - 'thinking': Model is processing (with optional thinking content)
+            - 'text_delta': Incremental text content
+            - 'text': Complete text block
+            - 'tool_call': Tool invocation request
+            - 'done': Stream completed
+            - 'error': Error occurred
+
+        Raises:
+            AIProviderError: If the provider request fails
+        """
+        # Default implementation falls back to non-streaming
+        # Providers should override this for true streaming support
+        try:
+            response = await self.complete_with_tools(
+                messages=messages,
+                tools=tools,
+                tool_results=tool_results,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                system=system,
+            )
+
+            # Yield tool calls first
+            for tool_use in response.tool_uses:
+                yield StreamEvent(
+                    type=StreamEvent.TOOL_CALL,
+                    data={
+                        "id": tool_use.id,
+                        "name": tool_use.name,
+                        "input": tool_use.input,
+                    },
+                )
+
+            # Yield text content
+            if response.content:
+                yield StreamEvent(
+                    type=StreamEvent.TEXT,
+                    data={"content": response.content},
+                )
+
+            # Signal completion
+            yield StreamEvent(
+                type=StreamEvent.DONE,
+                data={
+                    "model": response.model,
+                    "input_tokens": response.input_tokens,
+                    "output_tokens": response.output_tokens,
+                    "finish_reason": response.finish_reason,
+                },
+            )
+        except Exception as e:
+            yield StreamEvent(
+                type=StreamEvent.ERROR,
+                data={"message": str(e)},
+            )
 
     async def health_check(self) -> bool:
         """Check if the provider is available and responding.

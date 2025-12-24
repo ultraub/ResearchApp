@@ -10,6 +10,14 @@ export interface PageContext {
   name?: string;
 }
 
+// Tool call activity for display
+export interface ToolActivity {
+  id: string;
+  tool: string;
+  input: Record<string, unknown>;
+  timestamp: Date;
+}
+
 // Chat message
 export interface ChatMessage {
   id: string;
@@ -18,6 +26,10 @@ export interface ChatMessage {
   timestamp: Date;
   isStreaming?: boolean;
   actions?: ProposedAction[];
+  // For displaying model thinking (Gemini 3+)
+  thinking?: string;
+  // For displaying tool call activity
+  toolActivity?: ToolActivity[];
 }
 
 // Proposed action from assistant
@@ -45,6 +57,8 @@ export interface DiffEntry {
 // SSE events from the assistant
 export type AssistantSSEEvent =
   | { event: 'text'; data: { content: string } }
+  | { event: 'text_delta'; data: { content: string } }
+  | { event: 'thinking'; data: { content: string } }
   | { event: 'tool_call'; data: { tool: string; input: Record<string, unknown> } }
   | { event: 'tool_result'; data: Record<string, unknown> }
   | { event: 'action_preview'; data: ProposedAction }

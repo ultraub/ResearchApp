@@ -9,6 +9,7 @@ import type {
   ChatMessage,
   ProposedAction,
   PageContext,
+  ToolActivity,
 } from '../types/assistant';
 
 // Generate unique IDs using native crypto API
@@ -125,11 +126,26 @@ export function useChatBubble(): UseChatBubbleResult {
         });
 
         let accumulatedContent = '';
+        let accumulatedThinking = '';
         const accumulatedActions: ProposedAction[] = [];
+        const accumulatedToolActivity: ToolActivity[] = [];
 
         for await (const event of stream) {
           switch (event.event) {
             case 'text':
+              // Complete text block (fallback for non-streaming providers)
+              accumulatedContent = event.data.content;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMessageId
+                    ? { ...m, content: accumulatedContent }
+                    : m
+                )
+              );
+              break;
+
+            case 'text_delta':
+              // Real-time text streaming - append to content
               accumulatedContent += event.data.content;
               setMessages((prev) =>
                 prev.map((m) =>
@@ -139,6 +155,37 @@ export function useChatBubble(): UseChatBubbleResult {
                 )
               );
               break;
+
+            case 'thinking':
+              // Model thinking/reasoning content (Gemini 3+)
+              accumulatedThinking += event.data.content;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMessageId
+                    ? { ...m, thinking: accumulatedThinking }
+                    : m
+                )
+              );
+              break;
+
+            case 'tool_call': {
+              // Track tool call activity
+              const toolActivity: ToolActivity = {
+                id: generateId(),
+                tool: event.data.tool,
+                input: event.data.input,
+                timestamp: new Date(),
+              };
+              accumulatedToolActivity.push(toolActivity);
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMessageId
+                    ? { ...m, toolActivity: [...(m.toolActivity || []), toolActivity] }
+                    : m
+                )
+              );
+              break;
+            }
 
             case 'action_preview': {
               // Transform snake_case API response to camelCase

@@ -17,8 +17,10 @@ from researchhub.ai.assistant.tools import ActionTool, QueryTool, ToolRegistry
 from researchhub.ai.providers.base import (
     AIMessage,
     AIProvider,
+    StreamEvent,
     ToolDefinition,
     ToolResult,
+    ToolUse,
 )
 from researchhub.models.ai import AIPendingAction
 
@@ -109,7 +111,11 @@ Use this context to provide relevant suggestions and defaults for actions."""
         self,
         request: AssistantChatRequest,
     ) -> AsyncIterator[SSEEvent]:
-        """Process a chat message and yield SSE events."""
+        """Process a chat message and yield SSE events with real-time streaming.
+
+        Uses stream_with_tools to get real-time text streaming, thinking indicators,
+        and tool calls as they happen.
+        """
         conversation_id = request.conversation_id or uuid4()
 
         # Build messages
@@ -134,23 +140,56 @@ Use this context to provide relevant suggestions and defaults for actions."""
         max_iterations = 10  # Prevent infinite loops
 
         for iteration in range(max_iterations):
-            # Call LLM with tools
-            response = await self.provider.complete_with_tools(
+            # Collect tool uses and text from the streaming response
+            pending_tool_uses: List[ToolUse] = []
+            accumulated_text = ""
+            has_error = False
+
+            # Stream response from LLM
+            async for event in self.provider.stream_with_tools(
                 messages=messages,
                 tools=tools,
                 tool_results=tool_results if tool_results else None,
                 system=system_prompt,
                 temperature=0.7,
                 max_tokens=30000,
-            )
+            ):
+                if event.type == StreamEvent.THINKING:
+                    # Emit thinking event for UI to display model reasoning
+                    yield SSEEvent(
+                        event="thinking",
+                        data={"content": event.data.get("content", "")},
+                    )
 
-            # Clear tool results for next iteration
-            tool_results = []
+                elif event.type == StreamEvent.TEXT_DELTA:
+                    # Emit text delta for real-time text streaming
+                    text_chunk = event.data.get("content", "")
+                    accumulated_text += text_chunk
+                    yield SSEEvent(
+                        event="text_delta",
+                        data={"content": text_chunk},
+                    )
 
-            # Handle tool uses
-            if response.has_tool_use:
-                for tool_use in response.tool_uses:
-                    # Emit tool call event
+                elif event.type == StreamEvent.TEXT:
+                    # Complete text block (fallback for non-streaming providers)
+                    text_content = event.data.get("content", "")
+                    if text_content and not accumulated_text:
+                        accumulated_text = text_content
+                        yield SSEEvent(
+                            event="text",
+                            data={"content": text_content},
+                        )
+
+                elif event.type == StreamEvent.TOOL_CALL:
+                    # Collect tool call for execution after stream completes
+                    tool_use = ToolUse(
+                        id=event.data.get("id", ""),
+                        name=event.data.get("name", ""),
+                        input=event.data.get("input", {}),
+                    )
+                    pending_tool_uses.append(tool_use)
+
+                    # Emit tool call event for UI
                     yield SSEEvent(
                         event="tool_call",
                         data={
@@ -159,6 +198,28 @@ Use this context to provide relevant suggestions and defaults for actions."""
                         },
                     )
 
+                elif event.type == StreamEvent.ERROR:
+                    has_error = True
+                    yield SSEEvent(
+                        event="error",
+                        data={"message": event.data.get("message", "Unknown error")},
+                    )
+                    break
+
+                elif event.type == StreamEvent.DONE:
+                    # Stream completed, we'll process tool calls below
+                    pass
+
+            # If there was an error, stop processing
+            if has_error:
+                break
+
+            # Clear tool results for next iteration
+            tool_results = []
+
+            # Process any tool calls that were collected
+            if pending_tool_uses:
+                for tool_use in pending_tool_uses:
                     # Get the tool
                     tool = self.tool_registry.get_tool(tool_use.name)
                     if not tool:
@@ -256,18 +317,11 @@ Use this context to provide relevant suggestions and defaults for actions."""
                 # Add assistant response with tool uses to messages for context
                 messages.append(AIMessage(
                     role="assistant",
-                    content=response.content or "",
+                    content=accumulated_text,
                 ))
 
-            # If there's text content, stream it
-            if response.content:
-                yield SSEEvent(
-                    event="text",
-                    data={"content": response.content},
-                )
-
-            # If no more tool uses, we're done
-            if not response.has_tool_use:
+            # If no tool calls were made, we're done
+            if not pending_tool_uses:
                 break
 
         # Done event

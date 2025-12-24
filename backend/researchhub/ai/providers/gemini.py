@@ -12,6 +12,7 @@ from researchhub.ai.providers.base import (
     AIProvider,
     AIResponse,
     AIResponseWithTools,
+    StreamEvent,
     ToolDefinition,
     ToolResult,
     ToolUse,
@@ -25,6 +26,15 @@ class GeminiProvider(AIProvider):
     Supports Gemini 2.5 and 3 family models for high-quality text generation
     with advanced reasoning capabilities.
 
+    Features:
+        - Streaming responses with real-time text generation
+        - Tool/function calling with streaming support
+        - Thinking/reasoning transparency (Gemini 3+ models)
+
+    Models:
+        - gemini-2.5-flash: Fast, efficient model for general tasks
+        - gemini-3-flash-preview: Latest model with thinking capabilities
+
     Example:
         ```python
         provider = GeminiProvider(api_key="...")
@@ -35,14 +45,25 @@ class GeminiProvider(AIProvider):
 
         response = await provider.complete(messages)
         print(response.content)
+
+        # Streaming with tools and thinking (Gemini 3)
+        async for event in provider.stream_with_tools(
+            messages=messages,
+            tools=tools,
+            thinking_level='medium',
+        ):
+            if event.type == 'thinking':
+                print(f"Thinking: {event.data['content']}")
+            elif event.type == 'text_delta':
+                print(event.data['content'], end='')
         ```
     """
 
     def __init__(
         self,
         api_key: str,
-        default_model: str = "gemini-2.5-flash",
-        timeout: float = 60.0,
+        default_model: str = "gemini-3-flash-preview",
+        timeout: float = 120.0,
     ):
         """Initialize the Gemini provider.
 
@@ -404,3 +425,187 @@ class GeminiProvider(AIProvider):
                 message=str(e),
                 status_code=None,
             )
+
+    async def stream_with_tools(
+        self,
+        messages: List[AIMessage],
+        tools: List[ToolDefinition],
+        tool_results: Optional[List[ToolResult]] = None,
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 30000,
+        system: Optional[str] = None,
+        thinking_level: Optional[str] = None,
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream a completion with tool calling support using Gemini.
+
+        Yields StreamEvent objects in real-time as the model generates content,
+        including text deltas, tool calls, and thinking indicators (Gemini 3+).
+
+        Args:
+            messages: List of messages forming the conversation
+            tools: List of available tools the AI can call
+            tool_results: Results from previously requested tool calls
+            model: Model identifier (uses default if not specified)
+            temperature: Sampling temperature (0.0 to 1.0)
+            max_tokens: Maximum tokens to generate
+            system: Optional system prompt for the conversation
+            thinking_level: For Gemini 3+ models, thinking depth ('minimal', 'low', 'medium', 'high')
+
+        Yields:
+            StreamEvent objects with types:
+            - 'thinking': Model thinking/reasoning (Gemini 3+)
+            - 'text_delta': Incremental text content
+            - 'tool_call': Tool invocation request
+            - 'done': Stream completed
+            - 'error': Error occurred
+        """
+        self._validate_messages(messages)
+
+        model = model or self._default_model
+        start_time = time.perf_counter()
+
+        system_from_messages, contents = self._build_contents(messages)
+        system_instruction = system if system else system_from_messages
+
+        # Convert ToolDefinition to Gemini function declarations
+        function_declarations = []
+        for tool in tools:
+            func_decl = {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.input_schema,
+            }
+            function_declarations.append(func_decl)
+
+        # If we have tool results, add them to the contents
+        if tool_results:
+            for result in tool_results:
+                function_response_part = types.Part.from_function_response(
+                    name=result.tool_use_id.split("_")[0] if "_" in result.tool_use_id else result.tool_use_id,
+                    response={"result": result.content} if not isinstance(result.content, dict) else result.content,
+                )
+                contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[function_response_part],
+                    )
+                )
+
+        try:
+            # Build generation config with tools
+            generation_config = types.GenerateContentConfig(
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+                tools=[{"function_declarations": function_declarations}] if function_declarations else None,
+            )
+
+            if system_instruction:
+                generation_config.system_instruction = system_instruction
+
+            # For Gemini 3+ models, configure thinking if requested
+            # Gemini 3 Flash supports thinking_level parameter
+            is_gemini_3 = model and ("gemini-3" in model.lower() or "gemini3" in model.lower())
+            if is_gemini_3 and thinking_level:
+                # Gemini 3 thinking configuration
+                # Valid levels: 'minimal', 'low', 'medium', 'high'
+                try:
+                    generation_config.thinking_config = types.ThinkingConfig(
+                        thinking_budget=thinking_level,
+                    )
+                except (AttributeError, TypeError):
+                    # ThinkingConfig may not be available in older SDK versions
+                    pass
+
+            # Create fresh client for streaming
+            client = genai.Client(api_key=self._api_key)
+
+            # Use streaming endpoint
+            stream = await client.aio.models.generate_content_stream(
+                model=model,
+                contents=contents,
+                config=generation_config,
+            )
+
+            # Track accumulated content for the done event
+            total_text = ""
+            tool_uses = []
+            input_tokens = 0
+            output_tokens = 0
+
+            async for chunk in stream:
+                # Check for usage metadata updates
+                if chunk.usage_metadata:
+                    input_tokens = chunk.usage_metadata.prompt_token_count or 0
+                    output_tokens = chunk.usage_metadata.candidates_token_count or 0
+
+                # Process candidates
+                if chunk.candidates:
+                    for candidate in chunk.candidates:
+                        if candidate.content and candidate.content.parts:
+                            for part in candidate.content.parts:
+                                # Handle thinking/reasoning content (Gemini 3+)
+                                if hasattr(part, 'thought') and part.thought:
+                                    yield StreamEvent(
+                                        type=StreamEvent.THINKING,
+                                        data={"content": part.thought},
+                                    )
+
+                                # Handle text content
+                                if hasattr(part, 'text') and part.text:
+                                    total_text += part.text
+                                    yield StreamEvent(
+                                        type=StreamEvent.TEXT_DELTA,
+                                        data={"content": part.text},
+                                    )
+
+                                # Handle function calls
+                                if hasattr(part, 'function_call') and part.function_call:
+                                    fc = part.function_call
+                                    tool_use_id = f"{fc.name}_{uuid.uuid4().hex[:8]}"
+                                    tool_use = ToolUse(
+                                        id=tool_use_id,
+                                        name=fc.name,
+                                        input=dict(fc.args) if fc.args else {},
+                                    )
+                                    tool_uses.append(tool_use)
+                                    yield StreamEvent(
+                                        type=StreamEvent.TOOL_CALL,
+                                        data={
+                                            "id": tool_use_id,
+                                            "name": fc.name,
+                                            "input": dict(fc.args) if fc.args else {},
+                                        },
+                                    )
+
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
+
+            # Send completion event
+            yield StreamEvent(
+                type=StreamEvent.DONE,
+                data={
+                    "model": model,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "finish_reason": "stop" if not tool_uses else "tool_use",
+                    "latency_ms": latency_ms,
+                },
+            )
+
+        except Exception as e:
+            error_str = str(e).lower()
+            if "rate" in error_str and "limit" in error_str:
+                yield StreamEvent(
+                    type=StreamEvent.ERROR,
+                    data={"message": f"Rate limit exceeded: {str(e)}"},
+                )
+            elif "quota" in error_str or "429" in error_str:
+                yield StreamEvent(
+                    type=StreamEvent.ERROR,
+                    data={"message": f"Quota exceeded: {str(e)}"},
+                )
+            else:
+                yield StreamEvent(
+                    type=StreamEvent.ERROR,
+                    data={"message": str(e)},
+                )
