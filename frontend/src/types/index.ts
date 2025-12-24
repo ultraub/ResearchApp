@@ -92,6 +92,9 @@ export interface Project {
   team_is_personal?: boolean;
   organization_id?: string | null;
   organization_name?: string | null;
+  // Org-public access
+  is_org_public?: boolean;
+  org_public_role?: "viewer" | "member";
 }
 
 // Project tree node for hierarchical display

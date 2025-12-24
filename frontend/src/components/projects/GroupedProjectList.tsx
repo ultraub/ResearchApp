@@ -208,6 +208,7 @@ export function GroupedProjectList({
 
 /**
  * Group projects by team
+ * Org-public projects from teams the user doesn't belong to go into "Shared with Organization"
  */
 function groupByTeam(
   projects: Project[],
@@ -219,13 +220,22 @@ function groupByTeam(
   }
 
   const groupMap = new Map<string, Project[]>();
+  const sharedProjects: Project[] = [];
 
   for (const project of projects) {
     const teamId = project.team_id;
-    if (!groupMap.has(teamId)) {
-      groupMap.set(teamId, []);
+    const userHasTeam = teamMap.has(teamId);
+
+    // If user doesn't have access to this team but can see the project (org-public),
+    // put it in the shared group
+    if (!userHasTeam && project.is_org_public) {
+      sharedProjects.push(project);
+    } else {
+      if (!groupMap.has(teamId)) {
+        groupMap.set(teamId, []);
+      }
+      groupMap.get(teamId)!.push(project);
     }
-    groupMap.get(teamId)!.push(project);
   }
 
   const result: ProjectGroup[] = [];
@@ -250,6 +260,16 @@ function groupByTeam(
       title: team?.is_personal ? "Personal" : team?.name || "Unknown Team",
       isPersonal: team?.is_personal,
       projects: teamProjects,
+    });
+  }
+
+  // Add shared projects group at the end if there are any
+  if (sharedProjects.length > 0) {
+    result.push({
+      id: "shared-org",
+      title: "Shared with Organization",
+      isPersonal: false,
+      projects: sharedProjects,
     });
   }
 

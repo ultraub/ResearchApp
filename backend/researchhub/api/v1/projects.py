@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from researchhub.api.v1.auth import CurrentUser
 from researchhub.db.session import get_db_session
-from researchhub.models.organization import Organization, Team, TeamMember
+from researchhub.models.organization import Organization, OrganizationMember, Team, TeamMember
 from researchhub.models.project import Project, ProjectMember, ProjectTeam, ProjectExclusion, ProjectTemplate, RecurringTaskRule, Task, ProjectCustomField, MAX_HIERARCHY_DEPTH, Blocker, BlockerLink
 from researchhub.services.recurring_task import RecurringTaskService
 from researchhub.services.custom_field import CustomFieldService
@@ -384,6 +384,14 @@ async def list_projects(
     )
     user_team_ids = [row[0] for row in team_result.all()]
 
+    # Get user's organization memberships for org-public access
+    org_result = await db.execute(
+        select(OrganizationMember.organization_id).where(
+            OrganizationMember.user_id == current_user.id
+        )
+    )
+    user_org_ids = [row[0] for row in org_result.all()]
+
     # Subquery for projects where user is direct member
     project_member_subquery = (
         select(ProjectMember.project_id)
@@ -399,6 +407,19 @@ async def list_projects(
         .subquery()
     )
 
+    # Subquery for org-public projects in user's organizations
+    org_public_subquery = (
+        select(Project.id)
+        .join(Team, Project.team_id == Team.id)
+        .where(
+            and_(
+                Project.is_org_public == True,
+                Team.organization_id.in_(user_org_ids),
+            )
+        )
+        .subquery()
+    )
+
     # Subquery for excluded projects (blocklist)
     exclusion_exists = exists(
         select(ProjectExclusion.id).where(
@@ -411,6 +432,7 @@ async def list_projects(
     # 1. Primary team_id (backward compatibility)
     # 2. project_teams (multi-team access)
     # 3. Direct ProjectMember
+    # 4. Org-public projects in user's organizations
     # AND user is not explicitly excluded
     query = select(Project).where(
         and_(
@@ -418,6 +440,7 @@ async def list_projects(
                 Project.team_id.in_(user_team_ids),
                 Project.id.in_(select(project_teams_subquery)),
                 Project.id.in_(select(project_member_subquery)),
+                Project.id.in_(select(org_public_subquery)),
             ),
             ~exclusion_exists,  # Exclude projects where user is in blocklist
         )
