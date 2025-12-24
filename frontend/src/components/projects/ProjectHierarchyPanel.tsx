@@ -137,7 +137,11 @@ export default function ProjectHierarchyPanel({
                       className="flex h-8 w-8 items-center justify-center rounded-lg"
                       style={{ backgroundColor: child.color || "#6366F1" }}
                     >
-                      <FolderIcon className="h-4 w-4 text-white" />
+                      {child.emoji ? (
+                        <span className="text-base">{child.emoji}</span>
+                      ) : (
+                        <FolderIcon className="h-4 w-4 text-white" />
+                      )}
                     </div>
                     {blockerInfo?.isBlocked && (
                       <div

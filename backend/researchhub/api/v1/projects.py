@@ -41,6 +41,7 @@ class ProjectCreate(BaseModel):
     target_end_date: date | None = None
     tags: list[str] = Field(default_factory=list)
     color: str | None = Field(None, pattern="^#[0-9A-Fa-f]{6}$")
+    emoji: str | None = Field(None, max_length=10, description="Emoji icon for the project")
     template_id: UUID | None = None
 
 
@@ -58,6 +59,7 @@ class ProjectUpdate(BaseModel):
     actual_end_date: date | None = None
     tags: list[str] | None = None
     color: str | None = Field(None, pattern="^#[0-9A-Fa-f]{6}$")
+    emoji: str | None = Field(None, max_length=10, description="Emoji icon for the project")
     settings: dict | None = None
 
 
@@ -111,6 +113,7 @@ class ProjectResponse(BaseModel):
     actual_end_date: date | None
     tags: list[str]
     color: str | None
+    emoji: str | None = None
     is_archived: bool
     settings: dict
     created_by_id: UUID | None
@@ -296,6 +299,7 @@ async def create_project(
         target_end_date=project_data.target_end_date,
         tags=project_data.tags,
         color=project_data.color,
+        emoji=project_data.emoji,
         created_by_id=current_user.id,
         settings=template_structure.get("default_settings", {}),
     )
@@ -555,6 +559,7 @@ async def list_projects(
             actual_end_date=project.actual_end_date,
             tags=project.tags,
             color=project.color,
+            emoji=project.emoji,
             is_archived=project.is_archived,
             settings=project.settings,
             created_by_id=project.created_by_id,
@@ -664,6 +669,7 @@ async def get_project(
         actual_end_date=project.actual_end_date,
         tags=project.tags,
         color=project.color,
+        emoji=project.emoji,
         is_archived=project.is_archived,
         settings=project.settings,
         created_by_id=project.created_by_id,
@@ -752,6 +758,7 @@ async def update_project(
         actual_end_date=project.actual_end_date,
         tags=project.tags,
         color=project.color,
+        emoji=project.emoji,
         is_archived=project.is_archived,
         settings=project.settings,
         created_by_id=project.created_by_id,
@@ -1306,6 +1313,7 @@ async def change_project_scope(
         actual_end_date=project.actual_end_date,
         tags=project.tags,
         color=project.color,
+        emoji=project.emoji,
         is_archived=project.is_archived,
         settings=project.settings,
         created_by_id=project.created_by_id,

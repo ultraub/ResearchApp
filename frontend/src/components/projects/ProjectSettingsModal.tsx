@@ -20,6 +20,7 @@ import { clsx } from "clsx";
 import toast from "react-hot-toast";
 import { projectsService, type ProjectUpdateData } from "@/services/projects";
 import { teamsService } from "@/services/teams";
+import { EmojiPicker } from "@/components/ui/EmojiPicker";
 import { ProjectTransferModal } from "./ProjectTransferModal";
 import type { Project } from "@/types";
 
@@ -98,6 +99,7 @@ export function ProjectSettingsModal({
     name: project.name,
     description: project.description || "",
     color: project.color || PROJECT_COLORS[0],
+    emoji: project.emoji || null as string | null,
     project_type: project.project_type,
     status: project.status,
     visibility: project.visibility,
@@ -112,6 +114,7 @@ export function ProjectSettingsModal({
         name: project.name,
         description: project.description || "",
         color: project.color || PROJECT_COLORS[0],
+        emoji: project.emoji || null,
         project_type: project.project_type,
         status: project.status,
         visibility: project.visibility,
@@ -191,6 +194,7 @@ export function ProjectSettingsModal({
       name: formData.name.trim(),
       description: formData.description.trim() || undefined,
       color: formData.color,
+      emoji: formData.emoji || undefined,
       status: formData.status,
       // Note: visibility/scope changes are handled separately via the scope change dialog
       start_date: formData.start_date || undefined,
@@ -216,6 +220,7 @@ export function ProjectSettingsModal({
     formData.name !== project.name ||
     formData.description !== (project.description || "") ||
     formData.color !== (project.color || PROJECT_COLORS[0]) ||
+    formData.emoji !== (project.emoji || null) ||
     formData.status !== project.status ||
     formData.start_date !== (project.start_date || "") ||
     formData.target_end_date !== (project.target_end_date || "");
@@ -331,26 +336,48 @@ export function ProjectSettingsModal({
                         </select>
                       </div>
 
-                      {/* Color */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Color
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {PROJECT_COLORS.map((color) => (
-                            <button
-                              key={color}
-                              type="button"
-                              onClick={() => setFormData((prev) => ({ ...prev, color }))}
-                              className={clsx(
-                                "h-8 w-8 rounded-full transition-transform",
-                                formData.color === color
-                                  ? "ring-2 ring-offset-2 ring-primary-500 scale-110"
-                                  : "hover:scale-110"
-                              )}
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
+                      {/* Color and Emoji */}
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Color */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Color
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {PROJECT_COLORS.map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => setFormData((prev) => ({ ...prev, color }))}
+                                className={clsx(
+                                  "h-8 w-8 rounded-full transition-transform",
+                                  formData.color === color
+                                    ? "ring-2 ring-offset-2 ring-primary-500 scale-110"
+                                    : "hover:scale-110"
+                                )}
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Emoji Icon */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Icon{" "}
+                            <span className="text-gray-400 font-normal">(optional)</span>
+                          </label>
+                          <EmojiPicker
+                            value={formData.emoji}
+                            onChange={(emoji) =>
+                              setFormData((prev) => ({ ...prev, emoji }))
+                            }
+                          />
+                          {formData.emoji && (
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              Emoji will be shown instead of folder icon
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>

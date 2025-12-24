@@ -56,7 +56,11 @@ export function ProjectCard({
           className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0"
           style={{ backgroundColor: project.color || "#6366f1" }}
         >
-          <FolderIcon className="h-5 w-5 text-white" />
+          {project.emoji ? (
+            <span className="text-lg">{project.emoji}</span>
+          ) : (
+            <FolderIcon className="h-5 w-5 text-white" />
+          )}
         </div>
 
         <div className="flex-1 min-w-0">
@@ -140,7 +144,11 @@ export function ProjectCard({
             className="flex h-12 w-12 items-center justify-center rounded-xl flex-shrink-0"
             style={{ backgroundColor: project.color || "#6366f1" }}
           >
-            <FolderIcon className="h-6 w-6 text-white" />
+            {project.emoji ? (
+              <span className="text-2xl">{project.emoji}</span>
+            ) : (
+              <FolderIcon className="h-6 w-6 text-white" />
+            )}
           </div>
 
           <div className="flex-1 min-w-0">

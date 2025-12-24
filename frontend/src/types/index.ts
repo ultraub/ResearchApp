@@ -73,6 +73,7 @@ export interface Project {
   actual_end_date: string | null;
   tags: string[];
   color: string | null;
+  emoji?: string | null;
   is_archived: boolean;
   is_demo?: boolean;
   settings: Record<string, unknown>;

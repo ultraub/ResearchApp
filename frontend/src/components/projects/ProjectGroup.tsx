@@ -132,12 +132,16 @@ function ProjectCard({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
       )}
     >
-      {/* Color indicator */}
+      {/* Color indicator with emoji support */}
       <div
         className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: project.color || "#6366f1" }}
       >
-        <FolderIcon className="h-5 w-5 text-white" />
+        {project.emoji ? (
+          <span className="text-xl">{project.emoji}</span>
+        ) : (
+          <FolderIcon className="h-5 w-5 text-white" />
+        )}
       </div>
 
       {/* Project info */}

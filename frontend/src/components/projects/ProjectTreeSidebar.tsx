@@ -109,12 +109,16 @@ function TreeItem({
           )}
         </button>
 
-        {/* Project icon with color */}
+        {/* Project icon with color and optional emoji */}
         <div
           className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded"
           style={{ backgroundColor: project.color || "#6366f1" }}
         >
-          <FolderIcon className="h-3 w-3 text-white" />
+          {project.emoji ? (
+            <span className="text-xs">{project.emoji}</span>
+          ) : (
+            <FolderIcon className="h-3 w-3 text-white" />
+          )}
         </div>
 
         {/* Project name */}
@@ -231,7 +235,11 @@ export default function ProjectTreeSidebar({
               style={{ backgroundColor: project.color || "#6366f1" }}
               title={project.name}
             >
-              <FolderIcon className="h-4 w-4 text-white" />
+              {project.emoji ? (
+                <span className="text-sm">{project.emoji}</span>
+              ) : (
+                <FolderIcon className="h-4 w-4 text-white" />
+              )}
             </a>
           ))}
         </div>

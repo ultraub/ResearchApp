@@ -102,6 +102,9 @@ class Project(BaseModel):
     # Color for visual identification
     color: Mapped[str | None] = mapped_column(String(7), nullable=True)  # hex color
 
+    # Emoji icon for visual identification (optional, displayed instead of folder icon)
+    emoji: Mapped[str | None] = mapped_column(String(10), nullable=True)  # emoji character
+
     # Archive flag
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 

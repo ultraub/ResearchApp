@@ -7,6 +7,7 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { X, FolderPlus, ChevronRight } from "lucide-react";
 import { projectsService, type ProjectCreateData } from "@/services/projects";
 import { useOrganizationStore } from "@/stores/organization";
+import { EmojiPicker } from "@/components/ui/EmojiPicker";
 import toast from "react-hot-toast";
 
 interface CreateProjectModalProps {
@@ -41,6 +42,7 @@ export function CreateProjectModal({
     description: string;
     visibility: "private" | "team" | "organization";
     color: string;
+    emoji: string | null;
     project_type: string;
     parent_id: string | null;
     team_id: string;
@@ -49,6 +51,7 @@ export function CreateProjectModal({
     description: "",
     visibility: "team",
     color: PROJECT_COLORS[0],
+    emoji: null,
     project_type: "research",
     parent_id: defaultParentId || null,
     team_id: currentTeamId || "",
@@ -114,6 +117,7 @@ export function CreateProjectModal({
       description: "",
       visibility: "team",
       color: PROJECT_COLORS[0],
+      emoji: null,
       project_type: "research",
       parent_id: defaultParentId || null,
       team_id: currentTeamId || "",
@@ -138,6 +142,7 @@ export function CreateProjectModal({
       description: formData.description.trim() || undefined,
       visibility: formData.visibility,
       color: formData.color,
+      emoji: formData.emoji || undefined,
       project_type: formData.project_type,
       team_id: formData.team_id,
       parent_id: formData.parent_id || undefined,
@@ -342,26 +347,48 @@ export function CreateProjectModal({
             </select>
           </div>
 
-          {/* Color */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Project Color
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {PROJECT_COLORS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => setFormData((prev) => ({ ...prev, color }))}
-                  className={`h-8 w-8 rounded-full transition-transform ${
-                    formData.color === color
-                      ? "ring-2 ring-offset-2 ring-primary-500 scale-110"
-                      : "hover:scale-110"
-                  }`}
-                  style={{ backgroundColor: color }}
-                  aria-label={`Select color ${color}`}
-                />
-              ))}
+          {/* Color and Emoji */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Color */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Color
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {PROJECT_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, color }))}
+                    className={`h-8 w-8 rounded-full transition-transform ${
+                      formData.color === color
+                        ? "ring-2 ring-offset-2 ring-primary-500 scale-110"
+                        : "hover:scale-110"
+                    }`}
+                    style={{ backgroundColor: color }}
+                    aria-label={`Select color ${color}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Emoji Icon */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Icon{" "}
+                <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <EmojiPicker
+                value={formData.emoji}
+                onChange={(emoji) =>
+                  setFormData((prev) => ({ ...prev, emoji }))
+                }
+              />
+              {formData.emoji && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Emoji will be shown instead of folder icon
+                </p>
+              )}
             </div>
           </div>
 

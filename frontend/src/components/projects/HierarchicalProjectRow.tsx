@@ -121,7 +121,7 @@ export default function HierarchicalProjectRow({
           )}
         </button>
 
-        {/* Project icon with color */}
+        {/* Project icon with color - show emoji if set, otherwise folder icon */}
         <div
           className={clsx(
             "flex flex-shrink-0 items-center justify-center rounded-lg",
@@ -129,7 +129,13 @@ export default function HierarchicalProjectRow({
           )}
           style={{ backgroundColor: project.color || "#6366f1" }}
         >
-          <FolderIcon className={clsx("text-white", isTopLevel ? "h-5 w-5" : "h-4 w-4")} />
+          {project.emoji ? (
+            <span className={clsx(isTopLevel ? "text-xl" : "text-lg")}>
+              {project.emoji}
+            </span>
+          ) : (
+            <FolderIcon className={clsx("text-white", isTopLevel ? "h-5 w-5" : "h-4 w-4")} />
+          )}
         </div>
 
         {/* Project info */}

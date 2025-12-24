@@ -12,6 +12,7 @@ export interface ProjectCreateData {
   target_end_date?: string;
   tags?: string[];
   color?: string;
+  emoji?: string;
   template_id?: string;
 }
 
@@ -25,6 +26,7 @@ export interface ProjectUpdateData {
   actual_end_date?: string;
   tags?: string[];
   color?: string;
+  emoji?: string;
   settings?: Record<string, unknown>;
 }
 
