@@ -1,5 +1,5 @@
 /**
- * HierarchicalProjectRow - A project row with inline tasks and nested children
+ * HierarchicalProjectRow - A project card with inline tasks and nested children
  */
 
 import { useNavigate } from "react-router-dom";
@@ -39,6 +39,8 @@ interface HierarchicalProjectRowProps {
   showOnlyMyTasks?: boolean;
   /** Filter tasks to a specific person (user_id) or "unassigned" */
   personFilter?: string;
+  /** Show team name badge (for shared projects) */
+  showTeamBadge?: boolean;
 }
 
 export default function HierarchicalProjectRow({
@@ -50,6 +52,7 @@ export default function HierarchicalProjectRow({
   attentionMap = {},
   showOnlyMyTasks = false,
   personFilter,
+  showTeamBadge = false,
 }: HierarchicalProjectRowProps) {
   const navigate = useNavigate();
   const isExpanded = expandedIds.has(project.id);
@@ -72,15 +75,23 @@ export default function HierarchicalProjectRow({
   // Calculate active task count
   const activeTaskCount = (project.task_count || 0) - (project.completed_task_count || 0);
 
+  // Card style for top-level projects (depth 0)
+  const isTopLevel = depth === 0;
+
   return (
-    <div className="border-b border-gray-100 dark:border-dark-border/50 last:border-b-0">
+    <div
+      className={clsx(
+        isTopLevel && "rounded-lg border border-gray-200 dark:border-dark-border bg-gray-50/50 dark:bg-dark-elevated/30 overflow-hidden"
+      )}
+    >
       {/* Project Header Row */}
       <div
         className={clsx(
           "flex items-center gap-3 py-3 pr-4 cursor-pointer transition-all duration-200",
-          "hover:bg-gray-50 hover:pl-1 dark:hover:bg-dark-elevated"
+          "hover:bg-gray-100/80 dark:hover:bg-dark-elevated",
+          isTopLevel ? "bg-white dark:bg-dark-card rounded-t-lg" : ""
         )}
-        style={{ paddingLeft: `${depth * 24 + 16}px` }}
+        style={{ paddingLeft: isTopLevel ? "16px" : `${depth * 24 + 16}px` }}
         onClick={() => navigate(`/projects/${project.id}`)}
       >
         {/* Expand/collapse button for children */}
@@ -112,16 +123,22 @@ export default function HierarchicalProjectRow({
 
         {/* Project icon with color */}
         <div
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
+          className={clsx(
+            "flex flex-shrink-0 items-center justify-center rounded-lg",
+            isTopLevel ? "h-10 w-10" : "h-8 w-8"
+          )}
           style={{ backgroundColor: project.color || "#6366f1" }}
         >
-          <FolderIcon className="h-4 w-4 text-white" />
+          <FolderIcon className={clsx("text-white", isTopLevel ? "h-5 w-5" : "h-4 w-4")} />
         </div>
 
         {/* Project info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-gray-900 dark:text-white">
+            <span className={clsx(
+              "font-semibold text-gray-900 dark:text-white",
+              isTopLevel && "text-base"
+            )}>
               {project.name}
             </span>
             {hasChildren && (
@@ -129,11 +146,25 @@ export default function HierarchicalProjectRow({
                 ({project.children_count} sub)
               </span>
             )}
-            {/* Team badge */}
-            <TeamBadge
-              teamName={project.team_name}
-              isPersonal={project.team_is_personal}
-            />
+            {/* Team badge - only show if not in a team section or if showTeamBadge is true */}
+            {!isTopLevel && (
+              <TeamBadge
+                teamName={project.team_name}
+                isPersonal={project.team_is_personal}
+              />
+            )}
+            {/* Show team origin for shared projects */}
+            {showTeamBadge && project.team_name && (
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                From: {project.team_name}
+              </span>
+            )}
+            {/* Demo badge */}
+            {project.is_demo && (
+              <span className="px-1.5 py-0.5 text-xs rounded-full font-medium bg-purple-100 text-purple-700 ring-1 ring-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:ring-purple-800">
+                Demo
+              </span>
+            )}
             {/* Inline tags */}
             {project.priority && project.priority !== "medium" && (
               <span
@@ -199,17 +230,22 @@ export default function HierarchicalProjectRow({
             )}
           </div>
           {project.description && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+            <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5">
               {project.description}
             </p>
           )}
         </div>
       </div>
 
-      {/* Inline Tasks - always rendered, component handles empty states */}
+      {/* Inline Tasks */}
       <div
-        className="pb-2 border-l-2 border-gray-200 dark:border-dark-border ml-4"
-        style={{ marginLeft: `${depth * 24 + 28}px` }}
+        className={clsx(
+          "pb-2",
+          isTopLevel
+            ? "px-4 border-l-2 border-gray-200 dark:border-dark-border ml-6"
+            : "border-l-2 border-gray-200 dark:border-dark-border"
+        )}
+        style={!isTopLevel ? { marginLeft: `${depth * 24 + 28}px` } : undefined}
       >
         <InlineTaskList
           projectId={project.id}
@@ -220,54 +256,60 @@ export default function HierarchicalProjectRow({
 
       {/* Child Projects (when expanded) */}
       {isExpanded && hasChildren && (
-        <div className="relative">
+        <div className={clsx("relative", isTopLevel && "px-3 pb-3")}>
           {/* Vertical connector line */}
-          <div
-            className="absolute top-0 bottom-4 w-px bg-gray-200 dark:bg-dark-border"
-            style={{ left: `${depth * 24 + 28}px` }}
-          />
+          {!isTopLevel && (
+            <div
+              className="absolute top-0 bottom-4 w-px bg-gray-200 dark:bg-dark-border"
+              style={{ left: `${depth * 24 + 28}px` }}
+            />
+          )}
 
           {childrenLoading ? (
             <div
               className="py-3 text-sm text-gray-400"
-              style={{ paddingLeft: `${(depth + 1) * 24 + 16}px` }}
+              style={{ paddingLeft: isTopLevel ? "16px" : `${(depth + 1) * 24 + 16}px` }}
             >
               Loading...
             </div>
           ) : (
-            children?.map((child, index) => (
-              <div key={child.id} className="relative">
-                {/* Horizontal connector line */}
-                <div
-                  className="absolute w-4 h-px bg-gray-200 dark:bg-dark-border"
-                  style={{
-                    left: `${depth * 24 + 28}px`,
-                    top: "24px",
-                  }}
-                />
-                {/* Last item gets an L-shaped connector */}
-                {index === (children?.length || 0) - 1 && (
-                  <div
-                    className="absolute w-px bg-white dark:bg-dark-card"
-                    style={{
-                      left: `${depth * 24 + 28}px`,
-                      top: "24px",
-                      bottom: 0,
-                    }}
+            <div className={clsx(isTopLevel && "space-y-2")}>
+              {children?.map((child, index) => (
+                <div key={child.id} className="relative">
+                  {/* Horizontal connector line */}
+                  {!isTopLevel && (
+                    <div
+                      className="absolute w-4 h-px bg-gray-200 dark:bg-dark-border"
+                      style={{
+                        left: `${depth * 24 + 28}px`,
+                        top: "24px",
+                      }}
+                    />
+                  )}
+                  {/* Last item gets an L-shaped connector */}
+                  {!isTopLevel && index === (children?.length || 0) - 1 && (
+                    <div
+                      className="absolute w-px bg-white dark:bg-dark-card"
+                      style={{
+                        left: `${depth * 24 + 28}px`,
+                        top: "24px",
+                        bottom: 0,
+                      }}
+                    />
+                  )}
+                  <HierarchicalProjectRow
+                    project={child}
+                    depth={isTopLevel ? 0 : depth + 1}
+                    expandedIds={expandedIds}
+                    onToggleExpand={onToggleExpand}
+                    attentionInfo={attentionMap[child.id]}
+                    attentionMap={attentionMap}
+                    showOnlyMyTasks={showOnlyMyTasks}
+                    personFilter={personFilter}
                   />
-                )}
-                <HierarchicalProjectRow
-                  project={child}
-                  depth={depth + 1}
-                  expandedIds={expandedIds}
-                  onToggleExpand={onToggleExpand}
-                  attentionInfo={attentionMap[child.id]}
-                  attentionMap={attentionMap}
-                  showOnlyMyTasks={showOnlyMyTasks}
-                  personFilter={personFilter}
-                />
-              </div>
-            ))
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

@@ -1,15 +1,18 @@
 /**
  * HierarchicalProjectList - Main container for hierarchical project list view
+ * Now groups projects by team with clear visual separation
  */
 
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FolderIcon } from "@heroicons/react/24/outline";
+import { FolderIcon, UserIcon, UserGroupIcon, ShareIcon } from "@heroicons/react/24/outline";
 import { projectsService } from "@/services/projects";
+import { teamsService } from "@/services/teams";
 import { analyticsApi } from "@/services/analytics";
 import { useOrganizationStore } from "@/stores/organization";
 import { useDemoProject } from "@/hooks/useDemoProject";
 import HierarchicalProjectRow from "./HierarchicalProjectRow";
+import type { Project, TeamDetail } from "@/types";
 
 /** Attention info for a project (blockers and comments) */
 export interface ProjectAttentionInfo {
@@ -18,6 +21,14 @@ export interface ProjectAttentionInfo {
   maxBlockerImpact: string | null;
   unreadCommentCount: number;
   totalCommentCount: number;
+}
+
+interface TeamGroup {
+  id: string;
+  title: string;
+  isPersonal?: boolean;
+  isShared?: boolean;
+  projects: Project[];
 }
 
 const STORAGE_KEY = "hierarchicalProjectList";
@@ -90,6 +101,12 @@ export default function HierarchicalProjectList({
       }),
   });
 
+  // Fetch teams for grouping
+  const { data: teamsData } = useQuery({
+    queryKey: ["teams", { include_personal: true }],
+    queryFn: () => teamsService.list({ include_personal: true }),
+  });
+
   // Fetch analytics for blocker/comment counts
   const { data: analytics } = useQuery({
     queryKey: ["dashboard-analytics", organization?.id],
@@ -116,6 +133,7 @@ export default function HierarchicalProjectList({
   }, [analytics]);
 
   const allProjects = data?.items || [];
+  const teams = teamsData?.items || [];
 
   // Filter projects by team and demo visibility
   const projects = useMemo(() => {
@@ -125,6 +143,71 @@ export default function HierarchicalProjectList({
     }
     return filtered;
   }, [allProjects, teamFilter, filterDemoProjects]);
+
+  // Group projects by team
+  const teamGroups = useMemo((): TeamGroup[] => {
+    const teamMap = new Map<string, TeamDetail>();
+    for (const team of teams) {
+      teamMap.set(team.id, team);
+    }
+
+    const groupMap = new Map<string, Project[]>();
+    const sharedProjects: Project[] = [];
+
+    for (const project of projects) {
+      const teamId = project.team_id;
+      const userHasTeam = teamMap.has(teamId);
+
+      // If user doesn't have access to this team but can see the project (org-public),
+      // put it in the shared group
+      if (!userHasTeam && project.is_org_public) {
+        sharedProjects.push(project);
+      } else {
+        if (!groupMap.has(teamId)) {
+          groupMap.set(teamId, []);
+        }
+        groupMap.get(teamId)!.push(project);
+      }
+    }
+
+    const result: TeamGroup[] = [];
+
+    // Sort: Personal team first, then alphabetically
+    const sortedTeamIds = Array.from(groupMap.keys()).sort((a, b) => {
+      const teamA = teamMap.get(a);
+      const teamB = teamMap.get(b);
+      if (teamA?.is_personal && !teamB?.is_personal) return -1;
+      if (!teamA?.is_personal && teamB?.is_personal) return 1;
+      const nameA = teamA?.name || "Unknown";
+      const nameB = teamB?.name || "Unknown";
+      return nameA.localeCompare(nameB);
+    });
+
+    for (const teamId of sortedTeamIds) {
+      const team = teamMap.get(teamId);
+      const teamProjects = groupMap.get(teamId) || [];
+
+      result.push({
+        id: teamId,
+        title: team?.is_personal ? "Personal" : team?.name || "Unknown Team",
+        isPersonal: team?.is_personal,
+        projects: teamProjects,
+      });
+    }
+
+    // Add shared projects group at the end if there are any
+    if (sharedProjects.length > 0) {
+      result.push({
+        id: "shared-org",
+        title: "Shared with Organization",
+        isPersonal: false,
+        isShared: true,
+        projects: sharedProjects,
+      });
+    }
+
+    return result;
+  }, [projects, teams]);
 
   // Default to all projects expanded on first load (if no saved state)
   useEffect(() => {
@@ -206,11 +289,11 @@ export default function HierarchicalProjectList({
   const hasExpandableProjects = projects.some((p) => p.has_children);
 
   return (
-    <div className="rounded-xl bg-white shadow-soft dark:bg-dark-card overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-dark-base border-b border-gray-200 dark:border-dark-border">
+    <div className="space-y-4">
+      {/* Header with expand/collapse controls */}
+      <div className="flex items-center justify-between px-1">
         <span className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          Project
+          Projects by Team
         </span>
         {hasExpandableProjects && (
           <div className="flex items-center gap-2 text-xs">
@@ -231,19 +314,71 @@ export default function HierarchicalProjectList({
         )}
       </div>
 
-      {/* Project rows */}
-      <div className="divide-y divide-gray-100 dark:divide-dark-border/50">
-        {projects.map((project) => (
+      {/* Team Groups */}
+      {teamGroups.map((group) => (
+        <TeamSection
+          key={group.id}
+          group={group}
+          expandedIds={expandedIds}
+          onToggleExpand={toggleExpand}
+          attentionMap={attentionMap}
+          showOnlyMyTasks={showOnlyMyTasks}
+          personFilter={personFilter}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * TeamSection - A section containing projects for a single team
+ */
+interface TeamSectionProps {
+  group: TeamGroup;
+  expandedIds: Set<string>;
+  onToggleExpand: (id: string) => void;
+  attentionMap: Record<string, ProjectAttentionInfo>;
+  showOnlyMyTasks: boolean;
+  personFilter?: string;
+}
+
+function TeamSection({
+  group,
+  expandedIds,
+  onToggleExpand,
+  attentionMap,
+  showOnlyMyTasks,
+  personFilter,
+}: TeamSectionProps) {
+  const Icon = group.isShared ? ShareIcon : group.isPersonal ? UserIcon : UserGroupIcon;
+
+  return (
+    <div className="rounded-xl bg-white shadow-soft dark:bg-dark-card overflow-hidden">
+      {/* Team Header */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-dark-base border-b border-gray-200 dark:border-dark-border">
+        <Icon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+        <span className="font-medium text-gray-900 dark:text-white">
+          {group.title}
+        </span>
+        <span className="text-sm text-gray-500 dark:text-gray-400">
+          ({group.projects.length} project{group.projects.length !== 1 ? "s" : ""})
+        </span>
+      </div>
+
+      {/* Projects */}
+      <div className="p-3 space-y-3">
+        {group.projects.map((project) => (
           <HierarchicalProjectRow
             key={project.id}
             project={project}
             depth={0}
             expandedIds={expandedIds}
-            onToggleExpand={toggleExpand}
+            onToggleExpand={onToggleExpand}
             attentionInfo={attentionMap[project.id]}
             attentionMap={attentionMap}
             showOnlyMyTasks={showOnlyMyTasks}
             personFilter={personFilter}
+            showTeamBadge={group.isShared}
           />
         ))}
       </div>
