@@ -65,6 +65,7 @@ export async function* chatStream(
             name: request.pageContext.name,
           }
         : undefined,
+      use_dynamic_queries: request.useDynamicQueries ?? false,
     }),
   });
 

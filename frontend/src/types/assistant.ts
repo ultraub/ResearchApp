@@ -71,6 +71,8 @@ export interface AssistantChatRequest {
   conversationId?: string;
   messages?: Array<{ role: string; content: string }>;
   pageContext?: PageContext;
+  // Experimental: force use of dynamic_query instead of specialized query tools
+  useDynamicQueries?: boolean;
 }
 
 // Pending action from API

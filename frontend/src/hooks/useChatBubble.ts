@@ -121,11 +121,13 @@ export function useChatBubble(): UseChatBubbleResult {
           }));
 
         // Stream response
+        // TODO: Add UI toggle for useDynamicQueries - hardcoded to true for testing
         const stream = assistantService.chatStream({
           message: content.trim(),
           conversationId: conversationId || undefined,
           messages: messageHistory,
           pageContext,
+          useDynamicQueries: true, // Experimental: force dynamic_query usage
         });
 
         let accumulatedContent = '';
