@@ -71,17 +71,24 @@ class DiffEntry(BaseModel):
 
 
 class ActionPreview(BaseModel):
-    """Preview of a pending action for user approval."""
+    """Preview of a pending action for user approval.
 
-    action_id: UUID
+    Note: action_id and expires_at are optional during creation
+    (set by create_preview) and populated later when the pending
+    action is stored in the database.
+    """
+
     tool_name: str
+    tool_input: dict  # Original input to the tool
     entity_type: str
     entity_id: Optional[UUID] = None
     description: Optional[str] = None
     old_state: Optional[dict] = None
     new_state: dict
     diff: List[DiffEntry] = Field(default_factory=list)
-    expires_at: datetime
+    # Set after storing pending action
+    action_id: Optional[UUID] = None
+    expires_at: Optional[datetime] = None
 
 
 class ActionExecutionResult(BaseModel):

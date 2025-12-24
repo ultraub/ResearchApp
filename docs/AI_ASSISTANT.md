@@ -4,6 +4,91 @@
 
 The AI Assistant is a context-aware chat interface that can query data and propose actions within the application. It uses LLM tool calling to interact with the system on behalf of users.
 
+## What Can the AI Assistant Do?
+
+### Queries (Instant Results)
+
+The assistant can search and retrieve information across your workspace:
+
+| Capability | Examples |
+|------------|----------|
+| **Project Information** | "Show me my projects", "What's the status of INOCA?", "List active projects" |
+| **Task Management** | "What tasks are assigned to me?", "Show overdue tasks", "What's blocking this project?" |
+| **Attention Summary** | "What needs my attention?", "What should I focus on today?" |
+| **Team Members** | "Who's on the Clinical Study project?", "Find Sarah's email" |
+| **Documents** | "List documents in this project", "Search for onboarding docs" |
+| **Blockers** | "Show open blockers", "What's blocking progress?" |
+
+### Actions (Require Your Approval)
+
+The assistant can propose changes, but **you must approve them** before they happen:
+
+| Action | What It Does |
+|--------|--------------|
+| **Create Task** | Add a new task to a project |
+| **Update Task** | Change title, description, priority, due date, or status |
+| **Complete Task** | Mark a task as done |
+| **Assign Task** | Assign or reassign a task to a team member |
+| **Create Blocker** | Log a new blocker issue |
+| **Resolve Blocker** | Mark a blocker as resolved |
+| **Add Comment** | Add a comment to a task or document |
+
+### How Action Approval Works
+
+1. You ask: "Create a task for reviewing the protocol"
+2. Assistant shows you a preview of what will be created
+3. You click **Approve** or **Reject**
+4. If approved, the action executes
+5. Pending actions expire after 1 hour
+
+## Key Definitions
+
+Understanding terms the assistant uses:
+
+| Term | Definition |
+|------|------------|
+| **Stalled Task** | A task marked "in progress" that hasn't been updated in 7+ days. Indicates work may be stuck. |
+| **Overdue Task** | A task with a due date in the past that isn't marked as done. |
+| **Upcoming Deadline** | A task due within the next 7 days (configurable). |
+| **Open Blocker** | A blocker with status "open" or "in_progress" that's preventing work. |
+| **Attention Items** | The count of urgent items = overdue tasks + open blockers + stalled tasks. |
+
+### Task Statuses
+
+```
+idea → todo → in_progress → in_review → done
+```
+
+- **Idea**: Captured thought, not yet prioritized
+- **Todo**: Ready to be worked on
+- **In Progress**: Currently being worked on
+- **In Review**: Work complete, awaiting review
+- **Done**: Completed
+
+### Blocker Statuses
+
+```
+open → in_progress → resolved
+```
+
+- **Open**: Issue identified, not yet being addressed
+- **In Progress**: Someone is working to resolve it
+- **Resolved**: Issue has been resolved
+
+### Priority Levels
+
+```
+low → medium → high → critical
+```
+
+## Tips for Effective Use
+
+1. **Be specific**: "Show tasks assigned to Sarah in the Clinical Study project" works better than "show tasks"
+2. **Use context**: When you're on a project page, the assistant knows which project you mean
+3. **Ask follow-ups**: "What about overdue ones?" after listing tasks
+4. **Review actions**: Always check the preview before approving changes
+5. **Ask about definitions**: "What's a stalled task?" - the assistant can explain its terms
+
 ## Architecture
 
 ```
