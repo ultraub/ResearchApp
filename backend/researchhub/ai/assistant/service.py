@@ -327,6 +327,11 @@ Use this context to provide relevant suggestions and defaults for actions."""
         warning_iteration = 3  # Start nudging toward synthesis
         force_iteration = 4  # Strongly encourage response
 
+        # Hard limit on total tool calls to prevent runaway queries
+        max_total_tool_calls = 8
+        total_tool_calls = 0
+        hit_tool_limit = False
+
         for iteration in range(max_iterations):
             # Collect tool uses and text from the streaming response
             pending_tool_uses: List[ToolUse] = []
@@ -408,6 +413,18 @@ Use this context to provide relevant suggestions and defaults for actions."""
             # Process any tool calls that were collected
             if pending_tool_uses:
                 for tool_use in pending_tool_uses:
+                    # Check if we've hit the total tool call limit
+                    total_tool_calls += 1
+                    if total_tool_calls > max_total_tool_calls:
+                        hit_tool_limit = True
+                        # Return a "limit reached" result for remaining tools
+                        tool_results.append(ToolResult(
+                            tool_use_id=tool_use.id,
+                            content={"error": "Tool call limit reached. Please respond to the user with the information you have gathered."},
+                            is_error=True,
+                        ))
+                        continue
+
                     # Get the tool
                     tool = self.tool_registry.get_tool(tool_use.name)
                     if not tool:
@@ -510,9 +527,15 @@ Use this context to provide relevant suggestions and defaults for actions."""
                         content=accumulated_text,
                     ))
 
-                # Inject synthesis prompts when approaching iteration limit
+                # Inject synthesis prompts when approaching limits
                 # This encourages the model to respond rather than keep querying
-                if iteration >= force_iteration and not accumulated_text:
+                if hit_tool_limit:
+                    # Hard stop - tool limit reached
+                    messages.append(AIMessage(
+                        role="user",
+                        content="[System: STOP. You have reached the tool call limit. You MUST respond to the user NOW with the information you have. Do NOT call any more tools.]",
+                    ))
+                elif iteration >= force_iteration and not accumulated_text:
                     # Final warning - strongly encourage response
                     messages.append(AIMessage(
                         role="user",
