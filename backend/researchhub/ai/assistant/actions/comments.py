@@ -21,7 +21,16 @@ class AddCommentTool(ActionTool):
 
     @property
     def description(self) -> str:
-        return "Add a comment to a task or document. Requires user approval before execution."
+        return """Add a comment to a task. Use this for recording notes, progress updates, context, questions, or any information that should be part of the task's discussion history.
+
+Use add_comment when the user wants to:
+- Record a note or observation ("note that...", "FYI...", "add a note...")
+- Log progress without changing status ("completed first draft, waiting for review")
+- Ask a question or request clarification on the task
+- Document a decision or discussion
+- Provide context or background information
+
+Do NOT use add_comment when the user wants to change task properties (status, priority, due date) - use update_task for those."""
 
     @property
     def input_schema(self) -> dict:
@@ -30,17 +39,17 @@ class AddCommentTool(ActionTool):
             "properties": {
                 "entity_type": {
                     "type": "string",
-                    "enum": ["task", "document"],
-                    "description": "Type of entity to comment on",
+                    "enum": ["task"],
+                    "description": "Type of entity to comment on (currently only 'task' is supported)",
                 },
                 "entity_id": {
                     "type": "string",
                     "format": "uuid",
-                    "description": "The ID of the task or document to comment on",
+                    "description": "The ID of the task to comment on",
                 },
                 "content": {
                     "type": "string",
-                    "description": "The comment content (markdown supported)",
+                    "description": "The comment content. Can include markdown formatting. Should capture the note, update, question, or context the user wants to record.",
                 },
                 "mention_ids": {
                     "type": "array",

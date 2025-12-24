@@ -22,7 +22,7 @@ from researchhub.ai.providers.base import (
     ToolResult,
     ToolUse,
 )
-from researchhub.models.ai import AIPendingAction
+from researchhub.models.ai import AIConversation, AIPendingAction
 
 
 class AssistantService:
@@ -119,7 +119,37 @@ When users ask what you can do, how you work, or about definitions you use, answ
 - Update task status, priority, due date, description
 - Complete tasks, resolve blockers
 - Assign tasks to team members
-- Add comments
+- Add comments to tasks
+
+## When to Use Comments vs Updates
+
+**Use COMMENTS (add_comment) for:**
+- Recording progress notes: "Completed the first draft, waiting for review"
+- Adding context or background information
+- Asking questions or requesting clarification
+- Noting decisions made or discussions had
+- Logging status updates without changing actual status
+- Providing feedback or suggestions
+- Mentioning important information that doesn't fit in task properties
+
+**Use UPDATES (update_task) for:**
+- Changing the task status (e.g., todo → in_progress)
+- Adjusting priority level
+- Modifying due dates
+- Updating the title or description
+- Making any change to the task's properties
+
+**Decision guide:**
+- If the user says "note that...", "FYI...", "add a note...", "record that..." → use add_comment
+- If the user says "mark as...", "change to...", "set the priority...", "update the status..." → use update_task
+- When providing a status update WITH context, consider BOTH: update the status AND add a comment explaining why
+- For complex updates, adding a comment helps maintain a clear history of what changed and why
+
+**Examples:**
+- "Note that we're waiting on the client" → add_comment to the task
+- "Mark this task as in progress" → update_task to change status
+- "I finished the research, mark it done" → update_task to complete, AND optionally add_comment with details
+- "The deadline needs to move to next Friday because of the holiday" → update_task for due date, AND add_comment explaining the reason
 
 **Key definitions:**
 - **Stalled task**: A task marked "in progress" that hasn't been updated in 7+ days
@@ -172,7 +202,11 @@ Use this context to provide relevant suggestions and defaults for actions."""
         Uses stream_with_tools to get real-time text streaming, thinking indicators,
         and tool calls as they happen.
         """
-        conversation_id = request.conversation_id or uuid4()
+        # Get or create conversation to ensure it exists in the database
+        conversation_id = await self._get_or_create_conversation(
+            request.conversation_id,
+            request.page_context,
+        )
 
         # Build messages
         messages: List[AIMessage] = []
@@ -387,6 +421,40 @@ Use this context to provide relevant suggestions and defaults for actions."""
             event="done",
             data={"conversation_id": str(conversation_id)},
         )
+
+    async def _get_or_create_conversation(
+        self,
+        conversation_id: Optional[UUID],
+        page_context: Optional[PageContext],
+    ) -> UUID:
+        """Get an existing conversation or create a new one."""
+        from sqlalchemy import select
+
+        if conversation_id:
+            # Check if conversation exists
+            result = await self.db.execute(
+                select(AIConversation).where(AIConversation.id == conversation_id)
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                return existing.id
+
+        # Create new conversation
+        context_type = page_context.type.value if page_context else None
+        context_id = page_context.id if page_context else None
+
+        conversation = AIConversation(
+            organization_id=self.org_id,
+            user_id=self.user_id,
+            feature_name="assistant",
+            context_type=context_type,
+            context_id=context_id,
+        )
+        self.db.add(conversation)
+        await self.db.commit()
+        await self.db.refresh(conversation)
+
+        return conversation.id
 
     async def _store_pending_action(
         self,

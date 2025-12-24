@@ -136,7 +136,16 @@ class UpdateTaskTool(ActionTool):
 
     @property
     def description(self) -> str:
-        return "Update an existing task's title, description, priority, status, or due date. Requires user approval before execution."
+        return """Update an existing task's properties: title, description, priority, status, or due date.
+
+Use update_task when the user wants to:
+- Change the task status ("mark as in progress", "set to done")
+- Adjust priority ("make this high priority", "lower the priority")
+- Modify the due date ("move deadline to Friday", "extend by a week")
+- Update the title or description
+
+For notes, progress updates, or context without changing properties, use add_comment instead.
+When making significant changes, consider also adding a comment to explain why the change was made."""
 
     @property
     def input_schema(self) -> dict:
