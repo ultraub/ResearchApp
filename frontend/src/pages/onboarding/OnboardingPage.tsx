@@ -219,8 +219,8 @@ export default function OnboardingPage() {
   const isLoading = updateProfileMutation.isPending || updateOnboardingMutation.isPending;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-base dark:to-gray-800">
-      <div className="mx-auto max-w-2xl px-4 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-base dark:to-gray-800 overflow-y-auto">
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12 pb-safe">
         {/* Progress bar */}
         <div className="mb-8">
           <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">

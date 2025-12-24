@@ -160,9 +160,9 @@ export function CreateProjectModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white dark:bg-dark-card rounded-xl shadow-card w-full max-w-md">
+      <div className="bg-white dark:bg-dark-card rounded-xl shadow-card w-full max-w-md max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+        <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-100 dark:bg-primary-900/30">
               <FolderPlus className="h-5 w-5 text-primary-600 dark:text-primary-400" />
@@ -188,7 +188,7 @@ export function CreateProjectModal({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto flex-1">
           {/* Project Name */}
           <div>
             <label
