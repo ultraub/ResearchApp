@@ -3,7 +3,7 @@
 from typing import Any, Dict, List
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -62,12 +62,18 @@ class GetTeamMembersTool(QueryTool):
         members: List[Dict[str, Any]] = []
 
         if project_id:
-            # Get project members
+            # Get project members (join with Team to verify org or personal team access)
             project_query = (
                 select(Project)
+                .join(Team, Project.team_id == Team.id)
                 .options(selectinload(Project.members))
                 .where(Project.id == UUID(project_id))
-                .where(Project.organization_id == org_id)
+                .where(
+                    or_(
+                        Team.organization_id == org_id,
+                        and_(Team.is_personal == True, Team.owner_id == user_id),
+                    )
+                )
             )
             project_result = await db.execute(project_query)
             project = project_result.scalar_one_or_none()
@@ -103,11 +109,16 @@ class GetTeamMembersTool(QueryTool):
             }
 
         elif team_id:
-            # Get team members
+            # Get team members - verify org or personal team access
             team_query = (
                 select(Team)
                 .where(Team.id == UUID(team_id))
-                .where(Team.organization_id == org_id)
+                .where(
+                    or_(
+                        Team.organization_id == org_id,
+                        and_(Team.is_personal == True, Team.owner_id == user_id),
+                    )
+                )
             )
             team_result = await db.execute(team_query)
             team = team_result.scalar_one_or_none()

@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from researchhub.ai.assistant.tools import QueryTool
 from researchhub.models.project import Blocker, Project, Task
+from researchhub.models.organization import Team
 
 
 class GetAttentionSummaryTool(QueryTool):
@@ -77,9 +78,17 @@ class GetAttentionSummaryTool(QueryTool):
         if assignee_id:
             task_filters.append(Task.assignee_id == UUID(assignee_id))
 
-        # 1. Overdue tasks (due date < today, not done)
+        # 1. Overdue tasks (due date < today, not done) - join through Project and Team for org access
         overdue_query = (
             select(Task)
+            .join(Project, Task.project_id == Project.id)
+            .join(Team, Project.team_id == Team.id)
+            .where(
+                or_(
+                    Team.organization_id == org_id,
+                    and_(Team.is_personal == True, Team.owner_id == user_id),
+                )
+            )
             .options(selectinload(Task.assignee), selectinload(Task.project))
             .where(Task.due_date < today)
             .where(Task.status != "done")
@@ -105,9 +114,17 @@ class GetAttentionSummaryTool(QueryTool):
             for task in overdue_tasks
         ]
 
-        # 2. Upcoming deadlines (due date between today and future_date, not done)
+        # 2. Upcoming deadlines (due date between today and future_date, not done) - join for org access
         upcoming_query = (
             select(Task)
+            .join(Project, Task.project_id == Project.id)
+            .join(Team, Project.team_id == Team.id)
+            .where(
+                or_(
+                    Team.organization_id == org_id,
+                    and_(Team.is_personal == True, Team.owner_id == user_id),
+                )
+            )
             .options(selectinload(Task.assignee), selectinload(Task.project))
             .where(Task.due_date >= today)
             .where(Task.due_date <= future_date)
@@ -134,9 +151,17 @@ class GetAttentionSummaryTool(QueryTool):
             for task in upcoming_tasks
         ]
 
-        # 3. Open blockers
+        # 3. Open blockers - join through Project and Team for org access
         blocker_query = (
             select(Blocker)
+            .join(Project, Blocker.project_id == Project.id)
+            .join(Team, Project.team_id == Team.id)
+            .where(
+                or_(
+                    Team.organization_id == org_id,
+                    and_(Team.is_personal == True, Team.owner_id == user_id),
+                )
+            )
             .options(
                 selectinload(Blocker.assignee),
                 selectinload(Blocker.blocker_links),
@@ -167,10 +192,18 @@ class GetAttentionSummaryTool(QueryTool):
             for blocker in blockers
         ]
 
-        # 4. Stalled tasks (in_progress for >7 days without updates)
+        # 4. Stalled tasks (in_progress for >7 days without updates) - join for org access
         stale_date = datetime.now() - timedelta(days=7)
         stalled_query = (
             select(Task)
+            .join(Project, Task.project_id == Project.id)
+            .join(Team, Project.team_id == Team.id)
+            .where(
+                or_(
+                    Team.organization_id == org_id,
+                    and_(Team.is_personal == True, Team.owner_id == user_id),
+                )
+            )
             .options(selectinload(Task.assignee), selectinload(Task.project))
             .where(Task.status == "in_progress")
             .where(Task.updated_at < stale_date)

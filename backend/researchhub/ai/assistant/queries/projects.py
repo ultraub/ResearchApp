@@ -3,12 +3,13 @@
 from typing import Any, Dict
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from researchhub.ai.assistant.tools import QueryTool
 from researchhub.models.project import Project, Task
+from researchhub.models.organization import Team
 
 
 class GetProjectsTool(QueryTool):
@@ -59,9 +60,16 @@ class GetProjectsTool(QueryTool):
         limit = min(input.get("limit", 20), 50)
 
         # Build query for projects user has access to
+        # Join with Team to filter by organization_id (Project has team_id, Team has organization_id)
         query = (
             select(Project)
-            .where(Project.organization_id == org_id)
+            .join(Team, Project.team_id == Team.id)
+            .where(
+                or_(
+                    Team.organization_id == org_id,
+                    and_(Team.is_personal == True, Team.owner_id == user_id),
+                )
+            )
             .where(Project.is_archived == False)
         )
 
@@ -146,11 +154,18 @@ class GetProjectDetailsTool(QueryTool):
         project_id = UUID(input["project_id"])
 
         # Get project with relationships
+        # Join with Team to verify organization or personal team access
         query = (
             select(Project)
+            .join(Team, Project.team_id == Team.id)
             .options(selectinload(Project.members))
             .where(Project.id == project_id)
-            .where(Project.organization_id == org_id)
+            .where(
+                or_(
+                    Team.organization_id == org_id,
+                    and_(Team.is_personal == True, Team.owner_id == user_id),
+                )
+            )
         )
 
         result = await db.execute(query)

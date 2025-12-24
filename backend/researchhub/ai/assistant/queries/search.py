@@ -3,12 +3,13 @@
 from typing import Any, Dict, List
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from researchhub.ai.assistant.tools import QueryTool
 from researchhub.models.project import Blocker, Project, Task
 from researchhub.models.document import Document
+from researchhub.models.organization import Team
 
 
 class SearchContentTool(QueryTool):
@@ -70,10 +71,18 @@ class SearchContentTool(QueryTool):
         search_pattern = f"%{query_text}%"
         results: Dict[str, List[Dict[str, Any]]] = {}
 
-        # Search tasks
+        # Search tasks - join through Project and Team to filter by org or personal team
         if "task" in entity_types:
             task_query = (
                 select(Task)
+                .join(Project, Task.project_id == Project.id)
+                .join(Team, Project.team_id == Team.id)
+                .where(
+                    or_(
+                        Team.organization_id == org_id,
+                        and_(Team.is_personal == True, Team.owner_id == user_id),
+                    )
+                )
                 .where(
                     or_(
                         Task.title.ilike(search_pattern),
@@ -98,11 +107,17 @@ class SearchContentTool(QueryTool):
                 for task in tasks
             ]
 
-        # Search projects
+        # Search projects (join with Team to verify org or personal team access)
         if "project" in entity_types:
             project_query = (
                 select(Project)
-                .where(Project.organization_id == org_id)
+                .join(Team, Project.team_id == Team.id)
+                .where(
+                    or_(
+                        Team.organization_id == org_id,
+                        and_(Team.is_personal == True, Team.owner_id == user_id),
+                    )
+                )
                 .where(
                     or_(
                         Project.name.ilike(search_pattern),
@@ -124,10 +139,19 @@ class SearchContentTool(QueryTool):
                 for project in projects
             ]
 
-        # Search documents (excluding system docs - use search_system_docs for those)
+        # Search documents - join through Project and Team to filter by org or personal team
+        # (excluding system docs - use search_system_docs for those)
         if "document" in entity_types:
             doc_query = (
                 select(Document)
+                .join(Project, Document.project_id == Project.id)
+                .join(Team, Project.team_id == Team.id)
+                .where(
+                    or_(
+                        Team.organization_id == org_id,
+                        and_(Team.is_personal == True, Team.owner_id == user_id),
+                    )
+                )
                 .where(Document.is_system == False)
                 .where(
                     or_(
@@ -153,10 +177,18 @@ class SearchContentTool(QueryTool):
                 for doc in documents
             ]
 
-        # Search blockers
+        # Search blockers - join through Project and Team to filter by org or personal team
         if "blocker" in entity_types:
             blocker_query = (
                 select(Blocker)
+                .join(Project, Blocker.project_id == Project.id)
+                .join(Team, Project.team_id == Team.id)
+                .where(
+                    or_(
+                        Team.organization_id == org_id,
+                        and_(Team.is_personal == True, Team.owner_id == user_id),
+                    )
+                )
                 .where(
                     or_(
                         Blocker.title.ilike(search_pattern),

@@ -3,12 +3,14 @@
 from typing import Any, Dict
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from researchhub.ai.assistant.tools import QueryTool
 from researchhub.models.document import Document
+from researchhub.models.project import Project
+from researchhub.models.organization import Team
 
 
 class GetDocumentsTool(QueryTool):
@@ -64,9 +66,18 @@ class GetDocumentsTool(QueryTool):
         document_type = input.get("document_type")
         limit = min(input.get("limit", 20), 50)
 
-        # Build query - exclude system docs (those are accessed via system_docs tools)
+        # Build query - join through Project and Team to filter by org or personal team
+        # Exclude system docs (those are accessed via system_docs tools)
         query = (
             select(Document)
+            .join(Project, Document.project_id == Project.id)
+            .join(Team, Project.team_id == Team.id)
+            .where(
+                or_(
+                    Team.organization_id == org_id,
+                    and_(Team.is_personal == True, Team.owner_id == user_id),
+                )
+            )
             .options(selectinload(Document.created_by))
             .where(Document.is_system == False)
         )
@@ -139,14 +150,22 @@ class GetDocumentDetailsTool(QueryTool):
         """Execute the query and return document details."""
         document_id = UUID(input["document_id"])
 
-        # Get document with relationships
+        # Get document with relationships - join through Project and Team to verify org access
         query = (
             select(Document)
+            .join(Project, Document.project_id == Project.id)
+            .join(Team, Project.team_id == Team.id)
             .options(
                 selectinload(Document.created_by),
                 selectinload(Document.project),
             )
             .where(Document.id == document_id)
+            .where(
+                or_(
+                    Team.organization_id == org_id,
+                    and_(Team.is_personal == True, Team.owner_id == user_id),
+                )
+            )
         )
 
         result = await db.execute(query)

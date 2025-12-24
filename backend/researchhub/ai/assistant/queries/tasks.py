@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from researchhub.ai.assistant.tools import QueryTool
-from researchhub.models.project import Blocker, BlockerLink, Task, TaskComment
+from researchhub.models.project import Blocker, BlockerLink, Project, Task, TaskComment
+from researchhub.models.organization import Team
 
 
 class GetTasksTool(QueryTool):
@@ -83,8 +84,19 @@ class GetTasksTool(QueryTool):
         due_after = input.get("due_after")
         limit = min(input.get("limit", 20), 50)
 
-        # Build query
-        query = select(Task).options(selectinload(Task.assignee))
+        # Build query - join through Project and Team to filter by org or personal team
+        query = (
+            select(Task)
+            .join(Project, Task.project_id == Project.id)
+            .join(Team, Project.team_id == Team.id)
+            .where(
+                or_(
+                    Team.organization_id == org_id,
+                    and_(Team.is_personal == True, Team.owner_id == user_id),
+                )
+            )
+            .options(selectinload(Task.assignee))
+        )
 
         filters = []
 
@@ -168,14 +180,22 @@ class GetTaskDetailsTool(QueryTool):
         """Execute the query and return task details."""
         task_id = UUID(input["task_id"])
 
-        # Get task with relationships
+        # Get task with relationships - join through Project and Team to verify org access
         query = (
             select(Task)
+            .join(Project, Task.project_id == Project.id)
+            .join(Team, Project.team_id == Team.id)
             .options(
                 selectinload(Task.assignee),
                 selectinload(Task.project),
             )
             .where(Task.id == task_id)
+            .where(
+                or_(
+                    Team.organization_id == org_id,
+                    and_(Team.is_personal == True, Team.owner_id == user_id),
+                )
+            )
         )
 
         result = await db.execute(query)
