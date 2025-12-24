@@ -183,8 +183,14 @@ class ToolRegistry:
         return list(self._action_tools.values())
 
 
-def create_default_registry() -> ToolRegistry:
-    """Create a registry with all default tools."""
+def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
+    """Create a registry with all default tools.
+
+    Args:
+        use_dynamic_queries: If True, disables specialized query tools
+            (get_projects, get_tasks, etc.) to force use of dynamic_query.
+            Useful for testing the dynamic query tool's capabilities.
+    """
     from researchhub.ai.assistant.queries.projects import (
         GetProjectsTool,
         GetProjectDetailsTool,
@@ -228,23 +234,28 @@ def create_default_registry() -> ToolRegistry:
     registry = ToolRegistry()
 
     # Register query tools
-    registry.register_query(GetProjectsTool())
-    registry.register_query(GetProjectDetailsTool())
-    registry.register_query(GetTasksTool())
-    registry.register_query(GetTaskDetailsTool())
-    registry.register_query(GetBlockersTool())
-    registry.register_query(GetDocumentsTool())
-    registry.register_query(GetDocumentDetailsTool())
-    registry.register_query(SearchContentTool())
-    registry.register_query(GetAttentionSummaryTool())
-    registry.register_query(GetTeamMembersTool())
+    # These specialized tools can be replaced by dynamic_query
+    if not use_dynamic_queries:
+        registry.register_query(GetProjectsTool())
+        registry.register_query(GetProjectDetailsTool())
+        registry.register_query(GetTasksTool())
+        registry.register_query(GetTaskDetailsTool())
+        registry.register_query(GetBlockersTool())
+        registry.register_query(GetDocumentsTool())
+        registry.register_query(GetDocumentDetailsTool())
+
+    # These tools have unique functionality not replicated by dynamic_query
+    registry.register_query(SearchContentTool())  # Full-text search
+    registry.register_query(GetAttentionSummaryTool())  # Complex aggregation
+    registry.register_query(GetTeamMembersTool())  # User lookup
 
     # Register system documentation tools
     registry.register_query(ListSystemDocsTool())
     registry.register_query(SearchSystemDocsTool())
     registry.register_query(ReadSystemDocTool())
 
-    # Register dynamic query tool (experimental)
+    # Register dynamic query tool
+    # When use_dynamic_queries=True, this is the primary query mechanism
     registry.register_query(DynamicQueryTool())
 
     # Register action tools

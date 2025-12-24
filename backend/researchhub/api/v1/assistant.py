@@ -81,6 +81,11 @@ class AssistantChatInput(BaseModel):
     conversation_id: Optional[UUID] = None
     messages: List[ChatMessageInput] = Field(default_factory=list)
     page_context: Optional[PageContextInput] = None
+    # Experimental: use dynamic_query instead of specialized query tools
+    use_dynamic_queries: bool = Field(
+        default=False,
+        description="Experimental: disable specialized query tools and use dynamic_query for all database queries",
+    )
 
 
 class PendingActionResponse(BaseModel):
@@ -172,6 +177,7 @@ async def assistant_chat(
         db=db,
         user_id=current_user.id,
         org_id=org_id,
+        use_dynamic_queries=request.use_dynamic_queries,
     )
 
     async def event_generator() -> AsyncIterator[str]:

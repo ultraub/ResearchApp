@@ -35,12 +35,25 @@ class AssistantService:
         db: AsyncSession,
         user_id: UUID,
         org_id: UUID,
+        use_dynamic_queries: bool = False,
     ):
+        """Initialize the assistant service.
+
+        Args:
+            provider: The AI provider (e.g., Claude)
+            db: Database session
+            user_id: Current user's ID
+            org_id: Current organization's ID
+            use_dynamic_queries: If True, disables specialized query tools
+                (get_projects, get_tasks, etc.) and forces use of dynamic_query.
+                Experimental mode for testing dynamic query capabilities.
+        """
         self.provider = provider
         self.db = db
         self.user_id = user_id
         self.org_id = org_id
-        self.tool_registry = create_default_registry()
+        self.use_dynamic_queries = use_dynamic_queries
+        self.tool_registry = create_default_registry(use_dynamic_queries=use_dynamic_queries)
 
     async def _get_user_info(self) -> Optional[User]:
         """Fetch the current user's information."""
@@ -223,6 +236,21 @@ Common filter patterns for dynamic_query:
 - Prefer giving a good answer with available data over exhaustive data collection.
 - If you've already queried similar information, use what you have rather than re-querying.
 - Always aim to respond within 2-4 tool calls for typical requests."""
+
+        # Add dynamic query mode guidance if enabled
+        if self.use_dynamic_queries:
+            base_prompt += """
+
+## Dynamic Query Mode (Experimental)
+You are running in dynamic query mode. The specialized query tools (get_projects, get_tasks, get_blockers, get_documents, get_project_details, get_task_details, get_document_details) are NOT available.
+
+Instead, use `dynamic_query` for ALL data retrieval. This tool is more flexible and can handle any query pattern:
+- To list projects: dynamic_query with tables=["projects"]
+- To get tasks: dynamic_query with tables=["tasks"] and appropriate filters
+- To find blockers: dynamic_query with tables=["blockers"]
+- To search documents: dynamic_query with tables=["documents"]
+
+The dynamic_query tool supports all the filter patterns listed above and can query multiple tables at once."""
 
         if page_context:
             context_info = f"""
