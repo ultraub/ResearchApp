@@ -2,7 +2,7 @@
  * AI Chat Panel - Main chat interface.
  */
 
-import { useState, useRef, useEffect, FormEvent } from 'react';
+import { useState, useRef, useEffect, FormEvent, useCallback } from 'react';
 import {
   X,
   Minus,
@@ -16,6 +16,7 @@ import {
   Wrench,
   ChevronDown,
   ChevronRight,
+  GripVertical,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -116,6 +117,41 @@ interface AIChatPanelProps {
   contextLabel: string;
 }
 
+// Default and min/max dimensions
+const DEFAULT_WIDTH = 500;
+const DEFAULT_HEIGHT = 500;
+const MIN_WIDTH = 350;
+const MIN_HEIGHT = 300;
+const MAX_WIDTH = 900;
+const MAX_HEIGHT = 800;
+
+// Storage key for persisting dimensions
+const STORAGE_KEY = 'ai-chat-panel-dimensions';
+
+function loadDimensions(): { width: number; height: number } {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return {
+        width: Math.min(Math.max(parsed.width || DEFAULT_WIDTH, MIN_WIDTH), MAX_WIDTH),
+        height: Math.min(Math.max(parsed.height || DEFAULT_HEIGHT, MIN_HEIGHT), MAX_HEIGHT),
+      };
+    }
+  } catch {
+    // Ignore errors
+  }
+  return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
+}
+
+function saveDimensions(width: number, height: number) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ width, height }));
+  } catch {
+    // Ignore errors
+  }
+}
+
 export function AIChatPanel({
   isMinimized,
   onClose,
@@ -133,6 +169,68 @@ export function AIChatPanel({
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Resize state
+  const [dimensions, setDimensions] = useState(loadDimensions);
+  const [isResizing, setIsResizing] = useState<'left' | 'top' | 'corner' | null>(null);
+  const resizeStartRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+
+  // Handle resize drag
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing || !resizeStartRef.current) return;
+
+    const { x: startX, y: startY, width: startWidth, height: startHeight } = resizeStartRef.current;
+    const deltaX = startX - e.clientX; // Inverted because we're resizing from left
+    const deltaY = startY - e.clientY; // Inverted because we're resizing from top
+
+    let newWidth = startWidth;
+    let newHeight = startHeight;
+
+    if (isResizing === 'left' || isResizing === 'corner') {
+      newWidth = Math.min(Math.max(startWidth + deltaX, MIN_WIDTH), MAX_WIDTH);
+    }
+    if (isResizing === 'top' || isResizing === 'corner') {
+      newHeight = Math.min(Math.max(startHeight + deltaY, MIN_HEIGHT), MAX_HEIGHT);
+    }
+
+    setDimensions({ width: newWidth, height: newHeight });
+  }, [isResizing]);
+
+  const handleMouseUp = useCallback(() => {
+    if (isResizing) {
+      saveDimensions(dimensions.width, dimensions.height);
+    }
+    setIsResizing(null);
+    resizeStartRef.current = null;
+  }, [isResizing, dimensions]);
+
+  // Add/remove global mouse event listeners for resize
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = isResizing === 'corner' ? 'nwse-resize' : isResizing === 'left' ? 'ew-resize' : 'ns-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, handleMouseMove, handleMouseUp]);
+
+  const startResize = (edge: 'left' | 'top' | 'corner') => (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(edge);
+    resizeStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      width: dimensions.width,
+      height: dimensions.height,
+    };
+  };
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -185,7 +283,32 @@ export function AIChatPanel({
   }
 
   return (
-    <div className="fixed bottom-24 right-6 z-50 w-[500px] max-w-[calc(100vw-3rem)] h-[70vh] max-h-[600px] bg-white dark:bg-dark-card rounded-xl shadow-2xl border border-gray-200 dark:border-dark-border flex flex-col overflow-hidden">
+    <div
+      className="fixed bottom-24 right-6 z-50 bg-white dark:bg-dark-card rounded-xl shadow-2xl border border-gray-200 dark:border-dark-border flex flex-col overflow-hidden"
+      style={{
+        width: `min(${dimensions.width}px, calc(100vw - 3rem))`,
+        height: `min(${dimensions.height}px, calc(100vh - 8rem))`,
+      }}
+    >
+      {/* Resize handles - only visible on desktop */}
+      {/* Left edge */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-accent-500/20 transition-colors z-10 hidden md:block"
+        onMouseDown={startResize('left')}
+      />
+      {/* Top edge */}
+      <div
+        className="absolute left-0 right-0 top-0 h-2 cursor-ns-resize hover:bg-accent-500/20 transition-colors z-10 hidden md:block"
+        onMouseDown={startResize('top')}
+      />
+      {/* Top-left corner */}
+      <div
+        className="absolute left-0 top-0 w-4 h-4 cursor-nwse-resize z-20 hidden md:block group"
+        onMouseDown={startResize('corner')}
+      >
+        <GripVertical className="h-3 w-3 text-gray-300 dark:text-gray-600 group-hover:text-accent-500 transition-colors rotate-45 absolute top-0.5 left-0.5" />
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gradient-to-r from-accent-50 to-accent-100 dark:from-accent-900/20 dark:to-accent-800/20">
         <div className="flex items-center gap-3">
