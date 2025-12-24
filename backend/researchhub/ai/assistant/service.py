@@ -1,7 +1,7 @@
 """AI Assistant service for context-aware chat with tool calling."""
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, AsyncIterator, Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -43,7 +43,12 @@ class AssistantService:
 
     def _build_system_prompt(self, page_context: Optional[PageContext]) -> str:
         """Build the system prompt with page context."""
-        base_prompt = """You are a helpful AI assistant for a knowledge management application. You help users manage their projects, tasks, documents, and blockers.
+        # Include current date so the LLM knows what "today" means for overdue/upcoming calculations
+        today = date.today()
+        date_info = f"""Current Date: {today.strftime('%A, %B %d, %Y')} ({today.isoformat()})
+
+"""
+        base_prompt = date_info + """You are a helpful AI assistant for a knowledge management application. You help users manage their projects, tasks, documents, and blockers.
 
 You have access to tools that let you:
 1. Query data (projects, tasks, documents, blockers, team members)
