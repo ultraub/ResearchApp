@@ -151,10 +151,12 @@ class Team(BaseModel):
         "Department", back_populates="teams"
     )
     members: Mapped[list["TeamMember"]] = relationship(
-        "TeamMember", back_populates="team", lazy="selectin"
+        "TeamMember", back_populates="team", lazy="selectin",
+        cascade="all, delete-orphan", passive_deletes=True
     )
     projects: Mapped[list["Project"]] = relationship(
-        "Project", back_populates="team", lazy="selectin"
+        "Project", back_populates="team", lazy="selectin",
+        cascade="all, delete-orphan", passive_deletes=True
     )
     owner: Mapped["User | None"] = relationship(
         "User", foreign_keys=[owner_id], back_populates="personal_team"
@@ -162,7 +164,14 @@ class Team(BaseModel):
 
     # Multi-team project access
     project_teams: Mapped[list["ProjectTeam"]] = relationship(
-        "ProjectTeam", back_populates="team", lazy="selectin"
+        "ProjectTeam", back_populates="team", lazy="selectin",
+        cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    # Invite codes for this team
+    invite_codes: Mapped[list["InviteCode"]] = relationship(
+        "InviteCode", back_populates="team", lazy="selectin",
+        cascade="all, delete-orphan", passive_deletes=True
     )
 
     def __repr__(self) -> str:

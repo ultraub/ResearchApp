@@ -245,6 +245,8 @@ export default function OrganizationPage() {
         <AddMemberModal
           isOpen={isAddMemberOpen}
           onClose={() => setIsAddMemberOpen(false)}
+          orgId={org.id}
+          existingMemberIds={members.map((m) => m.user_id)}
         />
       )}
     </div>
@@ -726,15 +728,62 @@ function OrgSettingsModal({ isOpen, onClose, org }: OrgSettingsModalProps) {
 interface AddMemberModalProps {
   isOpen: boolean;
   onClose: () => void;
+  orgId: string;
+  existingMemberIds: string[];
 }
 
-function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
-  // For now, we'll show an info message about using invite codes
-  // In a full implementation, you might search for users by email
+function AddMemberModal({ isOpen, onClose, orgId, existingMemberIds }: AddMemberModalProps) {
+  const queryClient = useQueryClient();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<OrganizationMemberRole>("member");
+
+  // Fetch users based on search
+  const { data: allUsers = [], isLoading: usersLoading } = useQuery({
+    queryKey: ["users-search", searchQuery],
+    queryFn: async () => {
+      const { usersApi } = await import("@/services/users");
+      return usersApi.listUsers(searchQuery || undefined);
+    },
+    enabled: isOpen,
+  });
+
+  // Filter out existing members
+  const availableUsers = allUsers.filter(
+    (user) => !existingMemberIds.includes(user.user_id)
+  );
+
+  // Add member mutation
+  const addMemberMutation = useMutation({
+    mutationFn: (data: { user_id: string; role: OrganizationMemberRole }) =>
+      organizationsService.addMember(orgId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["org-members", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["organization", orgId] });
+      toast.success("Member added successfully");
+      handleClose();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to add member");
+    },
+  });
 
   const handleClose = () => {
+    setSearchQuery("");
+    setSelectedUserId(null);
+    setSelectedRole("member");
     onClose();
   };
+
+  const handleAddMember = () => {
+    if (!selectedUserId) {
+      toast.error("Please select a user");
+      return;
+    }
+    addMemberMutation.mutate({ user_id: selectedUserId, role: selectedRole });
+  };
+
+  const selectedUser = availableUsers.find((u) => u.user_id === selectedUserId);
 
   return (
     <Transition show={isOpen} as={Fragment}>
@@ -780,25 +829,165 @@ function AddMemberModal({ isOpen, onClose }: AddMemberModalProps) {
                   </button>
                 </div>
 
-                <div className="p-6">
-                  <div className="rounded-xl bg-primary-50 p-4 dark:bg-primary-900/20">
-                    <p className="text-sm text-primary-700 dark:text-primary-300">
-                      <strong>Tip:</strong> The easiest way to add members is to create an invite code
-                      and share the link with them. They can join instantly!
-                    </p>
+                <div className="p-6 space-y-4">
+                  {/* Search input */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Search users
+                    </label>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search by name or email..."
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-border dark:bg-dark-elevated dark:text-white"
+                    />
                   </div>
 
-                  <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-                    Go to the <strong>Invites</strong> tab to create shareable invite codes that allow
-                    people to join your organization.
-                  </p>
+                  {/* User selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Select user
+                    </label>
+                    <Listbox value={selectedUserId} onChange={setSelectedUserId}>
+                      <div className="relative">
+                        <Listbox.Button className="relative w-full cursor-pointer rounded-lg border border-gray-300 bg-white py-2.5 pl-3 pr-10 text-left text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-border dark:bg-dark-elevated dark:text-white">
+                          {selectedUser ? (
+                            <span>{selectedUser.display_name || selectedUser.email}</span>
+                          ) : (
+                            <span className="text-gray-500">Select a user...</span>
+                          )}
+                          <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                            <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </span>
+                        </Listbox.Button>
+                        <Transition
+                          as={Fragment}
+                          leave="transition ease-in duration-100"
+                          leaveFrom="opacity-100"
+                          leaveTo="opacity-0"
+                        >
+                          <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg bg-white py-1 shadow-lg ring-1 ring-black/5 dark:ring-white/10 dark:bg-dark-elevated">
+                            {usersLoading ? (
+                              <div className="px-3 py-2 text-sm text-gray-500">Loading...</div>
+                            ) : availableUsers.length === 0 ? (
+                              <div className="px-3 py-2 text-sm text-gray-500">
+                                {searchQuery ? "No users found" : "No users available to add"}
+                              </div>
+                            ) : (
+                              availableUsers.map((user) => (
+                                <Listbox.Option
+                                  key={user.user_id}
+                                  value={user.user_id}
+                                  className={({ active }) =>
+                                    clsx(
+                                      "cursor-pointer px-3 py-2 text-sm transition-colors",
+                                      active && "bg-gray-100 dark:bg-dark-base"
+                                    )
+                                  }
+                                >
+                                  {({ selected }) => (
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <span className={clsx(selected && "font-medium")}>
+                                          {user.display_name || user.email}
+                                        </span>
+                                        {user.display_name && (
+                                          <span className="ml-2 text-gray-500 dark:text-gray-400">
+                                            {user.email}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {selected && (
+                                        <svg className="h-4 w-4 text-primary-600" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  )}
+                                </Listbox.Option>
+                              ))
+                            )}
+                          </Listbox.Options>
+                        </Transition>
+                      </div>
+                    </Listbox>
+                  </div>
 
-                  <div className="mt-6 flex justify-end">
+                  {/* Role selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Role
+                    </label>
+                    <Listbox value={selectedRole} onChange={setSelectedRole}>
+                      <div className="relative">
+                        <Listbox.Button className="relative w-full cursor-pointer rounded-lg border border-gray-300 bg-white py-2.5 pl-3 pr-10 text-left text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-border dark:bg-dark-elevated dark:text-white">
+                          <span>{ROLE_LABELS[selectedRole]}</span>
+                          <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                            <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </span>
+                        </Listbox.Button>
+                        <Transition
+                          as={Fragment}
+                          leave="transition ease-in duration-100"
+                          leaveFrom="opacity-100"
+                          leaveTo="opacity-0"
+                        >
+                          <Listbox.Options className="absolute z-10 mt-1 w-full overflow-auto rounded-lg bg-white py-1 shadow-lg ring-1 ring-black/5 dark:ring-white/10 dark:bg-dark-elevated">
+                            {(["admin", "member"] as OrganizationMemberRole[]).map((role) => (
+                              <Listbox.Option
+                                key={role}
+                                value={role}
+                                className={({ active }) =>
+                                  clsx(
+                                    "cursor-pointer px-3 py-2 transition-colors",
+                                    active && "bg-gray-100 dark:bg-dark-base"
+                                  )
+                                }
+                              >
+                                {({ selected }) => (
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <span className={clsx("text-sm", selected && "font-medium")}>
+                                        {ROLE_LABELS[role]}
+                                      </span>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        {role === "admin" ? "Full access to manage organization" : "Access to organization resources"}
+                                      </p>
+                                    </div>
+                                    {selected && (
+                                      <svg className="h-4 w-4 text-primary-600" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                )}
+                              </Listbox.Option>
+                            ))}
+                          </Listbox.Options>
+                        </Transition>
+                      </div>
+                    </Listbox>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex justify-end gap-3 pt-2">
                     <button
                       onClick={handleClose}
-                      className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+                      className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-elevated"
                     >
-                      Got it
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddMember}
+                      disabled={!selectedUserId || addMemberMutation.isPending}
+                      className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                    >
+                      {addMemberMutation.isPending ? "Adding..." : "Add Member"}
                     </button>
                   </div>
                 </div>

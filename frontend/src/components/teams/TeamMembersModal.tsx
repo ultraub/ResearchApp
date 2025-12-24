@@ -41,17 +41,15 @@ const ROLE_COLORS: Record<TeamMemberRole, string> = {
 
 export function TeamMembersModal({ isOpen, onClose, team }: TeamMembersModalProps) {
   const queryClient = useQueryClient();
-  const { organization, refreshTeams } = useOrganizationStore();
+  const { refreshTeams } = useOrganizationStore();
   const [showAddMember, setShowAddMember] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<TeamMemberRole>("member");
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const canManage = team.current_user_role === "owner" || team.current_user_role === "lead";
   const isOwner = team.current_user_role === "owner";
-
-  // Personal teams don't have an organization, so we can't fetch org members
-  const isPersonalTeam = team.is_personal || !team.organization_id;
 
   // Fetch team members
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -60,16 +58,16 @@ export function TeamMembersModal({ isOpen, onClose, team }: TeamMembersModalProp
     enabled: isOpen,
   });
 
-  // Fetch organization members for adding (only for org-based teams)
-  const { data: orgMembers = [] } = useQuery({
-    queryKey: ["organization-members", organization?.id],
-    queryFn: () => (organization?.id ? usersApi.getOrganizationMembers(organization.id) : []),
-    enabled: isOpen && showAddMember && !!organization?.id && !isPersonalTeam,
+  // Fetch all users for adding (search across all users)
+  const { data: allUsers = [], isLoading: usersLoading } = useQuery({
+    queryKey: ["users-search", searchQuery],
+    queryFn: () => usersApi.listUsers(searchQuery || undefined),
+    enabled: isOpen && showAddMember,
   });
 
   // Filter out users who are already members
-  const availableUsers = orgMembers.filter(
-    (orgMember) => !members.some((m) => m.user_id === orgMember.user_id)
+  const availableUsers = allUsers.filter(
+    (user) => !members.some((m) => m.user_id === user.user_id)
   );
 
   // Add member mutation
@@ -85,6 +83,7 @@ export function TeamMembersModal({ isOpen, onClose, team }: TeamMembersModalProp
       setShowAddMember(false);
       setSelectedUserId(null);
       setSelectedRole("member");
+      setSearchQuery("");
     },
     onError: () => {
       toast.error("Failed to add member");
@@ -165,16 +164,13 @@ export function TeamMembersModal({ isOpen, onClose, team }: TeamMembersModalProp
     if (member.user_name) return member.user_name;
     if (member.email) return member.email;
     if (member.user_email) return member.user_email;
-    // Fallback to org members list
-    const orgMember = orgMembers.find((m) => m.user_id === member.user_id);
-    return orgMember?.display_name || orgMember?.email || "Unknown User";
+    return "Unknown User";
   };
 
   const getMemberEmail = (member: TeamMember): string => {
     if (member.email) return member.email;
     if (member.user_email) return member.user_email;
-    const orgMember = orgMembers.find((m) => m.user_id === member.user_id);
-    return orgMember?.email || "";
+    return "";
   };
 
   // Get role options based on user permissions
@@ -249,28 +245,20 @@ export function TeamMembersModal({ isOpen, onClose, team }: TeamMembersModalProp
                             <UserPlusIcon className="h-5 w-5" />
                             Add Member
                           </button>
-                        ) : isPersonalTeam ? (
-                          /* Personal teams can't add from org - show invite code message */
-                          <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-border dark:bg-dark-elevated">
-                            <h4 className="text-sm font-medium text-gray-900 dark:text-white">
-                              Invite members to your team
-                            </h4>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              To add members to this team, share your team invite code or link.
-                              Members can join using the invite code from the Team Settings.
-                            </p>
-                            <button
-                              onClick={() => setShowAddMember(false)}
-                              className="rounded-lg bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 transition-all hover:bg-gray-300 dark:bg-dark-elevated dark:text-gray-300 dark:hover:bg-gray-600"
-                            >
-                              Got it
-                            </button>
-                          </div>
                         ) : (
                           <div className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-dark-border">
                             <h4 className="text-sm font-medium text-gray-900 dark:text-white">
                               Add a new member
                             </h4>
+
+                            {/* Search input */}
+                            <input
+                              type="text"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              placeholder="Search by name or email..."
+                              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-border dark:bg-dark-elevated dark:text-white"
+                            />
 
                             {/* User selector */}
                             <Listbox value={selectedUserId} onChange={setSelectedUserId}>
@@ -278,9 +266,9 @@ export function TeamMembersModal({ isOpen, onClose, team }: TeamMembersModalProp
                                 <Listbox.Button className="relative w-full cursor-pointer rounded-lg border border-gray-300 bg-white py-2.5 pl-3 pr-10 text-left text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-border dark:bg-dark-elevated">
                                   {selectedUserId ? (
                                     <span>
-                                      {orgMembers.find((m) => m.user_id === selectedUserId)
+                                      {availableUsers.find((m) => m.user_id === selectedUserId)
                                         ?.display_name ||
-                                        orgMembers.find((m) => m.user_id === selectedUserId)
+                                        availableUsers.find((m) => m.user_id === selectedUserId)
                                           ?.email}
                                     </span>
                                   ) : (
@@ -297,9 +285,13 @@ export function TeamMembersModal({ isOpen, onClose, team }: TeamMembersModalProp
                                   leaveTo="opacity-0"
                                 >
                                   <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg bg-white py-1 shadow-soft ring-1 ring-black/5 dark:ring-white/10 dark:bg-dark-elevated">
-                                    {availableUsers.length === 0 ? (
+                                    {usersLoading ? (
                                       <div className="px-3 py-2 text-sm text-gray-500">
-                                        No users available to add
+                                        Loading...
+                                      </div>
+                                    ) : availableUsers.length === 0 ? (
+                                      <div className="px-3 py-2 text-sm text-gray-500">
+                                        {searchQuery ? "No users found" : "No users available to add"}
                                       </div>
                                     ) : (
                                       availableUsers.map((user) => (
@@ -399,6 +391,7 @@ export function TeamMembersModal({ isOpen, onClose, team }: TeamMembersModalProp
                                   setShowAddMember(false);
                                   setSelectedUserId(null);
                                   setSelectedRole("member");
+                                  setSearchQuery("");
                                 }}
                                 className="rounded-lg px-3 py-1.5 text-sm text-gray-600 transition-all hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-elevated"
                               >
