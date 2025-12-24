@@ -141,10 +141,17 @@ export default function ProjectDetailPage() {
     return result;
   }, [taskUnreadCountsRaw]);
 
-  // Fetch blockers that directly block this project
+  // Fetch blockers that directly block this project (for the banner)
   const { data: projectBlockers } = useQuery({
     queryKey: ["project-blockers", projectId],
     queryFn: () => blockersService.getBlockersBlockingProject(projectId!),
+    enabled: !!projectId,
+  });
+
+  // Fetch ALL blockers in this project (including those on tasks) for AttentionSummary
+  const { data: allProjectBlockers } = useQuery({
+    queryKey: ["all-project-blockers", projectId],
+    queryFn: () => blockersService.getForProject(projectId!, true),
     enabled: !!projectId,
   });
 
@@ -579,7 +586,7 @@ export default function ProjectDetailPage() {
           <ProjectSummaryCard project={project} />
           <AttentionSummary
             tasks={allTasks}
-            blockers={projectBlockers}
+            blockers={allProjectBlockers}
             unreadCounts={taskUnreadInfo}
             onBlockersClick={() => setIsBlockerListOpen(true)}
           />
