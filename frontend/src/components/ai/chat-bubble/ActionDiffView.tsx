@@ -29,6 +29,7 @@ export function ActionDiffView({ diff, oldState: _oldState, newState: _newState 
       case 'removed':
         return <Minus className="h-3 w-3 text-red-500" />;
       case 'modified':
+      default:
         return <RefreshCw className="h-3 w-3 text-amber-500" />;
     }
   };
@@ -48,6 +49,7 @@ export function ActionDiffView({ diff, oldState: _oldState, newState: _newState 
           label: 'text-red-600 dark:text-red-400',
         };
       case 'modified':
+      default:
         return {
           bg: 'bg-amber-50 dark:bg-amber-900/20',
           border: 'border-amber-200 dark:border-amber-800',
