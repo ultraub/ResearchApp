@@ -206,6 +206,7 @@ def create_default_registry() -> ToolRegistry:
         SearchSystemDocsTool,
         ReadSystemDocTool,
     )
+    from researchhub.ai.assistant.queries.dynamic import DynamicQueryTool
 
     from researchhub.ai.assistant.actions.tasks import (
         CreateTaskTool,
@@ -242,6 +243,9 @@ def create_default_registry() -> ToolRegistry:
     registry.register_query(ListSystemDocsTool())
     registry.register_query(SearchSystemDocsTool())
     registry.register_query(ReadSystemDocTool())
+
+    # Register dynamic query tool (experimental)
+    registry.register_query(DynamicQueryTool())
 
     # Register action tools
     registry.register_action(CreateTaskTool())
