@@ -213,15 +213,15 @@ BLOCKERS = [
     },
 ]
 
-# Sample comments for tasks
+# Sample comments for tasks (plain text, not JSONB)
 SAMPLE_COMMENTS = [
     {
         "task_title": "Complete title/abstract screening",
-        "content": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Made good progress today - completed 200 abstracts. The ML classification criteria are working well for identifying relevant imaging studies."}]}]},
+        "content": "Made good progress today - completed 200 abstracts. The ML classification criteria are working well for identifying relevant imaging studies.",
     },
     {
         "task_title": "Draft methods section for manuscript",
-        "content": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "I've added the search strategy details and included the Boolean operators. Can you review the inclusion/exclusion criteria wording?"}]}]},
+        "content": "I've added the search strategy details and included the Boolean operators. Can you review the inclusion/exclusion criteria wording?",
     },
 ]
 
