@@ -124,12 +124,14 @@ class GetProjectsTool(QueryTool):
             access_conditions.append(Project.id.in_(select(org_public_subquery)))
 
         # Base query with access control and exclusion check
+        # Exclude demo projects - they are for onboarding/examples only
         query = (
             select(Project)
             .where(
                 and_(
                     or_(*access_conditions),
                     ~exclusion_exists,  # Exclude projects where user is in blocklist
+                    Project.is_demo == False,  # Exclude demo projects from AI queries
                 )
             )
             .where(Project.is_archived == False)

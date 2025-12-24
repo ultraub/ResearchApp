@@ -71,7 +71,7 @@ class GetBlockersTool(QueryTool):
             .where(Blocker.project_id.in_(accessible_project_ids))
             .options(
                 selectinload(Blocker.assignee),
-                selectinload(Blocker.blocker_links),
+                selectinload(Blocker.blocked_items),
             )
         )
 
@@ -98,7 +98,7 @@ class GetBlockersTool(QueryTool):
                     "impact_level": blocker.impact_level,
                     "assignee": blocker.assignee.display_name if blocker.assignee else None,
                     "due_date": blocker.due_date.isoformat() if blocker.due_date else None,
-                    "blocked_items_count": len(blocker.blocker_links) if blocker.blocker_links else 0,
+                    "blocked_items_count": len(blocker.blocked_items) if blocker.blocked_items else 0,
                     "created_at": blocker.created_at.isoformat(),
                 }
                 for blocker in blockers
