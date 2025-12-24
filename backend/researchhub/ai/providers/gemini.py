@@ -1,12 +1,21 @@
 """Google Gemini AI provider implementation."""
 
 import time
+import uuid
 from typing import AsyncIterator, List, Optional
 
 from google import genai
 from google.genai import types
 
-from researchhub.ai.providers.base import AIMessage, AIProvider, AIResponse
+from researchhub.ai.providers.base import (
+    AIMessage,
+    AIProvider,
+    AIResponse,
+    AIResponseWithTools,
+    ToolDefinition,
+    ToolResult,
+    ToolUse,
+)
 from researchhub.ai.exceptions import AIProviderError, AIRateLimitError
 
 
@@ -234,6 +243,144 @@ class GeminiProvider(AIProvider):
             async for chunk in stream:
                 if chunk.text:
                     yield chunk.text
+
+        except Exception as e:
+            error_str = str(e).lower()
+            if "rate" in error_str and "limit" in error_str:
+                raise AIRateLimitError(
+                    provider=self.provider_name,
+                    message=str(e),
+                    retry_after=None,
+                )
+            if "quota" in error_str or "429" in error_str:
+                raise AIRateLimitError(
+                    provider=self.provider_name,
+                    message=str(e),
+                    retry_after=None,
+                )
+            raise AIProviderError(
+                provider=self.provider_name,
+                message=str(e),
+                status_code=None,
+            )
+
+    async def complete_with_tools(
+        self,
+        messages: List[AIMessage],
+        tools: List[ToolDefinition],
+        tool_results: Optional[List[ToolResult]] = None,
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+    ) -> AIResponseWithTools:
+        """Generate a completion with tool calling support using Gemini.
+
+        Args:
+            messages: List of messages forming the conversation
+            tools: List of available tools the AI can call
+            tool_results: Results from previously requested tool calls
+            model: Model identifier (uses default if not specified)
+            temperature: Sampling temperature (0.0 to 1.0)
+            max_tokens: Maximum tokens to generate
+
+        Returns:
+            AIResponseWithTools containing text and/or tool use requests
+
+        Raises:
+            AIProviderError: If the Gemini API request fails
+            AIRateLimitError: If rate limited by Google
+        """
+        self._validate_messages(messages)
+
+        model = model or self._default_model
+        start_time = time.perf_counter()
+
+        system_instruction, contents = self._build_contents(messages)
+
+        # Convert ToolDefinition to Gemini function declarations
+        function_declarations = []
+        for tool in tools:
+            function_declarations.append({
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.input_schema,
+            })
+
+        # If we have tool results, add them to the contents
+        if tool_results:
+            for result in tool_results:
+                # Add the function response as a user message part
+                function_response_part = types.Part.from_function_response(
+                    name=result.tool_use_id.split("_")[0] if "_" in result.tool_use_id else result.tool_use_id,
+                    response={"result": result.content} if not isinstance(result.content, dict) else result.content,
+                )
+                contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[function_response_part],
+                    )
+                )
+
+        try:
+            # Build generation config with tools
+            gemini_tools = types.Tool(function_declarations=function_declarations)
+
+            generation_config = types.GenerateContentConfig(
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+                tools=[gemini_tools],
+            )
+
+            if system_instruction:
+                generation_config.system_instruction = system_instruction
+
+            # Create fresh client for each request
+            client = genai.Client(api_key=self._api_key)
+            response = await client.aio.models.generate_content(
+                model=model,
+                contents=contents,
+                config=generation_config,
+            )
+
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
+
+            # Extract token usage from response
+            usage = response.usage_metadata
+            input_tokens = usage.prompt_token_count if usage else 0
+            output_tokens = usage.candidates_token_count if usage else 0
+
+            # Get finish reason
+            finish_reason = "stop"
+            if response.candidates and response.candidates[0].finish_reason:
+                finish_reason = response.candidates[0].finish_reason.name.lower()
+
+            # Parse response content for text and function calls
+            text_content = ""
+            tool_uses = []
+
+            if response.candidates and response.candidates[0].content:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, 'text') and part.text:
+                        text_content += part.text
+                    elif hasattr(part, 'function_call') and part.function_call:
+                        fc = part.function_call
+                        # Generate a unique ID for this tool use (Gemini doesn't provide one)
+                        tool_use_id = f"{fc.name}_{uuid.uuid4().hex[:8]}"
+                        tool_uses.append(ToolUse(
+                            id=tool_use_id,
+                            name=fc.name,
+                            input=dict(fc.args) if fc.args else {},
+                        ))
+
+            return AIResponseWithTools(
+                content=text_content,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                finish_reason=finish_reason,
+                latency_ms=latency_ms,
+                tool_uses=tool_uses,
+            )
 
         except Exception as e:
             error_str = str(e).lower()

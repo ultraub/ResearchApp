@@ -6,6 +6,7 @@ from researchhub.api.v1 import (
     activities,
     ai,
     analytics,
+    assistant,
     auth,
     blockers,
     comment_reads,
@@ -50,5 +51,6 @@ router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 router.include_router(exports.router, prefix="/exports", tags=["Exports"])
 router.include_router(websocket.router, tags=["WebSocket"])
 router.include_router(ai.router, prefix="/ai", tags=["AI"])
+router.include_router(assistant.router, prefix="/assistant", tags=["AI Assistant"])
 router.include_router(reviews.router, prefix="/reviews", tags=["Reviews"])
 router.include_router(comment_reads.router, prefix="/comment-reads", tags=["Comment Reads"])

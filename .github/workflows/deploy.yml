@@ -65,6 +65,20 @@ jobs:
             export ECR_REGISTRY=$ECR_REGISTRY
             ./deploy.sh
 
+      - name: Sync system documentation
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ec2-user/app
+            source .env
+            # Copy docs to a location accessible by the container
+            docker cp docs/. pasteur-backend:/app/docs/
+            # Run sync script inside the container
+            docker exec pasteur-backend python -m researchhub.scripts.sync_system_docs /app/docs
+
       - name: Notify on failure
         if: failure()
         run: |

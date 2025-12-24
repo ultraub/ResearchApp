@@ -7,7 +7,7 @@ enabling provider-agnostic AI interactions throughout the application.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import AsyncIterator, List, Literal, Optional
+from typing import Any, AsyncIterator, List, Literal, Optional
 from uuid import UUID, uuid4
 
 
@@ -49,6 +49,73 @@ class AIResponse:
     def total_tokens(self) -> int:
         """Total tokens used (input + output)."""
         return self.input_tokens + self.output_tokens
+
+
+@dataclass
+class ToolDefinition:
+    """Definition of a tool that can be called by the AI.
+
+    Attributes:
+        name: Unique identifier for the tool
+        description: Human-readable description of what the tool does
+        input_schema: JSON Schema defining the tool's input parameters
+    """
+    name: str
+    description: str
+    input_schema: dict
+
+
+@dataclass
+class ToolUse:
+    """A tool use request from the AI.
+
+    Attributes:
+        id: Unique identifier for this tool use (for matching results)
+        name: Name of the tool being called
+        input: The input arguments for the tool
+    """
+    id: str
+    name: str
+    input: dict
+
+
+@dataclass
+class ToolResult:
+    """Result of executing a tool.
+
+    Attributes:
+        tool_use_id: ID of the ToolUse this is responding to
+        content: The result content (will be serialized to string/JSON)
+        is_error: Whether this result represents an error
+    """
+    tool_use_id: str
+    content: Any
+    is_error: bool = False
+
+
+@dataclass
+class AIResponseWithTools(AIResponse):
+    """Response from an AI provider that may include tool use requests.
+
+    Extends AIResponse to support tool calling workflows where the AI
+    may request to call tools rather than (or in addition to) generating text.
+
+    Attributes:
+        tool_uses: List of tool use requests from the AI
+    """
+    tool_uses: List[ToolUse] = field(default_factory=list)
+
+    @property
+    def has_tool_use(self) -> bool:
+        """Check if the response includes tool use requests."""
+        return len(self.tool_uses) > 0
+
+    @property
+    def stop_reason(self) -> str:
+        """Get the stop reason, accounting for tool use."""
+        if self.has_tool_use:
+            return "tool_use"
+        return self.finish_reason
 
 
 class AIProvider(ABC):
@@ -132,6 +199,38 @@ class AIProvider(ABC):
 
         Yields:
             String chunks of the generated response
+
+        Raises:
+            AIProviderError: If the provider request fails
+        """
+        pass
+
+    @abstractmethod
+    async def complete_with_tools(
+        self,
+        messages: List[AIMessage],
+        tools: List[ToolDefinition],
+        tool_results: Optional[List[ToolResult]] = None,
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+    ) -> "AIResponseWithTools":
+        """Generate a completion with tool calling support.
+
+        Enables the AI to request tool calls as part of its response.
+        The caller should execute the requested tools and pass results
+        back via tool_results in a subsequent call.
+
+        Args:
+            messages: List of messages forming the conversation
+            tools: List of available tools the AI can call
+            tool_results: Results from previously requested tool calls
+            model: Model identifier (uses default if not specified)
+            temperature: Sampling temperature (0.0 to 1.0)
+            max_tokens: Maximum tokens to generate
+
+        Returns:
+            AIResponseWithTools containing text and/or tool use requests
 
         Raises:
             AIProviderError: If the provider request fails

@@ -6,7 +6,15 @@ from typing import AsyncIterator, List, Optional
 import anthropic
 from anthropic import AsyncAnthropic
 
-from researchhub.ai.providers.base import AIMessage, AIProvider, AIResponse
+from researchhub.ai.providers.base import (
+    AIMessage,
+    AIProvider,
+    AIResponse,
+    AIResponseWithTools,
+    ToolDefinition,
+    ToolResult,
+    ToolUse,
+)
 from researchhub.ai.exceptions import AIProviderError, AIRateLimitError
 
 
@@ -201,6 +209,129 @@ class AnthropicProvider(AIProvider):
             async with self.client.messages.stream(**request_kwargs) as stream:
                 async for text in stream.text_stream:
                     yield text
+
+        except anthropic.RateLimitError as e:
+            raise AIRateLimitError(
+                provider=self.provider_name,
+                message=str(e),
+                retry_after=getattr(e, "retry_after", None),
+            )
+        except anthropic.APIError as e:
+            raise AIProviderError(
+                provider=self.provider_name,
+                message=str(e),
+                status_code=getattr(e, "status_code", None),
+            )
+
+    async def complete_with_tools(
+        self,
+        messages: List[AIMessage],
+        tools: List[ToolDefinition],
+        tool_results: Optional[List[ToolResult]] = None,
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+    ) -> AIResponseWithTools:
+        """Generate a completion with tool calling support using Claude.
+
+        Args:
+            messages: List of messages forming the conversation
+            tools: List of available tools the AI can call
+            tool_results: Results from previously requested tool calls
+            model: Model identifier (uses default if not specified)
+            temperature: Sampling temperature (0.0 to 1.0)
+            max_tokens: Maximum tokens to generate
+
+        Returns:
+            AIResponseWithTools containing text and/or tool use requests
+
+        Raises:
+            AIProviderError: If the Anthropic API request fails
+            AIRateLimitError: If rate limited by Anthropic
+        """
+        self._validate_messages(messages)
+
+        model = model or self._default_model
+        start_time = time.perf_counter()
+
+        # Separate system message from conversation messages
+        system_content = None
+        conversation_messages = []
+
+        for msg in messages:
+            if msg.role == "system":
+                system_content = msg.content
+            else:
+                conversation_messages.append({
+                    "role": msg.role,
+                    "content": msg.content,
+                })
+
+        # If we have tool results, add them to the conversation
+        if tool_results:
+            # Add a user message with tool_result blocks
+            tool_result_content = []
+            for result in tool_results:
+                tool_result_content.append({
+                    "type": "tool_result",
+                    "tool_use_id": result.tool_use_id,
+                    "content": str(result.content) if not isinstance(result.content, str) else result.content,
+                    "is_error": result.is_error,
+                })
+            conversation_messages.append({
+                "role": "user",
+                "content": tool_result_content,
+            })
+
+        # Convert tools to Anthropic format
+        anthropic_tools = []
+        for tool in tools:
+            anthropic_tools.append({
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": tool.input_schema,
+            })
+
+        try:
+            # Build request kwargs
+            request_kwargs = {
+                "model": model,
+                "messages": conversation_messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "tools": anthropic_tools,
+            }
+
+            if system_content:
+                request_kwargs["system"] = system_content
+
+            response = await self.client.messages.create(**request_kwargs)
+
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
+
+            # Parse response content
+            text_content = ""
+            tool_uses = []
+
+            for block in response.content:
+                if block.type == "text":
+                    text_content += block.text
+                elif block.type == "tool_use":
+                    tool_uses.append(ToolUse(
+                        id=block.id,
+                        name=block.name,
+                        input=block.input,
+                    ))
+
+            return AIResponseWithTools(
+                content=text_content,
+                model=model,
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                finish_reason=response.stop_reason or "stop",
+                latency_ms=latency_ms,
+                tool_uses=tool_uses,
+            )
 
         except anthropic.RateLimitError as e:
             raise AIRateLimitError(

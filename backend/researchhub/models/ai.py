@@ -283,6 +283,92 @@ class AIUsageLog(BaseModel):
         return f"<AIUsageLog {self.id} feature={self.feature_name} tokens={self.total_tokens}>"
 
 
+class AIPendingAction(BaseModel):
+    """Pending action from AI assistant awaiting user approval.
+
+    Stores proposed actions with old/new state for diff preview,
+    enabling users to review and approve/reject AI-suggested changes.
+    """
+
+    __tablename__ = "ai_pending_actions"
+
+    # Link to conversation
+    conversation_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("ai_conversations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    message_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("ai_conversation_messages.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Action details
+    tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    tool_input: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+    # Entity being modified
+    entity_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # task, blocker, document, comment, project
+    entity_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )  # None for creates
+
+    # State capture for diff preview
+    old_state: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    new_state: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+    # Human-readable description
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Status tracking
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending"
+    )  # pending, approved, rejected, executed, expired
+
+    # Approval tracking
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    rejected_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    executed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Result after execution
+    result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Expiry (actions expire after some time without approval)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    # Relationships
+    conversation: Mapped["AIConversation"] = relationship("AIConversation")
+    message: Mapped["AIConversationMessage | None"] = relationship(
+        "AIConversationMessage"
+    )
+
+    def __repr__(self) -> str:
+        return f"<AIPendingAction {self.id} tool={self.tool_name} status={self.status}>"
+
+    @property
+    def is_pending(self) -> bool:
+        """Check if action is still pending approval."""
+        return self.status == "pending"
+
+    @property
+    def is_expired(self) -> bool:
+        """Check if action has expired."""
+        return self.expires_at < datetime.now(self.expires_at.tzinfo)
+
+
 class AIOrganizationSettings(BaseModel):
     """AI-specific settings for an organization.
 

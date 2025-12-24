@@ -42,11 +42,11 @@ class Document(BaseModel):
     # Version tracking
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
-    # Project association
-    project_id: Mapped[UUID] = mapped_column(
+    # Project association (nullable for system docs)
+    project_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
@@ -88,8 +88,11 @@ class Document(BaseModel):
     # Archive flag
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # System documentation flag - hidden from users, accessible to AI assistant
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+
     # Relationships
-    project: Mapped["Project"] = relationship("Project")
+    project: Mapped["Project | None"] = relationship("Project")
     created_by: Mapped["User | None"] = relationship("User", foreign_keys=[created_by_id])
     last_edited_by: Mapped["User | None"] = relationship("User", foreign_keys=[last_edited_by_id])
     versions: Mapped[list["DocumentVersion"]] = relationship(

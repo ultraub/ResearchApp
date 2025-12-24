@@ -16,6 +16,7 @@ import { UserMenu } from "./UserMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import { BottomTabBar } from "./BottomTabBar";
 import { GlobalSearch } from "../search/GlobalSearch";
+import { AIChatBubble } from "../ai/chat-bubble/AIChatBubble";
 import { useTeams } from "@/hooks/useTeams";
 import { useOrganizationId } from "@/stores/organization";
 
@@ -108,6 +109,9 @@ export default function AppLayout() {
 
       {/* Mobile: Bottom tab bar */}
       <BottomTabBar className="md:hidden" />
+
+      {/* AI Assistant Chat Bubble */}
+      <AIChatBubble />
     </div>
   );
 }
