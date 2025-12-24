@@ -80,6 +80,7 @@ export async function* chatStream(
 
   const decoder = new TextDecoder();
   let buffer = '';
+  let currentEventType = 'text';
 
   try {
     while (true) {
@@ -87,24 +88,21 @@ export async function* chatStream(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
 
-      for (const line of lines) {
+      // Process complete lines
+      let newlineIndex;
+      while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 1);
+
         if (line.startsWith('event: ')) {
-          // Event type line - will be extracted when processing data
-          continue;
-        }
-
-        if (line.startsWith('data: ')) {
+          // Store the event type for the next data line
+          currentEventType = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
           const dataStr = line.slice(6);
           try {
             const data = JSON.parse(dataStr);
-            // Find the event type from previous lines
-            const eventLine = lines.find((l) => l.startsWith('event: '));
-            const eventType = eventLine ? eventLine.slice(7).trim() : 'text';
-
-            yield { event: eventType, data } as AssistantSSEEvent;
+            yield { event: currentEventType, data } as AssistantSSEEvent;
           } catch {
             // Skip invalid JSON
           }
