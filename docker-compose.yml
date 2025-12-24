@@ -52,7 +52,7 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - AI_PRIMARY_PROVIDER=${AI_PRIMARY_PROVIDER:-gemini}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3-flash-preview}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
     ports:
       - "8000:8000"

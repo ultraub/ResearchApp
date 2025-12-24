@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     azure_openai_api_key: SecretStr = SecretStr("")
     azure_openai_deployment: str = "gpt-4"
     gemini_api_key: SecretStr = SecretStr("")
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3-flash-preview"
 
     # Feature Flags
     feature_ai_enabled: bool = True

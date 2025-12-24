@@ -236,7 +236,7 @@ class AIProvider(ABC):
 |----------|--------|---------------|
 | Anthropic | `ANTHROPIC_API_KEY` | claude-3-5-sonnet-20241022 |
 | Azure OpenAI | `AZURE_OPENAI_*` | gpt-4 |
-| Google Gemini | `GEMINI_API_KEY` | gemini-2.5-flash |
+| Google Gemini | `GEMINI_API_KEY` | gemini-3-flash-preview |
 
 ### Provider Selection
 
@@ -280,7 +280,7 @@ AZURE_OPENAI_DEPLOYMENT=gpt-4
 
 # Google Gemini
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3-flash-preview
 
 # Rate Limiting
 RATE_LIMIT_AI_REQUESTS_PER_MINUTE=20
