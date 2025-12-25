@@ -2,12 +2,33 @@
  * WeeklyTimelineView - Visual 7-day timeline using SVAR React Gantt.
  */
 
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, Component, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Gantt, type GanttApi } from 'wx-react-gantt';
 import 'wx-react-gantt/dist/gantt.css';
 import { CalendarIcon } from '@heroicons/react/24/outline';
 import type { TaskSummary } from '@/types/dashboard';
+
+// Error boundary to catch Gantt chart errors on resize
+class GanttErrorBoundary extends Component<{ children: ReactNode; onError?: () => void }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch() {
+    // Reset after a short delay to allow re-render
+    setTimeout(() => this.setState({ hasError: false }), 100);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null; // Temporarily hide while recovering
+    }
+    return this.props.children;
+  }
+}
 
 interface WeeklyTimelineViewProps {
   tasks: TaskSummary[];
@@ -155,19 +176,21 @@ export function WeeklyTimelineView({ tasks, className }: WeeklyTimelineViewProps
 
         {/* Gantt Chart */}
         <div className="h-[300px] overflow-hidden rounded-lg border border-gray-200 dark:border-dark-border">
-          <Gantt
-            init={handleInit}
-            tasks={ganttTasks}
-            scales={scales}
-            start={start}
-            end={end}
-            cellWidth={100}
-            cellHeight={36}
-            readonly={true}
-            columns={[
-              { id: 'text', header: 'Task', width: 200 },
-            ]}
-          />
+          <GanttErrorBoundary>
+            <Gantt
+              init={handleInit}
+              tasks={ganttTasks}
+              scales={scales}
+              start={start}
+              end={end}
+              cellWidth={100}
+              cellHeight={36}
+              readonly={true}
+              columns={[
+                { id: 'text', header: 'Task', width: 200 },
+              ]}
+            />
+          </GanttErrorBoundary>
         </div>
       </div>
     </div>
