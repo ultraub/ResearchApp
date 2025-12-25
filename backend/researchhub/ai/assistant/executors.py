@@ -7,8 +7,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from researchhub.models.project import Blocker, Task, TaskComment, TaskDocument
+from researchhub.models.project import Blocker, Project, Task, TaskComment, TaskDocument
 from researchhub.models.document import Document, DocumentComment
+from researchhub.models.journal import JournalEntry, JournalEntryLink
 from researchhub.models.ai import AIPendingAction
 from researchhub.ai.assistant.queries.access import get_accessible_project_ids
 
@@ -52,6 +53,14 @@ class ActionExecutor:
             "update_document": self._execute_update_document,
             "link_document_to_task": self._execute_link_document_to_task,
             "add_comment": self._execute_add_comment,
+            # Project actions
+            "create_project": self._execute_create_project,
+            "update_project": self._execute_update_project,
+            "archive_project": self._execute_archive_project,
+            # Journal actions
+            "create_journal_entry": self._execute_create_journal_entry,
+            "update_journal_entry": self._execute_update_journal_entry,
+            "link_journal_entry": self._execute_link_journal_entry,
         }
 
         executor = executor_map.get(tool_name)
@@ -465,6 +474,300 @@ class ActionExecutor:
             }
         else:
             return {"success": False, "error": f"Unknown entity type: {target_type}"}
+
+    async def _execute_create_project(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute project creation."""
+        from datetime import date as date_type
+
+        # Create the project
+        project = Project(
+            name=input["name"],
+            description=input.get("description"),
+            project_type=input.get("project_type", "general"),
+            scope=input.get("scope", "PERSONAL"),
+            status="active",
+            owner_id=self.user_id,
+            organization_id=self.org_id,
+        )
+
+        if input.get("team_id"):
+            project.team_id = UUID(input["team_id"])
+
+        if input.get("parent_id"):
+            project.parent_id = UUID(input["parent_id"])
+
+        if input.get("start_date"):
+            project.start_date = date_type.fromisoformat(input["start_date"])
+
+        if input.get("target_end_date"):
+            project.target_end_date = date_type.fromisoformat(input["target_end_date"])
+
+        if input.get("color"):
+            project.color = input["color"]
+
+        if input.get("emoji"):
+            project.emoji = input["emoji"]
+
+        self.db.add(project)
+        await self.db.commit()
+        await self.db.refresh(project)
+
+        return {
+            "success": True,
+            "entity_type": "project",
+            "entity_id": str(project.id),
+            "message": f"Project '{project.name}' created successfully",
+        }
+
+    async def _execute_update_project(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute project update."""
+        from datetime import date as date_type
+
+        project_id = UUID(input["project_id"])
+        result = await self.db.execute(select(Project).where(Project.id == project_id))
+        project = result.scalar_one_or_none()
+
+        if not project:
+            return {"success": False, "error": "Project not found"}
+
+        # Verify access to the project
+        if not await self._verify_project_access(project_id):
+            return {"success": False, "error": "Access denied to project"}
+
+        # Update simple fields
+        simple_fields = ["name", "description", "status", "project_type", "color", "emoji"]
+        for field in simple_fields:
+            if field in input and input[field] is not None:
+                setattr(project, field, input[field])
+
+        # Handle date fields
+        if "start_date" in input and input["start_date"] is not None:
+            project.start_date = date_type.fromisoformat(input["start_date"])
+
+        if "target_end_date" in input and input["target_end_date"] is not None:
+            project.target_end_date = date_type.fromisoformat(input["target_end_date"])
+
+        await self.db.commit()
+
+        return {
+            "success": True,
+            "entity_type": "project",
+            "entity_id": str(project.id),
+            "message": f"Project '{project.name}' updated successfully",
+        }
+
+    async def _execute_archive_project(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute project archival."""
+        project_id = UUID(input["project_id"])
+        result = await self.db.execute(select(Project).where(Project.id == project_id))
+        project = result.scalar_one_or_none()
+
+        if not project:
+            return {"success": False, "error": "Project not found"}
+
+        # Verify access to the project
+        if not await self._verify_project_access(project_id):
+            return {"success": False, "error": "Access denied to project"}
+
+        project.status = "archived"
+        project.is_archived = True
+        await self.db.commit()
+
+        return {
+            "success": True,
+            "entity_type": "project",
+            "entity_id": str(project.id),
+            "message": f"Project '{project.name}' archived successfully",
+        }
+
+    async def _execute_create_journal_entry(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute journal entry creation."""
+        from datetime import date as date_type
+
+        scope = input.get("scope", "personal")
+        entry_date = input.get("entry_date")
+        if entry_date:
+            entry_date = date_type.fromisoformat(entry_date)
+        else:
+            entry_date = date_type.today()
+
+        # Validate project access for project-scope entries
+        if scope == "project":
+            if not input.get("project_id"):
+                return {"success": False, "error": "project_id is required for project-scope entries"}
+            project_id = UUID(input["project_id"])
+            if not await self._verify_project_access(project_id):
+                return {"success": False, "error": "Access denied to project"}
+
+        content_text = input["content_text"]
+
+        # Convert to TipTap/ProseMirror JSONB format
+        content = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": content_text}]
+                }
+            ]
+        }
+
+        entry = JournalEntry(
+            title=input.get("title") or f"Entry for {entry_date}",
+            content=content,
+            content_text=content_text,
+            entry_date=entry_date,
+            scope=scope,
+            entry_type=input.get("entry_type", "observation"),
+            word_count=len(content_text.split()),
+            user_id=self.user_id,
+            created_by_id=self.user_id,
+            organization_id=self.org_id,
+        )
+
+        if input.get("project_id"):
+            entry.project_id = UUID(input["project_id"])
+
+        if input.get("tags"):
+            entry.tags = input["tags"]
+
+        if input.get("mood"):
+            entry.mood = input["mood"]
+
+        self.db.add(entry)
+        await self.db.commit()
+        await self.db.refresh(entry)
+
+        return {
+            "success": True,
+            "entity_type": "journal_entry",
+            "entity_id": str(entry.id),
+            "message": f"Journal entry '{entry.title}' created successfully",
+        }
+
+    async def _execute_update_journal_entry(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute journal entry update."""
+        from datetime import date as date_type
+
+        entry_id = UUID(input["entry_id"])
+        result = await self.db.execute(select(JournalEntry).where(JournalEntry.id == entry_id))
+        entry = result.scalar_one_or_none()
+
+        if not entry:
+            return {"success": False, "error": "Journal entry not found"}
+
+        # Verify ownership or project access
+        if entry.user_id != self.user_id:
+            if entry.project_id and not await self._verify_project_access(entry.project_id):
+                return {"success": False, "error": "Access denied to journal entry"}
+
+        # Update simple fields
+        simple_fields = ["title", "entry_type", "tags", "mood", "is_pinned", "is_archived"]
+        for field in simple_fields:
+            if field in input and input[field] is not None:
+                setattr(entry, field, input[field])
+
+        # Handle entry_date
+        if "entry_date" in input and input["entry_date"] is not None:
+            entry.entry_date = date_type.fromisoformat(input["entry_date"])
+
+        # Handle content_text
+        if "content_text" in input and input["content_text"] is not None:
+            content_text = input["content_text"]
+            entry.content_text = content_text
+            entry.content = {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": content_text}]
+                    }
+                ]
+            }
+            entry.word_count = len(content_text.split())
+
+        await self.db.commit()
+
+        return {
+            "success": True,
+            "entity_type": "journal_entry",
+            "entity_id": str(entry.id),
+            "message": f"Journal entry '{entry.title}' updated successfully",
+        }
+
+    async def _execute_link_journal_entry(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute journal entry linking."""
+        entry_id = UUID(input["entry_id"])
+        linked_type = input["entity_type"]
+        linked_id = UUID(input["entity_id"])
+        link_type = input.get("link_type", "reference")
+
+        # Verify journal entry exists
+        entry_result = await self.db.execute(select(JournalEntry).where(JournalEntry.id == entry_id))
+        entry = entry_result.scalar_one_or_none()
+
+        if not entry:
+            return {"success": False, "error": "Journal entry not found"}
+
+        # Verify ownership or project access
+        if entry.user_id != self.user_id:
+            if entry.project_id and not await self._verify_project_access(entry.project_id):
+                return {"success": False, "error": "Access denied to journal entry"}
+
+        # Verify linked entity exists and is accessible
+        if linked_type == "project":
+            if not await self._verify_project_access(linked_id):
+                return {"success": False, "error": "Access denied to project"}
+        elif linked_type == "task":
+            task_result = await self.db.execute(select(Task).where(Task.id == linked_id))
+            task = task_result.scalar_one_or_none()
+            if not task:
+                return {"success": False, "error": "Task not found"}
+            if not await self._verify_project_access(task.project_id):
+                return {"success": False, "error": "Access denied to task's project"}
+        elif linked_type == "document":
+            doc_result = await self.db.execute(select(Document).where(Document.id == linked_id))
+            doc = doc_result.scalar_one_or_none()
+            if not doc:
+                return {"success": False, "error": "Document not found"}
+            if not await self._verify_project_access(doc.project_id):
+                return {"success": False, "error": "Access denied to document's project"}
+        else:
+            return {"success": False, "error": f"Unsupported entity type: {linked_type}"}
+
+        # Check for existing link
+        existing_link = await self.db.execute(
+            select(JournalEntryLink).where(
+                JournalEntryLink.journal_entry_id == entry_id,
+                JournalEntryLink.linked_entity_type == linked_type,
+                JournalEntryLink.linked_entity_id == linked_id,
+            )
+        )
+        if existing_link.scalar_one_or_none():
+            return {"success": False, "error": "Link already exists"}
+
+        # Create the link
+        link = JournalEntryLink(
+            journal_entry_id=entry_id,
+            linked_entity_type=linked_type,
+            linked_entity_id=linked_id,
+            link_type=link_type,
+            created_by_id=self.user_id,
+        )
+
+        if input.get("notes"):
+            link.notes = input["notes"]
+
+        self.db.add(link)
+        await self.db.commit()
+        await self.db.refresh(link)
+
+        return {
+            "success": True,
+            "entity_type": "journal_entry_link",
+            "entity_id": str(link.id),
+            "message": f"Journal entry linked to {linked_type} successfully",
+        }
 
 
 async def approve_action(
