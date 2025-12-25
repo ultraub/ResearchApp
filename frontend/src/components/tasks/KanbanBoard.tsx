@@ -109,23 +109,13 @@ export default function KanbanBoard({
     const columnEl = columnRefs.current.get(columnId);
     const board = boardRef.current;
     if (columnEl && board) {
-      // Disable scroll-snap during programmatic scroll
-      board.style.scrollSnapType = 'none';
-
-      // Also temporarily disable CSS scroll-smooth to use JS-controlled animation
+      // Instant scroll to exact position, then let scroll-snap + scroll-smooth
+      // handle the final snap animation. This is more reliable than trying
+      // to time when a smooth scroll animation completes.
       board.style.scrollBehavior = 'auto';
-
-      // Use scrollTo for reliable animation timing
-      board.scrollTo({ left: columnEl.offsetLeft, behavior: 'smooth' });
-
-      // Re-enable snap and CSS scroll-smooth after animation completes
-      // Use longer timeout for longer scroll distances
-      setTimeout(() => {
-        if (boardRef.current) {
-          boardRef.current.style.scrollSnapType = 'x mandatory';
-          boardRef.current.style.scrollBehavior = '';
-        }
-      }, 500);
+      board.scrollLeft = columnEl.offsetLeft;
+      // Restore smooth behavior for future scrolls
+      board.style.scrollBehavior = '';
     }
   }, []);
 
