@@ -157,15 +157,88 @@ For regular work (weekly reports, monthly reviews):
 
 ## Blockers
 
-When work is blocked:
+Blockers represent issues that prevent progress on tasks or projects. They're first-class entities with their own lifecycle, not just task properties.
 
-1. Create blocker linked to task
-2. Describe the issue and impact
-3. Assign someone to resolve
-4. Track resolution progress
-5. Link blocker to affected tasks
+### Blocker Structure
 
-See [Blockers](#blockers) section for details.
+| Field | Type | Description |
+|-------|------|-------------|
+| title | string | Brief description of the blocking issue |
+| description | TipTap JSON | Detailed explanation (rich text) |
+| status | string | open, in_progress, resolved, wont_fix |
+| priority | string | low, medium, high, urgent |
+| blocker_type | string | Type of blocker (see below) |
+| impact_level | string | low, medium, high, critical |
+| assignee_id | UUID | Person responsible for resolving |
+| resolution_type | string | How it was resolved (when done) |
+| resolution_notes | text | Explanation of resolution |
+
+### Blocker Types
+
+| Type | Use When |
+|------|----------|
+| **general** | Default, unspecified blocker |
+| **external_dependency** | Waiting on external party/vendor |
+| **resource** | Lack of people, equipment, or budget |
+| **technical** | Technical issue or limitation |
+| **approval** | Waiting for sign-off or decision |
+
+### Blocker Lifecycle
+
+```
+open → in_progress → resolved
+                   → wont_fix
+```
+
+### Resolution Types
+
+| Resolution | Meaning |
+|------------|---------|
+| **resolved** | Issue fixed, work can proceed |
+| **wont_fix** | Accepted as-is, workaround in place |
+| **deferred** | Postponed to later phase |
+| **duplicate** | Same as another blocker |
+
+### BlockerLink (Linking to Tasks/Projects)
+
+One blocker can block multiple tasks or projects via `BlockerLink`:
+
+| Field | Description |
+|-------|-------------|
+| blocker_id | The blocking issue |
+| blocked_entity_type | "task" or "project" |
+| blocked_entity_id | ID of blocked entity |
+| notes | Why this entity is blocked |
+
+### Blocker Workflow
+
+1. **Identify Block**
+   - Create blocker with title, description
+   - Set type, priority, and impact level
+   - Assign owner to resolve
+
+2. **Link to Affected Work**
+   - Connect blocker to blocked tasks/projects
+   - Tasks appear as "blocked" in views
+   - Blocked count shows on project dashboard
+
+3. **Work on Resolution**
+   - Move to in_progress when actively working
+   - Update description with progress notes
+   - Escalate if impact level increases
+
+4. **Resolve**
+   - Set resolution_type
+   - Add resolution_notes explaining fix
+   - Move to resolved
+   - Linked tasks auto-unblock
+
+### Impact on Task Views
+
+- Blocked tasks show blocker indicator
+- Dashboard shows "Open Blockers" count
+- Filter tasks by "has active blocker"
+- Blocker list shows all affected entities
 
 ## Document Links
 
@@ -183,22 +256,115 @@ Mark documents as "requires review" for review workflow integration.
 
 ## Custom Fields
 
-Projects can define custom fields for tasks:
+Projects can define custom fields to capture domain-specific data on tasks.
 
-**Field Types**:
-- Text: Free-form text
-- Number: Numeric value
-- Date: Date picker
-- Select: Single choice from options
-- Multi-select: Multiple choices
-- User: Team member picker
-- Checkbox: Yes/no
-- URL: Web link
+### ProjectCustomField Model
 
-**Example**: Clinical study project might add:
-- Patient ID (text)
+| Field | Type | Description |
+|-------|------|-------------|
+| project_id | UUID | Project owning this field |
+| name | string | Internal field name (unique per project) |
+| display_name | string | User-visible label |
+| description | text | Help text for users |
+| field_type | string | Type of field (see below) |
+| field_config | JSONB | Type-specific configuration |
+| applies_to | string[] | Entity types: ["task"] (extensible) |
+| is_required | boolean | Whether field is mandatory |
+| sort_order | int | Display order in forms |
+| is_active | boolean | Whether field is enabled |
+
+### Field Types
+
+| Type | field_config Options | Example |
+|------|---------------------|---------|
+| **text** | `max_length`, `placeholder` | Patient ID |
+| **number** | `min`, `max`, `precision` | Visit Number |
+| **date** | `min_date`, `max_date` | Study Start Date |
+| **select** | `options: [{value, label}]` | IRB Status |
+| **multi_select** | `options: [{value, label}]` | Lab Tests Ordered |
+| **user** | `allow_multiple` | Lab Technician |
+| **checkbox** | (none) | Consent Obtained |
+| **url** | `placeholder` | Protocol Link |
+
+### field_config Examples
+
+**Select Field**:
+```json
+{
+  "options": [
+    {"value": "pending", "label": "Pending Review"},
+    {"value": "approved", "label": "Approved"},
+    {"value": "rejected", "label": "Rejected"}
+  ]
+}
+```
+
+**Number Field**:
+```json
+{
+  "min": 0,
+  "max": 100,
+  "precision": 2
+}
+```
+
+### TaskCustomFieldValue Model
+
+Stores the actual values for tasks:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| task_id | UUID | Task with this value |
+| field_id | UUID | Custom field definition |
+| value | JSONB | Field value (type varies) |
+
+### Value Storage Format
+
+Values stored as JSONB to support all types:
+
+| Field Type | Value Format |
+|------------|--------------|
+| text | `{"v": "string value"}` |
+| number | `{"v": 42.5}` |
+| date | `{"v": "2024-01-15"}` |
+| select | `{"v": "option_value"}` |
+| multi_select | `{"v": ["opt1", "opt2"]}` |
+| user | `{"v": "user-uuid"}` |
+| checkbox | `{"v": true}` |
+| url | `{"v": "https://..."}` |
+
+### Custom Field Workflow
+
+1. **Define Fields** (Project Admin)
+   - Go to Project Settings → Custom Fields
+   - Add field with name, type, options
+   - Set whether required
+   - Arrange display order
+
+2. **Use Fields** (Team Members)
+   - Custom fields appear on task create/edit forms
+   - Fill in values as needed
+   - Values saved automatically
+
+3. **Filter & Search**
+   - Filter tasks by custom field values
+   - Group by select field values
+   - Sort by number/date fields
+
+### Use Case Examples
+
+**Clinical Study Project**:
+- Patient ID (text, required)
 - Visit Number (number)
-- IRB Approval Status (select)
+- Consent Status (select: pending, obtained, declined)
+- Lab Tests (multi_select: CBC, CMP, UA)
+- Principal Investigator (user)
+
+**Software Project**:
+- Sprint Number (number)
+- Component (select: frontend, backend, api, infra)
+- Story Points (number, precision: 0)
+- Reviewed By (user)
 
 ## Ideas to Tasks
 

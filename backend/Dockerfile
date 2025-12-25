@@ -13,6 +13,10 @@ RUN apt-get update && apt-get install -y \
 # Copy application code first (needed for install)
 COPY . .
 
+# Copy docs directory (will be copied from build context)
+# The docs are passed via --build-arg or copied in workflow
+COPY --chown=appuser:appuser docs/ /app/docs/
+
 # Install Python dependencies
 RUN pip install --no-cache-dir .
 

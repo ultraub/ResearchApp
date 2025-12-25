@@ -32,6 +32,8 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          # Copy docs into backend for Docker build context
+          cp -r docs backend/docs
           docker build -t $ECR_REGISTRY/pasteur-backend:$IMAGE_TAG -t $ECR_REGISTRY/pasteur-backend:latest ./backend
           docker push $ECR_REGISTRY/pasteur-backend:$IMAGE_TAG
           docker push $ECR_REGISTRY/pasteur-backend:latest
@@ -65,15 +67,6 @@ jobs:
             export ECR_REGISTRY=$ECR_REGISTRY
             ./deploy.sh
 
-      - name: Copy docs to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docs/*"
-          target: "/home/ec2-user/app/"
-
       - name: Sync system documentation
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -83,10 +76,7 @@ jobs:
           script: |
             cd /home/ec2-user/app
             source .env
-            # Create docs directory in container and copy files
-            docker exec pasteur-backend mkdir -p /app/docs
-            docker cp docs/. pasteur-backend:/app/docs/
-            # Run sync script inside the container
+            # Docs are now baked into the image at /app/docs
             docker exec pasteur-backend python -m researchhub.scripts.sync_system_docs --docs-dir /app/docs
 
       - name: Notify on failure

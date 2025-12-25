@@ -123,3 +123,6 @@ frontend/bun.lock
 frontend/package-lock.json
 backend/CLAUDE.md
 CLAUDE.md
+
+# CI-generated docs copy
+backend/docs/

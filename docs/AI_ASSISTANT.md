@@ -31,7 +31,20 @@ The assistant can propose changes, but **you must approve them** before they hap
 | **Assign Task** | Assign or reassign a task to a team member |
 | **Create Blocker** | Log a new blocker issue |
 | **Resolve Blocker** | Mark a blocker as resolved |
+| **Create Document** | Create a new document in a project |
+| **Update Document** | Change document title, status, or content |
+| **Link Document** | Link a document to a task as deliverable or reference |
 | **Add Comment** | Add a comment to a task or document |
+
+### System Knowledge (RAG)
+
+The assistant can query its own documentation to answer questions:
+
+| Capability | Examples |
+|------------|----------|
+| **Architecture** | "How does authentication work?", "What's the project access model?" |
+| **Data Models** | "What fields does a Task have?", "How are blockers structured?" |
+| **Features** | "How do sharing links work?", "What triggers notifications?" |
 
 ### How Action Approval Works
 
