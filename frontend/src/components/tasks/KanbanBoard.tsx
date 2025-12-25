@@ -109,9 +109,19 @@ export default function KanbanBoard({
     const columnEl = columnRefs.current.get(columnId);
     const board = boardRef.current;
     if (columnEl && board) {
+      // Disable scroll snap during programmatic scroll to prevent it from overriding
+      board.style.scrollSnapType = 'none';
+
       // Calculate the scroll position to bring the column to the left edge
       const columnLeft = columnEl.offsetLeft;
       board.scrollTo({ left: columnLeft, behavior: 'smooth' });
+
+      // Re-enable scroll snap after animation completes
+      setTimeout(() => {
+        if (boardRef.current) {
+          boardRef.current.style.scrollSnapType = 'x mandatory';
+        }
+      }, 500);
     }
   }, []);
 
@@ -154,10 +164,10 @@ export default function KanbanBoard({
   };
 
   return (
-    <div className="space-y-3">
-      {/* Navigation Pills - Hidden on mobile, sticky to top of board */}
+    <div className="flex flex-col">
+      {/* Navigation Pills - Hidden on mobile, sticky within board area */}
       <nav
-        className="hidden md:flex gap-2 overflow-x-auto pb-2 sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 -mx-1 px-1 py-2 -mt-2"
+        className="hidden md:flex gap-2 overflow-x-auto pb-2 sticky top-16 z-10 bg-white dark:bg-gray-900 py-2 -mx-2 px-2 border-b border-gray-100 dark:border-gray-800"
         aria-label="Board columns"
       >
         {columns.map((column) => {
@@ -194,7 +204,7 @@ export default function KanbanBoard({
       {/* Kanban Board */}
       <div
         ref={boardRef}
-        className="flex gap-4 overflow-x-auto pb-4 scroll-smooth"
+        className="flex gap-4 overflow-x-auto pb-4 pt-3 scroll-smooth"
         style={{ scrollSnapType: 'x mandatory' }}
       >
         {columns.map((column) => {
