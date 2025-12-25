@@ -69,7 +69,6 @@ export function DocumentList({
     queryKey: ["document-unread-counts", projectId],
     queryFn: () => getProjectDocumentUnreadCounts(projectId),
     enabled: !!projectId,
-    staleTime: 30000, // Cache for 30 seconds
   });
 
   // Helper to get unread info for a document

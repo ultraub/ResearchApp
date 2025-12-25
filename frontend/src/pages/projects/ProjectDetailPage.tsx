@@ -143,7 +143,6 @@ export default function ProjectDetailPage() {
     queryKey: ["task-unread-counts", projectId],
     queryFn: () => getProjectTaskUnreadCounts(projectId!),
     enabled: !!projectId,
-    staleTime: 30000, // Consider fresh for 30 seconds
   });
 
   // Transform to TaskUnreadInfo format for TaskCard

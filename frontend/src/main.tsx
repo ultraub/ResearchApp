@@ -13,7 +13,7 @@ initializeAuth();
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 30, // 30 seconds - balance freshness and performance
+      staleTime: 0, // Always fetch fresh - prevents stale data confusion during setup/collaboration
       retry: 1,
       refetchOnWindowFocus: true, // Refetch when user returns to app
     },

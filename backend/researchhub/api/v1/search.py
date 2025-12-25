@@ -5,13 +5,15 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
-from sqlalchemy import select, func, or_, and_, text
+from pydantic import BaseModel
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from researchhub.db.session import get_db
+from researchhub.api.deps import CurrentUser, get_db_session
 from researchhub.models import (
+    Blocker,
     Project,
+    Review,
     Task,
     Document,
     Idea,
@@ -20,7 +22,7 @@ from researchhub.models import (
     User,
     JournalEntry,
 )
-from researchhub.models.organization import Team
+from researchhub.models.organization import TeamMember, OrganizationMember
 
 router = APIRouter(tags=["search"])
 
@@ -30,7 +32,7 @@ router = APIRouter(tags=["search"])
 class SearchResultItem(BaseModel):
     """Individual search result."""
     id: UUID
-    type: str  # project, task, document, idea, paper, collection, user
+    type: str  # project, task, document, idea, paper, collection, user, journal, blocker, review
     title: str
     description: str | None = None
     snippet: str | None = None  # Highlighted text snippet
@@ -63,11 +65,12 @@ class SearchSuggestion(BaseModel):
 
 @router.get("", response_model=SearchResponse)
 async def global_search(
+    current_user: CurrentUser,
     q: str = Query(..., min_length=1, description="Search query"),
-    organization_id: UUID = Query(...),
+    organization_id: UUID = Query(...),  # Kept for backward compatibility / filtering
     types: list[str] | None = Query(
         None,
-        description="Filter by content types: project, task, document, idea, paper, collection, user, journal"
+        description="Filter by content types: project, task, document, idea, paper, collection, user, journal, blocker, review"
     ),
     project_id: UUID | None = Query(None, description="Filter by project"),
     created_after: datetime | None = Query(None),
@@ -75,26 +78,43 @@ async def global_search(
     sort_by: Literal["relevance", "created_at", "updated_at"] = Query("relevance"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_session),
 ):
     """
     Global search across all content types.
 
-    Searches projects, tasks, documents, ideas, papers, collections, and users.
-    Results are ranked by relevance and filtered by organization.
+    Searches projects, tasks, documents, ideas, papers, collections, users,
+    journal entries, blockers, and reviews.
+    Results are ranked by relevance and filtered by user's accessible content.
     """
     search_term = f"%{q.lower()}%"
     results: list[SearchResultItem] = []
 
-    # Determine which types to search
-    search_types = types or ["project", "task", "document", "idea", "paper", "collection", "user", "journal"]
+    # Get user's team memberships (includes personal teams)
+    team_result = await db.execute(
+        select(TeamMember.team_id).where(TeamMember.user_id == current_user.id)
+    )
+    user_team_ids = [row[0] for row in team_result.all()]
 
-    # Search Projects (join through Team to get organization_id)
-    if "project" in search_types:
+    # Get user's organization memberships (for user search scoping)
+    org_result = await db.execute(
+        select(OrganizationMember.organization_id)
+        .where(OrganizationMember.user_id == current_user.id)
+    )
+    user_org_ids = [row[0] for row in org_result.all()]
+
+    # Determine which types to search
+    search_types = types or [
+        "project", "task", "document", "idea", "paper",
+        "collection", "user", "journal", "blocker", "review"
+    ]
+
+    # Search Projects - use team membership for access control
+    if "project" in search_types and user_team_ids:
         project_query = (
             select(Project)
-            .join(Team, Project.team_id == Team.id)
-            .where(Team.organization_id == organization_id)
+            .where(Project.team_id.in_(user_team_ids))
+            .where(Project.is_archived == False)
             .where(
                 or_(
                     func.lower(Project.name).like(search_term),
@@ -120,18 +140,17 @@ async def global_search(
                 updated_at=project.updated_at,
                 metadata={
                     "status": project.status,
-                    "visibility": project.visibility,
+                    "scope": project.scope,
                 },
             ))
 
-    # Search Tasks (scoped to organization via project -> team)
+    # Search Tasks - use team membership via project for access control
     # Note: Task.description is JSONB (TipTap format), so we only search title
-    if "task" in search_types:
+    if "task" in search_types and user_team_ids:
         task_query = (
             select(Task)
             .join(Project, Task.project_id == Project.id)
-            .join(Team, Project.team_id == Team.id)
-            .where(Team.organization_id == organization_id)
+            .where(Project.team_id.in_(user_team_ids))
             .where(func.lower(Task.title).like(search_term))
         )
         if project_id:
@@ -143,7 +162,6 @@ async def global_search(
 
         task_results = await db.execute(task_query)
         for task in task_results.scalars().all():
-            # Task description is JSONB (TipTap format), not searchable text
             results.append(SearchResultItem(
                 id=task.id,
                 type="task",
@@ -160,13 +178,12 @@ async def global_search(
                 },
             ))
 
-    # Search Documents (join through Project -> Team to get organization_id)
-    if "document" in search_types:
+    # Search Documents - use team membership via project for access control
+    if "document" in search_types and user_team_ids:
         doc_query = (
             select(Document)
             .join(Project, Document.project_id == Project.id)
-            .join(Team, Project.team_id == Team.id)
-            .where(Team.organization_id == organization_id)
+            .where(Project.team_id.in_(user_team_ids))
             .where(
                 or_(
                     func.lower(Document.title).like(search_term),
@@ -198,11 +215,86 @@ async def global_search(
                 },
             ))
 
-    # Search Ideas (Idea model has 'content' not 'description')
-    if "idea" in search_types:
+    # Search Blockers - use team membership via project for access control
+    if "blocker" in search_types and user_team_ids:
+        blocker_query = (
+            select(Blocker)
+            .join(Project, Blocker.project_id == Project.id)
+            .where(Project.team_id.in_(user_team_ids))
+            .where(func.lower(Blocker.title).like(search_term))
+        )
+        if project_id:
+            blocker_query = blocker_query.where(Blocker.project_id == project_id)
+        if created_after:
+            blocker_query = blocker_query.where(Blocker.created_at >= created_after)
+        if created_before:
+            blocker_query = blocker_query.where(Blocker.created_at <= created_before)
+
+        blocker_results = await db.execute(blocker_query)
+        for blocker in blocker_results.scalars().all():
+            results.append(SearchResultItem(
+                id=blocker.id,
+                type="blocker",
+                title=blocker.title,
+                description=None,  # JSONB can't be displayed as string
+                snippet=None,
+                url=f"/projects/{blocker.project_id}/blockers/{blocker.id}",
+                created_at=blocker.created_at,
+                updated_at=blocker.updated_at,
+                metadata={
+                    "status": blocker.status,
+                    "priority": blocker.priority,
+                    "blocker_type": blocker.blocker_type,
+                    "impact_level": blocker.impact_level,
+                    "project_id": str(blocker.project_id),
+                },
+            ))
+
+    # Search Reviews - use team membership via project for access control
+    if "review" in search_types and user_team_ids:
+        review_query = (
+            select(Review)
+            .join(Project, Review.project_id == Project.id)
+            .where(Project.team_id.in_(user_team_ids))
+            .where(
+                or_(
+                    func.lower(Review.title).like(search_term),
+                    func.lower(Review.description).like(search_term),
+                )
+            )
+        )
+        if project_id:
+            review_query = review_query.where(Review.project_id == project_id)
+        if created_after:
+            review_query = review_query.where(Review.created_at >= created_after)
+        if created_before:
+            review_query = review_query.where(Review.created_at <= created_before)
+
+        review_results = await db.execute(review_query)
+        for review in review_results.scalars().all():
+            results.append(SearchResultItem(
+                id=review.id,
+                type="review",
+                title=review.title,
+                description=review.description[:200] if review.description else None,
+                snippet=_get_snippet(review.description, q) if review.description else None,
+                url=f"/reviews/{review.id}",
+                created_at=review.created_at,
+                updated_at=review.updated_at,
+                metadata={
+                    "status": review.status,
+                    "priority": review.priority,
+                    "review_type": review.review_type,
+                    "project_id": str(review.project_id),
+                    "document_id": str(review.document_id),
+                },
+            ))
+
+    # Search Ideas - these have organization_id directly
+    if "idea" in search_types and user_org_ids:
         idea_query = (
             select(Idea)
-            .where(Idea.organization_id == organization_id)
+            .where(Idea.organization_id.in_(user_org_ids))
             .where(
                 or_(
                     func.lower(Idea.title).like(search_term),
@@ -232,12 +324,12 @@ async def global_search(
                 },
             ))
 
-    # Search Papers
+    # Search Papers - these have organization_id directly
     # Note: Paper.authors is ARRAY type, can't use .like() - only search title and abstract
-    if "paper" in search_types:
+    if "paper" in search_types and user_org_ids:
         paper_query = (
             select(Paper)
-            .where(Paper.organization_id == organization_id)
+            .where(Paper.organization_id.in_(user_org_ids))
             .where(
                 or_(
                     func.lower(Paper.title).like(search_term),
@@ -268,11 +360,11 @@ async def global_search(
                 },
             ))
 
-    # Search Collections
-    if "collection" in search_types:
+    # Search Collections - these have organization_id directly
+    if "collection" in search_types and user_org_ids:
         coll_query = (
             select(Collection)
-            .where(Collection.organization_id == organization_id)
+            .where(Collection.organization_id.in_(user_org_ids))
             .where(
                 or_(
                     func.lower(Collection.name).like(search_term),
@@ -301,16 +393,20 @@ async def global_search(
                 },
             ))
 
-    # Search Users
-    if "user" in search_types:
+    # Search Users - scoped to users in same organizations (security fix)
+    if "user" in search_types and user_org_ids:
+        # Get users who are members of organizations the current user belongs to
         user_query = (
             select(User)
+            .join(OrganizationMember, User.id == OrganizationMember.user_id)
+            .where(OrganizationMember.organization_id.in_(user_org_ids))
             .where(
                 or_(
                     func.lower(User.email).like(search_term),
                     func.lower(User.display_name).like(search_term),
                 )
             )
+            .distinct()  # User might be in multiple orgs
         )
 
         user_results = await db.execute(user_query)
@@ -329,11 +425,11 @@ async def global_search(
                 },
             ))
 
-    # Search Journal Entries
-    if "journal" in search_types:
+    # Search Journal Entries - these have organization_id directly
+    if "journal" in search_types and user_org_ids:
         journal_query = (
             select(JournalEntry)
-            .where(JournalEntry.organization_id == organization_id)
+            .where(JournalEntry.organization_id.in_(user_org_ids))
             .where(JournalEntry.is_archived == False)
             .where(
                 or_(
@@ -407,10 +503,11 @@ async def global_search(
 
 @router.get("/suggestions", response_model=list[SearchSuggestion])
 async def search_suggestions(
+    current_user: CurrentUser,
     q: str = Query(..., min_length=1),
-    organization_id: UUID = Query(...),
+    organization_id: UUID = Query(...),  # Kept for backward compatibility
     limit: int = Query(10, ge=1, le=20),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_session),
 ):
     """
     Get search autocomplete suggestions.
@@ -420,89 +517,157 @@ async def search_suggestions(
     search_term = f"{q.lower()}%"
     suggestions: list[SearchSuggestion] = []
 
-    # Get project name suggestions (Project -> Team -> organization_id)
-    project_query = (
-        select(Project.id, Project.name)
-        .join(Team, Project.team_id == Team.id)
-        .where(Team.organization_id == organization_id)
-        .where(func.lower(Project.name).like(search_term))
-        .limit(3)
+    # Get user's team memberships (includes personal teams)
+    team_result = await db.execute(
+        select(TeamMember.team_id).where(TeamMember.user_id == current_user.id)
     )
-    project_results = await db.execute(project_query)
-    for row in project_results.all():
-        suggestions.append(SearchSuggestion(
-            text=row.name,
-            type="project",
-            id=row.id,
-        ))
+    user_team_ids = [row[0] for row in team_result.all()]
 
-    # Get document title suggestions (Document -> Project -> Team -> organization_id)
-    doc_query = (
-        select(Document.id, Document.title)
-        .join(Project, Document.project_id == Project.id)
-        .join(Team, Project.team_id == Team.id)
-        .where(Team.organization_id == organization_id)
-        .where(func.lower(Document.title).like(search_term))
-        .limit(3)
+    # Get user's organization memberships
+    org_result = await db.execute(
+        select(OrganizationMember.organization_id)
+        .where(OrganizationMember.user_id == current_user.id)
     )
-    doc_results = await db.execute(doc_query)
-    for row in doc_results.all():
-        suggestions.append(SearchSuggestion(
-            text=row.title,
-            type="document",
-            id=row.id,
-        ))
+    user_org_ids = [row[0] for row in org_result.all()]
 
-    # Get idea suggestions (title can be null, also search content)
-    idea_query = (
-        select(Idea.id, Idea.title, Idea.content)
-        .where(Idea.organization_id == organization_id)
-        .where(
-            or_(
-                func.lower(Idea.title).like(search_term),
-                func.lower(Idea.content).like(search_term),
-            )
+    # Get project name suggestions - use team membership
+    if user_team_ids:
+        project_query = (
+            select(Project.id, Project.name)
+            .where(Project.team_id.in_(user_team_ids))
+            .where(Project.is_archived == False)
+            .where(func.lower(Project.name).like(search_term))
+            .limit(3)
         )
-        .limit(2)
-    )
-    idea_results = await db.execute(idea_query)
-    for row in idea_results.all():
-        suggestions.append(SearchSuggestion(
-            text=row.title or row.content[:50],  # Fallback to content start if no title
-            type="idea",
-            id=row.id,
-        ))
+        project_results = await db.execute(project_query)
+        for row in project_results.all():
+            suggestions.append(SearchSuggestion(
+                text=row.name,
+                type="project",
+                id=row.id,
+            ))
 
-    # Get paper title suggestions
-    paper_query = (
-        select(Paper.id, Paper.title)
-        .where(Paper.organization_id == organization_id)
-        .where(func.lower(Paper.title).like(search_term))
-        .limit(2)
-    )
-    paper_results = await db.execute(paper_query)
-    for row in paper_results.all():
-        suggestions.append(SearchSuggestion(
-            text=row.title,
-            type="paper",
-            id=row.id,
-        ))
+    # Get task title suggestions - use team membership via project
+    if user_team_ids:
+        task_query = (
+            select(Task.id, Task.title)
+            .join(Project, Task.project_id == Project.id)
+            .where(Project.team_id.in_(user_team_ids))
+            .where(func.lower(Task.title).like(search_term))
+            .limit(3)
+        )
+        task_results = await db.execute(task_query)
+        for row in task_results.all():
+            suggestions.append(SearchSuggestion(
+                text=row.title,
+                type="task",
+                id=row.id,
+            ))
 
-    # Get journal entry title suggestions
-    journal_query = (
-        select(JournalEntry.id, JournalEntry.title, JournalEntry.entry_date)
-        .where(JournalEntry.organization_id == organization_id)
-        .where(JournalEntry.is_archived == False)
-        .where(func.lower(JournalEntry.title).like(search_term))
-        .limit(2)
-    )
-    journal_results = await db.execute(journal_query)
-    for row in journal_results.all():
-        suggestions.append(SearchSuggestion(
-            text=row.title or f"Journal Entry - {row.entry_date.isoformat()}",
-            type="journal",
-            id=row.id,
-        ))
+    # Get document title suggestions - use team membership via project
+    if user_team_ids:
+        doc_query = (
+            select(Document.id, Document.title)
+            .join(Project, Document.project_id == Project.id)
+            .where(Project.team_id.in_(user_team_ids))
+            .where(func.lower(Document.title).like(search_term))
+            .limit(3)
+        )
+        doc_results = await db.execute(doc_query)
+        for row in doc_results.all():
+            suggestions.append(SearchSuggestion(
+                text=row.title,
+                type="document",
+                id=row.id,
+            ))
+
+    # Get blocker title suggestions - use team membership via project
+    if user_team_ids:
+        blocker_query = (
+            select(Blocker.id, Blocker.title)
+            .join(Project, Blocker.project_id == Project.id)
+            .where(Project.team_id.in_(user_team_ids))
+            .where(func.lower(Blocker.title).like(search_term))
+            .limit(2)
+        )
+        blocker_results = await db.execute(blocker_query)
+        for row in blocker_results.all():
+            suggestions.append(SearchSuggestion(
+                text=row.title,
+                type="blocker",
+                id=row.id,
+            ))
+
+    # Get review title suggestions - use team membership via project
+    if user_team_ids:
+        review_query = (
+            select(Review.id, Review.title)
+            .join(Project, Review.project_id == Project.id)
+            .where(Project.team_id.in_(user_team_ids))
+            .where(func.lower(Review.title).like(search_term))
+            .limit(2)
+        )
+        review_results = await db.execute(review_query)
+        for row in review_results.all():
+            suggestions.append(SearchSuggestion(
+                text=row.title,
+                type="review",
+                id=row.id,
+            ))
+
+    # Get idea suggestions - use organization membership
+    if user_org_ids:
+        idea_query = (
+            select(Idea.id, Idea.title, Idea.content)
+            .where(Idea.organization_id.in_(user_org_ids))
+            .where(
+                or_(
+                    func.lower(Idea.title).like(search_term),
+                    func.lower(Idea.content).like(search_term),
+                )
+            )
+            .limit(2)
+        )
+        idea_results = await db.execute(idea_query)
+        for row in idea_results.all():
+            suggestions.append(SearchSuggestion(
+                text=row.title or row.content[:50],  # Fallback to content start if no title
+                type="idea",
+                id=row.id,
+            ))
+
+    # Get paper title suggestions - use organization membership
+    if user_org_ids:
+        paper_query = (
+            select(Paper.id, Paper.title)
+            .where(Paper.organization_id.in_(user_org_ids))
+            .where(func.lower(Paper.title).like(search_term))
+            .limit(2)
+        )
+        paper_results = await db.execute(paper_query)
+        for row in paper_results.all():
+            suggestions.append(SearchSuggestion(
+                text=row.title,
+                type="paper",
+                id=row.id,
+            ))
+
+    # Get journal entry title suggestions - use organization membership
+    if user_org_ids:
+        journal_query = (
+            select(JournalEntry.id, JournalEntry.title, JournalEntry.entry_date)
+            .where(JournalEntry.organization_id.in_(user_org_ids))
+            .where(JournalEntry.is_archived == False)
+            .where(func.lower(JournalEntry.title).like(search_term))
+            .limit(2)
+        )
+        journal_results = await db.execute(journal_query)
+        for row in journal_results.all():
+            suggestions.append(SearchSuggestion(
+                text=row.title or f"Journal Entry - {row.entry_date.isoformat()}",
+                type="journal",
+                id=row.id,
+            ))
 
     return suggestions[:limit]
 

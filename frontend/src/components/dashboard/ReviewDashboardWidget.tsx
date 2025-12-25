@@ -25,14 +25,12 @@ export function ReviewDashboardWidget({ className }: ReviewDashboardWidgetProps)
   const { data: assignments, isLoading: assignmentsLoading } = useQuery({
     queryKey: ['my-assignments', 'pending'],
     queryFn: () => reviewService.getMyAssignments({ status: 'pending' }),
-    staleTime: 30000,
   });
 
   // Fetch reviews assigned to me to get AI suggestion counts
   const { data: reviewsData, isLoading: reviewsLoading } = useQuery({
     queryKey: ['reviews', 'assigned_to_me'],
     queryFn: () => reviewService.listReviews({ assigned_to_me: true, status: 'pending' }),
-    staleTime: 30000,
   });
 
   const isLoading = assignmentsLoading || reviewsLoading;

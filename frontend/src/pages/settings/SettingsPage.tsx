@@ -195,6 +195,7 @@ function NotificationSettings() {
   const { data: preferences, isLoading } = useQuery({
     queryKey: ['user-preferences'],
     queryFn: () => usersApi.getPreferences(),
+    staleTime: 5 * 60 * 1000, // 5 min - user settings rarely change
   });
 
   const updatePreferencesMutation = useMutation({
@@ -411,6 +412,7 @@ function AppearanceSettings() {
   const { data: preferences, isLoading } = useQuery({
     queryKey: ['user-preferences'],
     queryFn: () => usersApi.getPreferences(),
+    staleTime: 5 * 60 * 1000, // 5 min - user settings rarely change
   });
 
   const updatePreferencesMutation = useMutation({
@@ -817,6 +819,7 @@ function AIFeaturesSettings() {
   const { data: config, isLoading, error } = useQuery({
     queryKey: ['auto-review-config'],
     queryFn: () => aiService.getAutoReviewConfig(),
+    staleTime: 5 * 60 * 1000, // 5 min - config rarely changes
   });
 
   const updateMutation = useMutation({

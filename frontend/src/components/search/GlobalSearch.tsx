@@ -20,6 +20,8 @@ import {
   Command,
   PenSquare,
   Plus,
+  AlertTriangle,
+  ClipboardCheck,
 } from 'lucide-react';
 import { searchApi, type SearchResultItem } from '../../services/search';
 
@@ -36,10 +38,12 @@ const typeIcons: Record<string, typeof FileText> = {
   collection: FolderOpen,
   user: User,
   journal: PenSquare,
+  blocker: AlertTriangle,
+  review: ClipboardCheck,
 };
 
 // Primary types shown in filter bar
-const primaryTypes = ['project', 'task', 'document', 'idea', 'paper', 'journal'];
+const primaryTypes = ['project', 'task', 'document', 'idea', 'paper', 'journal', 'blocker', 'review'];
 
 const typeColors: Record<string, string> = {
   project: 'text-primary-600 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-400',
@@ -50,6 +54,8 @@ const typeColors: Record<string, string> = {
   collection: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400',
   user: 'text-gray-600 bg-gray-100 dark:bg-gray-800/50 dark:text-gray-400',
   journal: 'text-teal-600 bg-teal-50 dark:bg-teal-900/30 dark:text-teal-400',
+  blocker: 'text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-400',
+  review: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-900/30 dark:text-cyan-400',
 };
 
 const typeLabels: Record<string, string> = {
@@ -61,6 +67,8 @@ const typeLabels: Record<string, string> = {
   collection: 'Collections',
   user: 'Users',
   journal: 'Journals',
+  blocker: 'Blockers',
+  review: 'Reviews',
 };
 
 function SearchResultItemComponent({

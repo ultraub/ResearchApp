@@ -69,7 +69,6 @@ export default function HierarchicalProjectRow({
   const { data: reviewSummary } = useQuery({
     queryKey: ["project", project.id, "review-summary"],
     queryFn: () => projectsService.getReviewSummary(project.id),
-    staleTime: 30000, // Cache for 30 seconds
   });
 
   // Calculate active task count

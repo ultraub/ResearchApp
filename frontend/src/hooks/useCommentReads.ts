@@ -68,7 +68,6 @@ export function useCommentReads({
         comment_ids: commentIds,
       }),
     enabled: enabled && commentIds.length > 0,
-    staleTime: 30000, // Consider fresh for 30 seconds
   });
 
   // Create a map for easy lookup

@@ -104,7 +104,6 @@ export function GroupedProjectList({
     queryKey: ["dashboard-analytics", organization?.id],
     queryFn: () => analyticsApi.getDashboard(organization!.id),
     enabled: !!organization?.id,
-    staleTime: 30000,
   });
 
   // Create attention map

@@ -333,7 +333,6 @@ export default function ProjectsPage() {
     queryKey: ["dashboard-analytics", organization?.id],
     queryFn: () => analyticsApi.getDashboard(organization!.id),
     enabled: !!organization?.id && viewMode === "grid",
-    staleTime: 30000, // Cache for 30 seconds
   });
 
   // Create lookup map for project attention info

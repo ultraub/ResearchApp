@@ -6,7 +6,7 @@ import { api } from './api';
 
 export interface SearchResultItem {
   id: string;
-  type: 'project' | 'task' | 'document' | 'idea' | 'paper' | 'collection' | 'user' | 'journal';
+  type: 'project' | 'task' | 'document' | 'idea' | 'paper' | 'collection' | 'user' | 'journal' | 'blocker' | 'review';
   title: string;
   description: string | null;
   snippet: string | null;

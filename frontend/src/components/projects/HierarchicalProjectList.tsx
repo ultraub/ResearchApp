@@ -112,7 +112,6 @@ export default function HierarchicalProjectList({
     queryKey: ["dashboard-analytics", organization?.id],
     queryFn: () => analyticsApi.getDashboard(organization!.id),
     enabled: !!organization?.id,
-    staleTime: 30000, // Cache for 30 seconds
   });
 
   // Create lookup map for project attention info

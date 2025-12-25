@@ -23,7 +23,6 @@ export function useTeams() {
       const response = await api.get<Team[]>("/organizations/my/teams");
       return response.data || [];
     },
-    staleTime: 0, // Always refetch teams for real-time feel
   });
 
   // Fetch organizations (for setting current org)
@@ -33,7 +32,6 @@ export function useTeams() {
       const response = await api.get<{ id: string; name: string; slug: string; logo_url: string | null }[]>("/organizations/");
       return response.data || [];
     },
-    staleTime: 1000 * 60, // Organizations change less frequently
   });
 
   // Sync teams to Zustand when data changes

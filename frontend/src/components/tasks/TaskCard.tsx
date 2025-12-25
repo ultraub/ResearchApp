@@ -98,7 +98,6 @@ function BlockerHoverIndicator({
     queryKey: ["task-attention", task.id],
     queryFn: () => tasksService.getAttentionDetails(task.id),
     enabled: shouldFetch,
-    staleTime: 30000,
   });
 
   const trigger = (
@@ -190,7 +189,6 @@ function CommentHoverIndicator({
     queryKey: ["task-attention", taskId],
     queryFn: () => tasksService.getAttentionDetails(taskId),
     enabled: shouldFetch,
-    staleTime: 30000,
   });
 
   const hasUnread = unreadCount > 0;

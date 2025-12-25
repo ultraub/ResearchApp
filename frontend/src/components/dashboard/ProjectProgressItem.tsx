@@ -83,7 +83,6 @@ function BlockerIndicator({
     queryKey: ["project-attention", projectId],
     queryFn: () => analyticsApi.getProjectAttentionDetails(projectId),
     enabled: shouldFetch,
-    staleTime: 30000,
   });
 
   const impactKey = (maxImpact || "medium") as keyof typeof IMPACT_COLORS;
@@ -179,7 +178,6 @@ function CommentIndicator({
     queryKey: ["project-attention", projectId],
     queryFn: () => analyticsApi.getProjectAttentionDetails(projectId),
     enabled: shouldFetch,
-    staleTime: 30000,
   });
 
   const hasUnread = unreadCount > 0;

@@ -139,7 +139,6 @@ export default function InlineTaskList({
   const { data: taskBlockerInfo } = useQuery({
     queryKey: ["project", projectId, "task-blocker-info"],
     queryFn: () => blockersService.getTaskBlockerInfo(projectId),
-    staleTime: 30000, // Cache for 30 seconds
   });
 
   // Combine active tasks (exclude done) and sort by urgency

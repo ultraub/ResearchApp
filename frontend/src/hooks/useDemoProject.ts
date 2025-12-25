@@ -21,7 +21,7 @@ export function useDemoProject() {
   const { data: preferences, isLoading: isLoadingPreferences } = useQuery({
     queryKey: USER_PREFERENCES_KEY,
     queryFn: usersApi.getPreferences,
-    staleTime: 1000 * 60, // Cache for 1 minute
+    staleTime: 5 * 60 * 1000, // 5 min - user settings rarely change
   });
 
   // Check if demo is hidden
