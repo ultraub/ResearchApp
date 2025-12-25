@@ -229,13 +229,40 @@ Common filter patterns for dynamic_query:
 - due_before/due_after: date filtering
 - exclude_done: true - hide completed items
 
-## Tool Usage Efficiency
-- Most requests need only 1-3 tool calls. Avoid excessive querying.
-- After gathering relevant information, immediately synthesize and respond to the user.
-- Don't keep gathering data if you already have enough to provide a helpful answer.
-- Prefer giving a good answer with available data over exhaustive data collection.
-- If you've already queried similar information, use what you have rather than re-querying.
-- Always aim to respond within 2-4 tool calls for typical requests."""
+## Planning Phase (REQUIRED)
+
+Before calling ANY tools, you MUST briefly plan your approach. This is critical for efficiency.
+
+**Step 1: Analyze the Request**
+- What is the user actually asking for?
+- What specific information would answer their question?
+
+**Step 2: Plan Your Approach (1-2 sentences)**
+Think: "To answer this, I need [X]. The most direct way to get it is [tool/approach]."
+
+**Step 3: Choose the Right Tool**
+Tool selection heuristics (in order of preference):
+- **Relationships between entities** (user↔projects, shared projects, who works on what) → `dynamic_query` on membership tables (project_members, team_members) with filters
+- **Cross-entity queries** (tasks across projects, items by multiple criteria) → `dynamic_query` with filters
+- **Finding by name/keyword** → `search_content` (searches across all entity types)
+- **Specific entity details** → `get_project_details`, `get_task_details`, etc.
+- **Listing with simple filters** → `get_projects`, `get_tasks` with status/assignee filters
+- **AVOID**: Iterating through lists with multiple calls. If you find yourself wanting to call the same tool repeatedly for different items, STOP and use `dynamic_query` instead.
+
+**Step 4: Execute with Budget Awareness**
+- You have a budget of ~6 tool calls. Most requests need only 1-3.
+- After EACH tool call, ask yourself: "Do I have enough to answer the user?" If YES → respond immediately.
+- After 2 calls: You likely have enough. Synthesize and respond.
+- After 3 calls: You MUST have a good reason to continue.
+
+**Step 5: Respond When Ready**
+Don't keep gathering data for completeness. A good answer with available data beats an exhaustive search that times out.
+
+**Example Planning:**
+User: "What projects am I on with Sarah?"
+Plan: "I need to find projects where both the current user and Sarah are members. I'll query project_members filtered by Sarah's user_id (need to find her ID first), then cross-reference with projects I have access to."
+Approach: get_team_members to find Sarah → dynamic_query on project_members with her user_id → respond with shared projects.
+Estimated calls: 2"""
 
         # Add dynamic query mode guidance if enabled
         if self.use_dynamic_queries:
@@ -530,10 +557,20 @@ Use this context to provide relevant suggestions and defaults for actions."""
                 # Inject synthesis prompts when approaching limits
                 # This encourages the model to respond rather than keep querying
                 if hit_tool_limit:
-                    # Hard stop - tool limit reached
+                    # Hard stop - tool limit reached, force synthesis
                     messages.append(AIMessage(
                         role="user",
-                        content="[System: STOP. You have reached the tool call limit. You MUST respond to the user NOW with the information you have. Do NOT call any more tools.]",
+                        content="""[System: STOP. Tool call limit reached.
+
+You MUST respond to the user NOW. Do NOT call any more tools.
+
+Instructions:
+1. Look at ALL the information you gathered from previous tool calls
+2. Synthesize a helpful answer based on what you found
+3. If you found partial information, share it - a partial answer is better than none
+4. If you couldn't find what was needed, explain what you did find and suggest how the user could refine their question
+
+Respond now with your findings.]""",
                     ))
                 elif iteration >= force_iteration and not accumulated_text:
                     # Final warning - strongly encourage response
@@ -555,7 +592,14 @@ Use this context to provide relevant suggestions and defaults for actions."""
         # If we exhausted max_iterations without producing text, send a fallback message
         # This can happen if the model keeps calling tools without generating a response
         if iteration == max_iterations - 1 and not accumulated_text:
-            fallback_message = "I gathered quite a bit of information but ran into my processing limit before I could summarize it all. Could you try asking a more specific question? For example, instead of 'tell me everything about my work', try 'what are my overdue tasks?' or 'summarize project X'."
+            fallback_message = """I ran into my processing limit while gathering information. This usually happens when a query requires searching across many items.
+
+**Tips for better results:**
+- Be more specific: Instead of "projects with Sarah", try "what projects am I working on?" (I can see your projects directly)
+- Ask about one thing at a time: "What are my overdue tasks?" or "Summarize project X"
+- Use names I can search: "Find tasks about authentication" rather than broad relationship queries
+
+Would you like to try rephrasing your question?"""
             yield SSEEvent(
                 event="text",
                 data={"content": fallback_message},

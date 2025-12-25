@@ -20,7 +20,7 @@ from researchhub.models.collaboration import Comment
 from researchhub.models.document import Document
 from researchhub.models.journal import JournalEntry
 from researchhub.models.organization import Department, Organization, OrganizationMember, Team, TeamMember
-from researchhub.models.project import Blocker, Project, Task
+from researchhub.models.project import Blocker, Project, ProjectMember, Task
 from researchhub.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,7 @@ class DynamicQueryTool(QueryTool):
         "team_members": TeamMember,
         "organization_members": OrganizationMember,
         "departments": Department,
+        "project_members": ProjectMember,
     }
 
     # Safe columns per table (excludes sensitive data)
@@ -109,6 +110,10 @@ class DynamicQueryTool(QueryTool):
         ],
         "departments": [
             "id", "name", "organization_id",
+            "created_at", "updated_at",
+        ],
+        "project_members": [
+            "id", "project_id", "user_id", "role", "added_by_id",
             "created_at", "updated_at",
         ],
     }
@@ -181,6 +186,12 @@ Relationships: organization (Organization), user (User)
 Columns: id, name, organization_id, created_at, updated_at
 Relationships: organization (Organization)
 
+### project_members
+Columns: id, project_id, user_id, role, added_by_id, created_at, updated_at
+Role values: owner, lead, member, viewer
+Relationships: project (Project), user (User)
+**Use this to find projects shared with specific users** - filter by user_id to find all projects a user is on
+
 ## Include Relationships
 Use the 'include' parameter to load related data. When included, the full related object is nested in results.
 - tasks: include=["project", "assignee", "created_by"]
@@ -192,6 +203,7 @@ Use the 'include' parameter to load related data. When included, the full relate
 - team_members: include=["team", "user"]
 - organization_members: include=["organization", "user"]
 - departments: include=["organization"]
+- project_members: include=["project", "user"]
 
 ## Filter Patterns
 - status: Filter by status value(s)
@@ -208,6 +220,7 @@ Use the 'include' parameter to load related data. When included, the full relate
 - resource_type / resource_id: Filter comments by target entity
 - team_id: Filter team_members by team
 - organization_id: Filter by organization
+- user_id: Filter project_members/team_members by user UUID
 
 ## Examples
 - Tasks with project details: table=tasks, include=["project"], filters={assigned_to_me: true}
@@ -218,6 +231,8 @@ Use the 'include' parameter to load related data. When included, the full relate
 - All teams in org: table=teams, include=["organization"], filters={}
 - Team members: table=team_members, include=["team", "user"], filters={team_id: "<uuid>"}
 - Search teams by name: table=teams, filters={search: "research"}
+- Projects a user is on: table=project_members, include=["project", "user"], filters={user_id: "<uuid>"}
+- Find shared projects: Query project_members for user A, then filter to projects that also have user B
 """
 
     # Available relationships per table
@@ -234,6 +249,7 @@ Use the 'include' parameter to load related data. When included, the full relate
         "team_members": ["team", "user"],
         "organization_members": ["organization", "user"],
         "departments": ["organization"],
+        "project_members": ["project", "user"],
     }
 
     @property
@@ -243,13 +259,13 @@ Use the 'include' parameter to load related data. When included, the full relate
             "properties": {
                 "table": {
                     "type": "string",
-                    "enum": ["projects", "tasks", "blockers", "documents", "journal_entries", "comments", "users", "teams", "organizations", "team_members", "organization_members", "departments"],
+                    "enum": ["projects", "tasks", "blockers", "documents", "journal_entries", "comments", "users", "teams", "organizations", "team_members", "organization_members", "departments", "project_members"],
                     "description": "The table to query",
                 },
                 "include": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Relationships to include in results. Tasks/blockers: project, assignee, created_by. Documents: project, created_by. Journal entries: user, project, created_by. Comments: author, resolved_by. Teams: organization, department, owner. Team members: team, user. Organization members: organization, user. Departments: organization.",
+                    "description": "Relationships to include in results. Tasks/blockers: project, assignee, created_by. Documents: project, created_by. Journal entries: user, project, created_by. Comments: author, resolved_by. Teams: organization, department, owner. Team members: team, user. Organization members: organization, user. Departments: organization. Project members: project, user.",
                 },
                 "filters": {
                     "type": "object",
@@ -355,6 +371,10 @@ Use the 'include' parameter to load related data. When included, the full relate
                         "is_personal": {
                             "type": "boolean",
                             "description": "For teams: filter personal teams (true) or org teams (false)",
+                        },
+                        "user_id": {
+                            "type": "string",
+                            "description": "For project_members/team_members: filter by user UUID",
                         },
                     },
                 },
@@ -557,6 +577,9 @@ Use the 'include' parameter to load related data. When included, the full relate
         elif table_name == "departments":
             # Only show departments in user's organization
             conditions.append(model.organization_id == org_id)
+        elif table_name == "project_members":
+            # Only show memberships for accessible projects
+            conditions.append(model.project_id.in_(accessible_project_ids))
         elif hasattr(model, "project_id"):
             # Standard project-based access control
             conditions.append(model.project_id.in_(accessible_project_ids))
@@ -729,6 +752,14 @@ Use the 'include' parameter to load related data. When included, the full relate
         # Is personal filter (for teams)
         if "is_personal" in filters and hasattr(model, "is_personal"):
             conditions.append(model.is_personal == filters["is_personal"])
+
+        # User ID filter (for project_members, team_members)
+        if "user_id" in filters and hasattr(model, "user_id"):
+            try:
+                user_uuid = UUID(filters["user_id"])
+                conditions.append(model.user_id == user_uuid)
+            except ValueError:
+                pass
 
         return conditions
 
