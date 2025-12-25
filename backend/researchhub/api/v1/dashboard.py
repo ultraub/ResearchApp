@@ -201,7 +201,7 @@ def blocker_to_summary(blocker: Blocker) -> BlockerSummary:
 async def get_command_center_data(
     days_ahead: int = Query(default=7, le=30, ge=1),
     scope: Literal["personal", "team"] = Query(default="personal"),
-    current_user: User = Depends(CurrentUser),
+    current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
 ) -> CommandCenterData:
     """Get command center dashboard data.
