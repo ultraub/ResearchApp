@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from researchhub.models.project import Blocker, Project, Task, TaskComment, TaskDocument
+from researchhub.models.project import Blocker, Project, Task, TaskAssignment, TaskComment, TaskDocument
 from researchhub.models.document import Document, DocumentComment
 from researchhub.models.journal import JournalEntry, JournalEntryLink
 from researchhub.models.ai import AIPendingAction
@@ -210,7 +210,29 @@ class ActionExecutor:
         if not await self._verify_project_access(task.project_id):
             return {"success": False, "error": "Access denied to task's project"}
 
+        # Set legacy assignee_id for backward compatibility
         task.assignee_id = assignee_id
+
+        # Check if TaskAssignment already exists
+        existing_assignment = await self.db.execute(
+            select(TaskAssignment).where(
+                TaskAssignment.task_id == task_id,
+                TaskAssignment.user_id == assignee_id,
+            )
+        )
+        existing = existing_assignment.scalar_one_or_none()
+
+        if not existing:
+            # Create TaskAssignment record (used by frontend for multi-assignee display)
+            assignment = TaskAssignment(
+                task_id=task_id,
+                user_id=assignee_id,
+                assigned_by_id=self.user_id,
+                role="assignee",
+                status="assigned",
+            )
+            self.db.add(assignment)
+
         await self.db.commit()
 
         return {

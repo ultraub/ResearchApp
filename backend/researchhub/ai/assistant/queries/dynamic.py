@@ -19,6 +19,7 @@ from researchhub.ai.assistant.tools import QueryTool
 from researchhub.models.collaboration import Comment
 from researchhub.models.document import Document
 from researchhub.models.journal import JournalEntry
+from researchhub.models.organization import Department, Organization, OrganizationMember, Team, TeamMember
 from researchhub.models.project import Blocker, Project, Task
 from researchhub.models.user import User
 
@@ -44,6 +45,11 @@ class DynamicQueryTool(QueryTool):
         "users": User,
         "journal_entries": JournalEntry,
         "comments": Comment,
+        "teams": Team,
+        "organizations": Organization,
+        "team_members": TeamMember,
+        "organization_members": OrganizationMember,
+        "departments": Department,
     }
 
     # Safe columns per table (excludes sensitive data)
@@ -84,6 +90,27 @@ class DynamicQueryTool(QueryTool):
             "created_at", "updated_at", "edited_at", "resolved_at",
             "author_id",
         ],
+        "teams": [
+            "id", "name", "description", "is_personal",
+            "organization_id", "department_id", "owner_id",
+            "created_at", "updated_at",
+        ],
+        "organizations": [
+            "id", "name", "slug", "logo_url",
+            "created_at", "updated_at",
+        ],
+        "team_members": [
+            "id", "team_id", "user_id", "role",
+            "created_at", "updated_at",
+        ],
+        "organization_members": [
+            "id", "organization_id", "user_id", "role",
+            "created_at", "updated_at",
+        ],
+        "departments": [
+            "id", "name", "organization_id",
+            "created_at", "updated_at",
+        ],
     }
 
     @property
@@ -94,8 +121,8 @@ class DynamicQueryTool(QueryTool):
     def description(self) -> str:
         return """Execute a dynamic database query with structured filters.
 
-Use this tool for flexible queries across projects, tasks, blockers, documents, journal_entries, comments, or users.
-Access control is automatically enforced - you can only see data from accessible projects.
+Use this tool for flexible queries across projects, tasks, blockers, documents, journal_entries, comments, users, teams, organizations, team_members, organization_members, or departments.
+Access control is automatically enforced - you can only see data from accessible projects and your organization.
 
 ## Database Schema
 
@@ -133,6 +160,27 @@ Relationships: author (User), resolved_by (User)
 ### users
 Columns: id, display_name, email, title, department
 
+### teams
+Columns: id, name, description, is_personal, organization_id, department_id, owner_id, created_at, updated_at
+Relationships: organization (Organization), department (Department), owner (User)
+
+### organizations
+Columns: id, name, slug, logo_url, created_at, updated_at
+
+### team_members
+Columns: id, team_id, user_id, role, created_at, updated_at
+Role values: owner, lead, member
+Relationships: team (Team), user (User)
+
+### organization_members
+Columns: id, organization_id, user_id, role, created_at, updated_at
+Role values: admin, member
+Relationships: organization (Organization), user (User)
+
+### departments
+Columns: id, name, organization_id, created_at, updated_at
+Relationships: organization (Organization)
+
 ## Include Relationships
 Use the 'include' parameter to load related data. When included, the full related object is nested in results.
 - tasks: include=["project", "assignee", "created_by"]
@@ -140,6 +188,10 @@ Use the 'include' parameter to load related data. When included, the full relate
 - documents: include=["project", "created_by"]
 - journal_entries: include=["user", "project", "created_by"]
 - comments: include=["author", "resolved_by"]
+- teams: include=["organization", "department", "owner"]
+- team_members: include=["team", "user"]
+- organization_members: include=["organization", "user"]
+- departments: include=["organization"]
 
 ## Filter Patterns
 - status: Filter by status value(s)
@@ -154,6 +206,8 @@ Use the 'include' parameter to load related data. When included, the full relate
 - exclude_done: Exclude completed items
 - search: Search text in title/name fields
 - resource_type / resource_id: Filter comments by target entity
+- team_id: Filter team_members by team
+- organization_id: Filter by organization
 
 ## Examples
 - Tasks with project details: table=tasks, include=["project"], filters={assigned_to_me: true}
@@ -161,6 +215,9 @@ Use the 'include' parameter to load related data. When included, the full relate
 - Open blockers: table=blockers, include=["project"], filters={status: ["open", "in_progress"]}
 - Recent journal entries: table=journal_entries, include=["project"], filters={updated_after: "7 days ago"}
 - Comments on a task: table=comments, include=["author"], filters={resource_type: "task", resource_id: "<uuid>"}
+- All teams in org: table=teams, include=["organization"], filters={}
+- Team members: table=team_members, include=["team", "user"], filters={team_id: "<uuid>"}
+- Search teams by name: table=teams, filters={search: "research"}
 """
 
     # Available relationships per table
@@ -172,6 +229,11 @@ Use the 'include' parameter to load related data. When included, the full relate
         "comments": ["author", "resolved_by"],
         "projects": [],
         "users": [],
+        "teams": ["organization", "department", "owner"],
+        "organizations": [],
+        "team_members": ["team", "user"],
+        "organization_members": ["organization", "user"],
+        "departments": ["organization"],
     }
 
     @property
@@ -181,13 +243,13 @@ Use the 'include' parameter to load related data. When included, the full relate
             "properties": {
                 "table": {
                     "type": "string",
-                    "enum": ["projects", "tasks", "blockers", "documents", "journal_entries", "comments", "users"],
+                    "enum": ["projects", "tasks", "blockers", "documents", "journal_entries", "comments", "users", "teams", "organizations", "team_members", "organization_members", "departments"],
                     "description": "The table to query",
                 },
                 "include": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Relationships to include in results. Tasks/blockers: project, assignee, created_by. Documents: project, created_by. Journal entries: user, project, created_by. Comments: author, resolved_by.",
+                    "description": "Relationships to include in results. Tasks/blockers: project, assignee, created_by. Documents: project, created_by. Journal entries: user, project, created_by. Comments: author, resolved_by. Teams: organization, department, owner. Team members: team, user. Organization members: organization, user. Departments: organization.",
                 },
                 "filters": {
                     "type": "object",
@@ -274,6 +336,25 @@ Use the 'include' parameter to load related data. When included, the full relate
                         "entry_type": {
                             "type": "string",
                             "description": "For journal_entries: filter by entry type (observation, experiment, meeting, idea, reflection, protocol)",
+                        },
+                        "team_id": {
+                            "type": "string",
+                            "description": "For team_members: filter by team UUID",
+                        },
+                        "organization_id": {
+                            "type": "string",
+                            "description": "Filter by organization UUID",
+                        },
+                        "role": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {"type": "array", "items": {"type": "string"}},
+                            ],
+                            "description": "For team_members/organization_members: filter by role (owner, lead, member, admin)",
+                        },
+                        "is_personal": {
+                            "type": "boolean",
+                            "description": "For teams: filter personal teams (true) or org teams (false)",
                         },
                     },
                 },
@@ -444,6 +525,38 @@ Use the 'include' parameter to load related data. When included, the full relate
         elif table_name == "comments":
             # Comments filtered by organization - user must be in the org
             conditions.append(model.organization_id == org_id)
+        elif table_name == "teams":
+            # Teams in user's org, or personal teams owned by the user
+            conditions.append(
+                or_(
+                    model.organization_id == org_id,
+                    and_(model.is_personal == True, model.owner_id == user_id),
+                )
+            )
+        elif table_name == "organizations":
+            # Only show user's organization
+            conditions.append(model.id == org_id)
+        elif table_name == "team_members":
+            # Get team IDs the user can see (org teams + personal teams they own)
+            team_result = await db.execute(
+                select(Team.id).where(
+                    or_(
+                        Team.organization_id == org_id,
+                        and_(Team.is_personal == True, Team.owner_id == user_id),
+                    )
+                )
+            )
+            visible_team_ids = [row[0] for row in team_result.all()]
+            if visible_team_ids:
+                conditions.append(model.team_id.in_(visible_team_ids))
+            else:
+                conditions.append(False)  # No visible teams
+        elif table_name == "organization_members":
+            # Only show members of user's organization
+            conditions.append(model.organization_id == org_id)
+        elif table_name == "departments":
+            # Only show departments in user's organization
+            conditions.append(model.organization_id == org_id)
         elif hasattr(model, "project_id"):
             # Standard project-based access control
             conditions.append(model.project_id.in_(accessible_project_ids))
@@ -589,6 +702,34 @@ Use the 'include' parameter to load related data. When included, the full relate
         if "entry_type" in filters and hasattr(model, "entry_type"):
             conditions.append(model.entry_type == filters["entry_type"])
 
+        # Team ID filter (for team_members)
+        if "team_id" in filters and hasattr(model, "team_id"):
+            try:
+                team_uuid = UUID(filters["team_id"])
+                conditions.append(model.team_id == team_uuid)
+            except ValueError:
+                pass
+
+        # Organization ID filter
+        if "organization_id" in filters and hasattr(model, "organization_id"):
+            try:
+                org_uuid = UUID(filters["organization_id"])
+                conditions.append(model.organization_id == org_uuid)
+            except ValueError:
+                pass
+
+        # Role filter (for team_members, organization_members)
+        if "role" in filters and hasattr(model, "role"):
+            role_val = filters["role"]
+            if isinstance(role_val, list):
+                conditions.append(model.role.in_(role_val))
+            else:
+                conditions.append(model.role == role_val)
+
+        # Is personal filter (for teams)
+        if "is_personal" in filters and hasattr(model, "is_personal"):
+            conditions.append(model.is_personal == filters["is_personal"])
+
         return conditions
 
     def _parse_date(self, date_str: str) -> Optional[date]:
@@ -679,6 +820,22 @@ Use the 'include' parameter to load related data. When included, the full relate
         if "user" in include and hasattr(row, "user") and row.user:
             result["user"] = self._format_user(row.user)
 
+        # Organization relationship (for teams, departments)
+        if "organization" in include and hasattr(row, "organization") and row.organization:
+            result["organization"] = self._format_organization(row.organization)
+
+        # Department relationship (for teams)
+        if "department" in include and hasattr(row, "department") and row.department:
+            result["department"] = self._format_department(row.department)
+
+        # Owner relationship (for teams - personal team owner)
+        if "owner" in include and hasattr(row, "owner") and row.owner:
+            result["owner"] = self._format_user(row.owner)
+
+        # Team relationship (for team_members)
+        if "team" in include and hasattr(row, "team") and row.team:
+            result["team"] = self._format_team(row.team)
+
         return result
 
     def _format_user(self, user: Any) -> Dict[str, Any]:
@@ -706,5 +863,47 @@ Use the 'include' parameter to load related data. When included, the full relate
                     value = value.isoformat()
                 elif isinstance(value, list):
                     value = [str(v) if isinstance(v, UUID) else v for v in value]
+                result[col] = value
+        return result
+
+    def _format_team(self, team: Any) -> Dict[str, Any]:
+        """Format a Team object into a safe dictionary."""
+        safe_columns = self.SAFE_COLUMNS.get("teams", [])
+        result = {}
+        for col in safe_columns:
+            if hasattr(team, col):
+                value = getattr(team, col)
+                if isinstance(value, UUID):
+                    value = str(value)
+                elif isinstance(value, (date, datetime)):
+                    value = value.isoformat()
+                result[col] = value
+        return result
+
+    def _format_organization(self, org: Any) -> Dict[str, Any]:
+        """Format an Organization object into a safe dictionary."""
+        safe_columns = self.SAFE_COLUMNS.get("organizations", [])
+        result = {}
+        for col in safe_columns:
+            if hasattr(org, col):
+                value = getattr(org, col)
+                if isinstance(value, UUID):
+                    value = str(value)
+                elif isinstance(value, (date, datetime)):
+                    value = value.isoformat()
+                result[col] = value
+        return result
+
+    def _format_department(self, dept: Any) -> Dict[str, Any]:
+        """Format a Department object into a safe dictionary."""
+        safe_columns = self.SAFE_COLUMNS.get("departments", [])
+        result = {}
+        for col in safe_columns:
+            if hasattr(dept, col):
+                value = getattr(dept, col)
+                if isinstance(value, UUID):
+                    value = str(value)
+                elif isinstance(value, (date, datetime)):
+                    value = value.isoformat()
                 result[col] = value
         return result
