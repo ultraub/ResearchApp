@@ -15,7 +15,9 @@ from researchhub.api.v1.auth import CurrentUser
 from researchhub.api.v1.projects import check_project_access
 from researchhub.db.session import get_db_session
 from researchhub.models.document import Document, DocumentVersion, DocumentComment, DocumentCommentMention, DocumentTemplate
+from researchhub.models.project import Project
 from researchhub.models.user import User
+from researchhub.services.notification import NotificationService
 from researchhub.tasks import auto_review_document_task
 
 router = APIRouter()
@@ -847,6 +849,25 @@ async def create_document_comment(
                 )
 
         await db.commit()
+
+        # Send notifications to mentioned users
+        project_result = await db.execute(select(Project).where(Project.id == document.project_id))
+        project = project_result.scalar_one_or_none()
+
+        if project and project.organization_id:
+            notification_service = NotificationService(db)
+            for mention in mentions_info:
+                await notification_service.notify(
+                    user_id=mention.user_id,
+                    notification_type="user_mentioned",
+                    title=f"You were mentioned in: {document.title}",
+                    message=f"You were mentioned in a comment on '{document.title}'",
+                    organization_id=project.organization_id,
+                    target_type="document",
+                    target_id=document_id,
+                    target_url=f"/projects/{document.project_id}/documents/{document_id}",
+                    sender_id=current_user.id,
+                )
 
     logger.info(
         "Document comment created",

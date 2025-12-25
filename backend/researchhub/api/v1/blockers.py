@@ -15,8 +15,9 @@ from sqlalchemy.orm import selectinload
 from researchhub.api.v1.auth import CurrentUser
 from researchhub.api.v1.projects import check_project_access
 from researchhub.db.session import get_db_session
-from researchhub.models.project import Project, Task, Blocker, BlockerLink
+from researchhub.models.project import Project, Task, Blocker, BlockerLink, TaskAssignment
 from researchhub.models.user import User
+from researchhub.services.notification import NotificationService
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -181,6 +182,25 @@ async def create_blocker(
     await db.refresh(blocker)
 
     logger.info("blocker_created", blocker_id=str(blocker.id), project_id=str(blocker.project_id))
+
+    # Notify blocker assignee if set
+    project_result = await db.execute(select(Project).where(Project.id == blocker_data.project_id))
+    project = project_result.scalar_one_or_none()
+
+    if project and project.organization_id and blocker_data.assignee_id:
+        notification_service = NotificationService(db)
+        await notification_service.notify(
+            user_id=blocker_data.assignee_id,
+            notification_type="blocker_created",
+            title=f"Blocker assigned: {blocker_data.title}",
+            message=f"You have been assigned to resolve the blocker '{blocker_data.title}'",
+            organization_id=project.organization_id,
+            target_type="blocker",
+            target_id=blocker.id,
+            target_url=f"/projects/{blocker_data.project_id}/blockers/{blocker.id}",
+            sender_id=current_user.id,
+        )
+
     return blocker
 
 
@@ -334,10 +354,15 @@ async def update_blocker(
     # Update fields
     update_data = blocker_data.model_dump(exclude_unset=True)
 
+    # Track if being resolved for notification
+    old_status = blocker.status
+    is_resolving = False
+
     # Handle status change to resolved
     if "status" in update_data:
         if update_data["status"] in ("resolved", "wont_fix") and blocker.resolved_at is None:
             blocker.resolved_at = datetime.now(timezone.utc)
+            is_resolving = old_status not in ("resolved", "wont_fix")
         elif update_data["status"] in ("open", "in_progress"):
             blocker.resolved_at = None
 
@@ -348,6 +373,40 @@ async def update_blocker(
     await db.refresh(blocker)
 
     logger.info("blocker_updated", blocker_id=str(blocker.id))
+
+    # Notify blocked task assignees when blocker is resolved
+    if is_resolving:
+        project_result = await db.execute(select(Project).where(Project.id == blocker.project_id))
+        project = project_result.scalar_one_or_none()
+
+        if project and project.organization_id and blocker.blocked_items:
+            # Get all task IDs from blocked items
+            blocked_task_ids = [
+                item.blocked_task_id for item in blocker.blocked_items if item.blocked_task_id
+            ]
+
+            if blocked_task_ids:
+                # Get all assignees of blocked tasks
+                assignees_result = await db.execute(
+                    select(TaskAssignment.user_id)
+                    .where(TaskAssignment.task_id.in_(blocked_task_ids))
+                    .distinct()
+                )
+                assignee_ids = [row[0] for row in assignees_result.all()]
+
+                if assignee_ids:
+                    notification_service = NotificationService(db)
+                    await notification_service.notify_many(
+                        user_ids=assignee_ids,
+                        notification_type="blocker_resolved",
+                        title=f"Blocker resolved: {blocker.title}",
+                        message=f"The blocker '{blocker.title}' has been resolved",
+                        organization_id=project.organization_id,
+                        target_type="blocker",
+                        target_id=blocker.id,
+                        target_url=f"/projects/{blocker.project_id}/blockers/{blocker.id}",
+                        sender_id=current_user.id,
+                    )
 
     return {
         "id": blocker.id,

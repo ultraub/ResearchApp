@@ -21,6 +21,7 @@ from researchhub.services.task_assignment import TaskAssignmentService
 from researchhub.services.task_document import TaskDocumentService
 from researchhub.services.custom_field import CustomFieldService
 from researchhub.services.workflow import WorkflowService
+from researchhub.services.notification import NotificationService
 from researchhub.tasks import auto_review_for_review_task
 
 router = APIRouter()
@@ -803,6 +804,9 @@ async def update_task(
 
     update_data = updates.model_dump(exclude_unset=True)
 
+    # Store old status for notification check
+    old_status = task.status
+
     # Handle status change to done
     if "status" in update_data:
         if update_data["status"] == "done" and task.status != "done":
@@ -820,6 +824,34 @@ async def update_task(
     task = result.scalar_one()
 
     logger.info("Task updated", task_id=str(task_id))
+
+    # Notify assignees if status changed
+    new_status = update_data.get("status")
+    if new_status and new_status != old_status:
+        # Get project for organization_id
+        project_result = await db.execute(select(Project).where(Project.id == task.project_id))
+        project = project_result.scalar_one_or_none()
+
+        if project and project.organization_id:
+            # Get all task assignees
+            assignment_service = TaskAssignmentService(db)
+            assignments = await assignment_service.get_task_assignments(task_id)
+            assignee_ids = [a.user_id for a in assignments]
+
+            if assignee_ids:
+                notification_service = NotificationService(db)
+                await notification_service.notify_many(
+                    user_ids=assignee_ids,
+                    notification_type="task_status_changed",
+                    title=f"Task status changed: {task.title}",
+                    message=f"Task '{task.title}' moved from {old_status} to {new_status}",
+                    organization_id=project.organization_id,
+                    target_type="task",
+                    target_id=task_id,
+                    target_url=f"/projects/{task.project_id}/tasks/{task_id}",
+                    sender_id=current_user.id,
+                )
+
     return task
 
 
@@ -1438,6 +1470,26 @@ async def assign_users_to_task(
         )
         assignments.append(assignment)
 
+    # Get project for organization_id
+    project_result = await db.execute(select(Project).where(Project.id == task.project_id))
+    project = project_result.scalar_one_or_none()
+
+    # Send notifications to assigned users
+    if project and project.organization_id:
+        notification_service = NotificationService(db)
+        for user_id in assignment_data.user_ids:
+            await notification_service.notify(
+                user_id=user_id,
+                notification_type="task_assigned",
+                title=f"You were assigned to: {task.title}",
+                message=f"You have been assigned to the task '{task.title}'",
+                organization_id=project.organization_id,
+                target_type="task",
+                target_id=task_id,
+                target_url=f"/projects/{task.project_id}/tasks/{task_id}",
+                sender_id=current_user.id,
+            )
+
     # Reload with user info
     loaded = await service.get_task_assignments(task_id, include_user=True)
     return [_assignment_to_response(a) for a in loaded if a.id in [x.id for x in assignments]]
@@ -1537,12 +1589,33 @@ async def remove_task_assignment(
     # Verify project access
     await check_project_access(db, task.project_id, current_user.id, "member")
 
+    # Store user_id before removal for notification
+    removed_user_id = assignment.user_id
+
     await service.remove_assignment_by_id(assignment_id)
     logger.info(
         "Assignment removed",
         task_id=str(task_id),
         assignment_id=str(assignment_id),
     )
+
+    # Send notification to unassigned user
+    project_result = await db.execute(select(Project).where(Project.id == task.project_id))
+    project = project_result.scalar_one_or_none()
+
+    if project and project.organization_id:
+        notification_service = NotificationService(db)
+        await notification_service.notify(
+            user_id=removed_user_id,
+            notification_type="task_unassigned",
+            title=f"You were removed from: {task.title}",
+            message=f"You have been unassigned from the task '{task.title}'",
+            organization_id=project.organization_id,
+            target_type="task",
+            target_id=task_id,
+            target_url=f"/projects/{task.project_id}/tasks/{task_id}",
+            sender_id=current_user.id,
+        )
 
 
 # =========================================================================

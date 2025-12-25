@@ -25,6 +25,7 @@ from researchhub.models import (
 )
 from researchhub.models.project import Task
 from researchhub.models.document import Document
+from researchhub.services.notification import NotificationService
 
 router = APIRouter(prefix="/sharing", tags=["sharing"])
 
@@ -300,6 +301,24 @@ async def share_project(
     db.add(share)
     await db.commit()
     await db.refresh(share, ["user"])
+
+    # Send notification to the user receiving access
+    project_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = project_result.scalar_one_or_none()
+
+    if project and project.organization_id:
+        notification_service = NotificationService(db)
+        await notification_service.notify(
+            user_id=share_data.user_id,
+            notification_type="document_shared",
+            title=f"Project shared with you: {project.name}",
+            message=f"You now have {share_data.role} access to '{project.name}'",
+            organization_id=project.organization_id,
+            target_type="project",
+            target_id=project_id,
+            target_url=f"/projects/{project_id}",
+            sender_id=current_user.id,
+        )
 
     return ProjectShareResponse(
         id=share.id,
@@ -597,6 +616,22 @@ async def create_invitation(
     await db.commit()
     await db.refresh(invitation, ["organization", "project", "invited_by"])
 
+    # Send notification if user already exists in the system
+    if existing_user and invitation_data.organization_id:
+        notification_service = NotificationService(db)
+        target_name = invitation.project.name if invitation.project else (invitation.organization.name if invitation.organization else "organization")
+        await notification_service.notify(
+            user_id=existing_user.id,
+            notification_type="invitation_sent",
+            title=f"You're invited to join: {target_name}",
+            message=f"You have been invited to join '{target_name}' as {invitation_data.role}",
+            organization_id=invitation_data.organization_id,
+            target_type="invitation",
+            target_id=invitation.id,
+            target_url=f"/invitations/{invitation.id}",
+            sender_id=current_user.id,
+        )
+
     return InvitationResponse(
         id=invitation.id,
         invitation_type=invitation.invitation_type,
@@ -720,6 +755,24 @@ async def accept_invitation(
     # TODO: Add user to organization/project based on invitation type
 
     await db.commit()
+
+    # Notify the inviter that their invitation was accepted
+    if invitation.invited_by_id and invitation.organization_id:
+        # Refresh to get relationships
+        await db.refresh(invitation, ["organization", "project"])
+        target_name = invitation.project.name if invitation.project else (invitation.organization.name if invitation.organization else "organization")
+
+        notification_service = NotificationService(db)
+        await notification_service.notify(
+            user_id=invitation.invited_by_id,
+            notification_type="invitation_accepted",
+            title=f"Invitation accepted: {current_user.display_name}",
+            message=f"{current_user.display_name} accepted your invitation to '{target_name}'",
+            organization_id=invitation.organization_id,
+            target_type="user",
+            target_id=current_user.id,
+            sender_id=current_user.id,
+        )
 
     return {"message": "Invitation accepted"}
 
