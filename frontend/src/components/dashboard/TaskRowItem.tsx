@@ -57,7 +57,8 @@ export function TaskRowItem({ task, showProject = true, onComplete }: TaskRowIte
   });
 
   const handleClick = () => {
-    navigate(`/projects/${task.project_id}/tasks/${task.id}`);
+    // Navigate to project with task query param to open task detail modal
+    navigate(`/projects/${task.project_id}?task=${task.id}`);
   };
 
   const handleComplete = (e?: React.MouseEvent) => {

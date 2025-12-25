@@ -76,6 +76,7 @@ class CommandCenterData(BaseModel):
     tasks_by_day: dict[str, list[TaskSummary]]  # ISO date string keys
     overdue_tasks: list[TaskSummary]
     stalled_tasks: list[TaskSummary]
+    unscheduled_tasks: list[TaskSummary]  # Tasks with no due date
     summary: DashboardSummary
 
 
@@ -344,6 +345,30 @@ async def get_command_center_data(
             days_stalled = (now - task.updated_at).days
         stalled_summaries.append(task_to_summary(task, days_stalled=days_stalled))
 
+    # --- 5. Get unscheduled tasks (no due date, not done) ---
+    unscheduled_query = (
+        select(Task)
+        .options(selectinload(Task.assignee), selectinload(Task.project))
+        .where(and_(*task_filters))
+        .where(Task.due_date.is_(None))
+        .where(Task.status != "done")
+        .order_by(
+            # Sort by priority (urgent first)
+            case(
+                (Task.priority == "urgent", 1),
+                (Task.priority == "high", 2),
+                (Task.priority == "medium", 3),
+                (Task.priority == "low", 4),
+                else_=5,
+            ),
+            Task.created_at.desc(),
+        )
+        .limit(15)
+    )
+    unscheduled_result = await db.execute(unscheduled_query)
+    unscheduled_tasks = unscheduled_result.scalars().all()
+    unscheduled_summaries = [task_to_summary(t) for t in unscheduled_tasks]
+
     # --- Build response ---
     return CommandCenterData(
         blockers=BlockersList(
@@ -353,6 +378,7 @@ async def get_command_center_data(
         tasks_by_day=tasks_by_day,
         overdue_tasks=overdue_summaries,
         stalled_tasks=stalled_summaries,
+        unscheduled_tasks=unscheduled_summaries,
         summary=DashboardSummary(
             total_blockers=len(blocker_summaries),
             critical_blockers=critical_count,

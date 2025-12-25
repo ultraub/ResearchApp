@@ -21,6 +21,7 @@ import type { ScopeFilter } from '@/types/dashboard';
 import { ScopeToggle } from './ScopeToggle';
 import { BlockersSection } from './BlockersSection';
 import { UpcomingTasksSection } from './UpcomingTasksSection';
+import { UnscheduledTasksSection } from './UnscheduledTasksSection';
 import { WeeklyTimelineView } from './WeeklyTimelineView';
 import { QuickIdeaModal } from '@/components/ideas/QuickIdeaModal';
 
@@ -271,6 +272,13 @@ export function CommandCenterDashboard() {
               />
             </div>
           </div>
+
+          {/* Unscheduled Tasks - below main grid */}
+          {data.unscheduled_tasks.length > 0 && (
+            <div className="mt-6">
+              <UnscheduledTasksSection tasks={data.unscheduled_tasks} />
+            </div>
+          )}
 
           {/* Timeline View */}
           <div className="mt-6">

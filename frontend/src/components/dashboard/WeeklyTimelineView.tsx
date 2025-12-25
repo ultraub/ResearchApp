@@ -22,6 +22,16 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: '#9ca3af',    // gray-400
 };
 
+// Custom styles for Gantt task bars by priority
+const ganttStyles = `
+  .wx-gantt .task-urgent .wx-task-bar { background-color: ${PRIORITY_COLORS.urgent} !important; }
+  .wx-gantt .task-high .wx-task-bar { background-color: ${PRIORITY_COLORS.high} !important; }
+  .wx-gantt .task-medium .wx-task-bar { background-color: ${PRIORITY_COLORS.medium} !important; }
+  .wx-gantt .task-low .wx-task-bar { background-color: ${PRIORITY_COLORS.low} !important; }
+  .wx-gantt .wx-task-bar { border-radius: 4px; min-height: 20px; }
+  .wx-gantt .wx-grid-cell { cursor: pointer; }
+`;
+
 export function WeeklyTimelineView({ tasks, className }: WeeklyTimelineViewProps) {
   const navigate = useNavigate();
   const apiRef = useRef<unknown>(null);
@@ -49,17 +59,23 @@ export function WeeklyTimelineView({ tasks, className }: WeeklyTimelineViewProps
       .filter(task => task.due_date) // Only tasks with due dates
       .map(task => {
         const dueDate = new Date(task.due_date!);
+        dueDate.setHours(0, 0, 0, 0);
         const startDate = new Date(dueDate);
-        // Single day tasks - start and end on same day
+        // End date needs to be slightly after start for the bar to render
+        const endDate = new Date(dueDate);
+        endDate.setHours(23, 59, 59, 999);
+
         return {
           id: task.id,
           text: task.title,
           start: startDate,
-          end: dueDate,
+          end: endDate,
           duration: 1,
           progress: task.status === 'done' ? 100 : 0,
           type: 'task' as const,
-          // Custom data for styling and navigation
+          // Bar color based on priority
+          $css: `task-${task.priority}`,
+          // Custom data for navigation
           priority: task.priority,
           projectId: task.project_id,
           projectName: task.project_name,
@@ -103,6 +119,9 @@ export function WeeklyTimelineView({ tasks, className }: WeeklyTimelineViewProps
 
   return (
     <div className={className}>
+      {/* Inject custom Gantt styles */}
+      <style>{ganttStyles}</style>
+
       <div className="card p-6">
         <div className="flex items-center gap-2 mb-4">
           <CalendarIcon className="h-5 w-5 text-primary-500" />

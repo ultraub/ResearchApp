@@ -32,7 +32,8 @@ function BlockerRow({ blocker }: BlockerRowProps) {
   const impactColors = IMPACT_COLORS[blocker.impact_level as keyof typeof IMPACT_COLORS] || IMPACT_COLORS.medium;
 
   const handleClick = () => {
-    navigate(`/projects/${blocker.project_id}/blockers/${blocker.id}`);
+    // Navigate to project with blocker query param to open blocker list modal
+    navigate(`/projects/${blocker.project_id}?blocker=${blocker.id}`);
   };
 
   return (

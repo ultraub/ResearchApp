@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
@@ -55,6 +55,7 @@ const statusColors = {
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { organization } = useOrganizationStore();
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
   const [activeTab, setActiveTab] = useState<TabType>("tasks");
@@ -81,6 +82,23 @@ export default function ProjectDetailPage() {
 
   const queryClient = useQueryClient();
   const { hideDemoProject, isHiding } = useDemoProject();
+
+  // Handle URL query params to auto-open task/blocker modals
+  useEffect(() => {
+    const taskId = searchParams.get('task');
+    const blockerId = searchParams.get('blocker');
+
+    if (taskId) {
+      setSelectedTaskId(taskId);
+      // Clear query param after opening modal
+      setSearchParams({}, { replace: true });
+    }
+    if (blockerId) {
+      setIsBlockerListOpen(true);
+      // Clear query param after opening modal
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", projectId],

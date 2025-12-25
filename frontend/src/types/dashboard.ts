@@ -55,6 +55,7 @@ export interface CommandCenterData {
   tasks_by_day: Record<string, TaskSummary[]>; // ISO date string keys
   overdue_tasks: TaskSummary[];
   stalled_tasks: TaskSummary[];
+  unscheduled_tasks: TaskSummary[]; // Tasks with no due date
   summary: DashboardSummary;
 }
 
