@@ -107,9 +107,11 @@ export default function KanbanBoard({
   // Scroll to a specific column (horizontal only, preserves vertical position)
   const scrollToColumn = useCallback((columnId: string) => {
     const columnEl = columnRefs.current.get(columnId);
-    if (columnEl) {
-      // scrollIntoView works well with scroll-snap - no need to disable it
-      columnEl.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+    const board = boardRef.current;
+    if (columnEl && board) {
+      // Use scrollLeft directly - the board has CSS scroll-smooth for animation
+      // This only affects horizontal scroll within the board, not page scroll
+      board.scrollLeft = columnEl.offsetLeft;
     }
   }, []);
 

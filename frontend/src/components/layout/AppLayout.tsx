@@ -101,14 +101,14 @@ export default function AppLayout() {
           </div>
         </header>
 
-        {/* Page content - bottom padding for mobile tab bar */}
-        <main className="flex-1 overflow-y-auto overscroll-contain pb-20 md:pb-0">
+        {/* Page content - bottom padding for mobile/tablet tab bar */}
+        <main className="flex-1 overflow-y-auto overscroll-contain pb-20 lg:pb-0">
           <Outlet />
         </main>
       </div>
 
-      {/* Mobile: Bottom tab bar */}
-      <BottomTabBar className="md:hidden" />
+      {/* Mobile/Tablet: Bottom tab bar - visible until sidebar appears at lg */}
+      <BottomTabBar className="lg:hidden" />
 
       {/* AI Assistant Chat Bubble */}
       <AIChatBubble />
