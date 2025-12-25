@@ -24,7 +24,6 @@ from researchhub.api.v1 import (
     tasks,
     teams,
     users,
-    websocket,
 )
 
 __all__ = [
@@ -51,5 +50,4 @@ __all__ = [
     "tasks",
     "teams",
     "users",
-    "websocket",
 ]
