@@ -478,20 +478,36 @@ class ActionExecutor:
     async def _execute_create_project(self, input: Dict[str, Any]) -> Dict[str, Any]:
         """Execute project creation."""
         from datetime import date as date_type
+        from researchhub.models.user import User
+        from researchhub.models.collaboration import ProjectMember, ProjectTeam
+        from researchhub.services import access_control as ac
+
+        # Get the user for personal team creation if needed
+        user_result = await self.db.execute(select(User).where(User.id == self.user_id))
+        user = user_result.scalar_one()
+
+        # Handle team_id based on scope
+        scope = input.get("scope", "PERSONAL")
+        if scope == "PERSONAL":
+            # Create or get personal team
+            personal_team = await ac.get_or_create_personal_team(self.db, user)
+            team_id = personal_team.id
+        else:
+            # Use provided team_id
+            if not input.get("team_id"):
+                return {"success": False, "error": "team_id is required for TEAM and ORGANIZATION scope projects"}
+            team_id = UUID(input["team_id"])
 
         # Create the project
         project = Project(
             name=input["name"],
             description=input.get("description"),
             project_type=input.get("project_type", "general"),
-            scope=input.get("scope", "PERSONAL"),
+            scope=scope,
             status="active",
-            owner_id=self.user_id,
-            organization_id=self.org_id,
+            team_id=team_id,
+            created_by_id=self.user_id,
         )
-
-        if input.get("team_id"):
-            project.team_id = UUID(input["team_id"])
 
         if input.get("parent_id"):
             project.parent_id = UUID(input["parent_id"])
@@ -509,6 +525,25 @@ class ActionExecutor:
             project.emoji = input["emoji"]
 
         self.db.add(project)
+        await self.db.flush()
+
+        # Add creator as owner
+        member = ProjectMember(
+            project_id=project.id,
+            user_id=self.user_id,
+            role="owner",
+        )
+        self.db.add(member)
+
+        # Add primary team to project_teams
+        primary_team_link = ProjectTeam(
+            project_id=project.id,
+            team_id=team_id,
+            role="member",
+            added_by_id=self.user_id,
+        )
+        self.db.add(primary_team_link)
+
         await self.db.commit()
         await self.db.refresh(project)
 
