@@ -70,15 +70,6 @@ class DynamicQueryTool(QueryTool):
         ],
     }
 
-    # Relationships to eager load per table
-    EAGER_LOAD: Dict[str, List[str]] = {
-        "tasks": ["assignee", "project"],
-        "blockers": ["assignee", "project"],
-        "documents": ["project", "created_by"],
-        "projects": [],
-        "users": [],
-    }
-
     @property
     def name(self) -> str:
         return "dynamic_query"
@@ -90,24 +81,64 @@ class DynamicQueryTool(QueryTool):
 Use this tool for flexible queries across projects, tasks, blockers, documents, or users.
 Access control is automatically enforced - you can only see data from accessible projects.
 
-Available tables: projects, tasks, blockers, documents, users
+## Database Schema
 
-Common filter patterns:
+### projects
+Columns: id, name, description, status, project_type, scope, start_date, target_end_date, actual_end_date, created_at, updated_at, color, emoji, tags
+Status values: active, completed, archived, on_hold
+Scope values: PERSONAL, TEAM, ORGANIZATION
+
+### tasks
+Columns: id, title, status, priority, task_type, due_date, estimated_hours, actual_hours, position, tags, created_at, updated_at, completed_at, project_id, assignee_id, created_by_id
+Status values: idea, todo, in_progress, in_review, done
+Priority values: low, medium, high, urgent
+Relationships: project (Project), assignee (User), created_by (User)
+
+### blockers
+Columns: id, title, status, priority, blocker_type, impact_level, due_date, tags, created_at, updated_at, resolved_at, project_id, assignee_id, created_by_id
+Status values: open, in_progress, resolved, wont_fix
+Relationships: project (Project), assignee (User), created_by (User)
+
+### documents
+Columns: id, title, document_type, status, version, word_count, tags, created_at, updated_at, project_id, created_by_id
+Relationships: project (Project), created_by (User)
+
+### users
+Columns: id, display_name, email, title, department
+
+## Include Relationships
+Use the 'include' parameter to load related data. When included, the full related object is nested in results.
+- tasks: include=["project", "assignee", "created_by"]
+- blockers: include=["project", "assignee", "created_by"]
+- documents: include=["project", "created_by"]
+
+## Filter Patterns
 - status: Filter by status value(s)
 - priority: Filter by priority level
 - assignee_name: Filter by assignee's name (partial match)
 - project_name: Filter by project name (partial match)
-- created_by_me: Filter to items created by current user
-- assigned_to_me: Filter to items assigned to current user
-- due_before/due_after: Filter by due date range
-- updated_after: Filter to recently updated items
+- created_by_me / assigned_to_me: Filter to items by/for current user
+- due_before / due_after: Filter by due date range
+- updated_after / created_after: Filter to recently modified items
+- is_overdue: Items with due_date < today and not completed
+- is_stalled: Items in_progress with no update in 7+ days
+- exclude_done: Exclude completed items
 - search: Search text in title/name fields
 
-Examples:
-- "My overdue tasks": table=tasks, assigned_to_me=true, due_before=today, status not done
-- "Open blockers in INOCA": table=blockers, project_name=INOCA, status=open|in_progress
-- "Recent documents": table=documents, updated_after=7 days ago, order_by=updated_at desc
+## Examples
+- Tasks with project details: table=tasks, include=["project"], filters={assigned_to_me: true}
+- User workload with context: table=tasks, include=["project", "assignee"], filters={status: ["todo", "in_progress"]}
+- Open blockers: table=blockers, include=["project"], filters={status: ["open", "in_progress"]}
 """
+
+    # Available relationships per table
+    AVAILABLE_RELATIONSHIPS: Dict[str, List[str]] = {
+        "tasks": ["project", "assignee", "created_by"],
+        "blockers": ["project", "assignee", "created_by"],
+        "documents": ["project", "created_by"],
+        "projects": [],
+        "users": [],
+    }
 
     @property
     def input_schema(self) -> dict:
@@ -118,6 +149,11 @@ Examples:
                     "type": "string",
                     "enum": ["projects", "tasks", "blockers", "documents", "users"],
                     "description": "The table to query",
+                },
+                "include": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Relationships to include in results. For tasks/blockers: project, assignee, created_by. For documents: project, created_by.",
                 },
                 "filters": {
                     "type": "object",
@@ -215,6 +251,7 @@ Examples:
         """Execute the dynamic query with access control."""
         table_name = input.get("table")
         filters = input.get("filters", {})
+        include = input.get("include", [])
         order_by = input.get("order_by")
         limit = min(input.get("limit", 20), 100)
 
@@ -228,17 +265,21 @@ Examples:
 
         model = self.ALLOWED_TABLES[table_name]
 
+        # Validate and filter include relationships
+        available_rels = self.AVAILABLE_RELATIONSHIPS.get(table_name, [])
+        valid_includes = [rel for rel in include if rel in available_rels]
+
         # Log the query for audit purposes
         logger.info(
             f"DynamicQuery: user={user_id}, table={table_name}, "
-            f"filters={filters}, order_by={order_by}, limit={limit}"
+            f"filters={filters}, include={valid_includes}, order_by={order_by}, limit={limit}"
         )
 
         try:
             # Execute with timeout protection
             result = await asyncio.wait_for(
                 self._execute_query(
-                    db, model, table_name, filters, order_by, limit, user_id, org_id
+                    db, model, table_name, filters, valid_includes, order_by, limit, user_id, org_id
                 ),
                 timeout=5.0,
             )
@@ -264,6 +305,7 @@ Examples:
         model: Type,
         table_name: str,
         filters: Dict[str, Any],
+        include: List[str],
         order_by: Optional[str],
         limit: int,
         user_id: UUID,
@@ -279,9 +321,8 @@ Examples:
         # Start building query
         query = select(model)
 
-        # Add eager loading for relationships
-        eager_loads = self.EAGER_LOAD.get(table_name, [])
-        for rel in eager_loads:
+        # Add eager loading for requested relationships
+        for rel in include:
             if hasattr(model, rel):
                 query = query.options(selectinload(getattr(model, rel)))
 
@@ -310,9 +351,9 @@ Examples:
         result = await db.execute(query)
         rows = result.scalars().all()
 
-        # Format results
+        # Format results with included relationships
         formatted_results = [
-            self._format_row(row, table_name, accessible_project_ids)
+            self._format_row(row, table_name, include, accessible_project_ids)
             for row in rows
         ]
 
@@ -321,6 +362,7 @@ Examples:
             "count": len(formatted_results),
             "table": table_name,
             "filters_applied": list(filters.keys()) if filters else [],
+            "relationships_included": include,
         }
 
     async def _build_conditions(
@@ -512,9 +554,10 @@ Examples:
         self,
         row: Any,
         table_name: str,
+        include: List[str],
         accessible_project_ids: List[UUID],
     ) -> Dict[str, Any]:
-        """Format a database row into a safe dictionary."""
+        """Format a database row into a safe dictionary with nested relationships."""
         safe_columns = self.SAFE_COLUMNS.get(table_name, [])
         result = {}
 
@@ -530,12 +573,51 @@ Examples:
                     value = [str(v) if isinstance(v, UUID) else v for v in value]
                 result[col] = value
 
-        # Add relationship data if available
-        if hasattr(row, "assignee") and row.assignee:
+        # Add relationship data based on include parameter
+        if "assignee" in include and hasattr(row, "assignee") and row.assignee:
+            result["assignee"] = self._format_user(row.assignee)
+        elif hasattr(row, "assignee") and row.assignee:
+            # Fallback: just add name for convenience even if not included
             result["assignee_name"] = row.assignee.display_name
-        if hasattr(row, "project") and row.project:
+
+        if "project" in include and hasattr(row, "project") and row.project:
+            result["project"] = self._format_project(row.project)
+        elif hasattr(row, "project") and row.project:
+            # Fallback: just add name for convenience even if not included
             result["project_name"] = row.project.name
-        if hasattr(row, "created_by") and row.created_by:
+
+        if "created_by" in include and hasattr(row, "created_by") and row.created_by:
+            result["created_by"] = self._format_user(row.created_by)
+        elif hasattr(row, "created_by") and row.created_by:
+            # Fallback: just add name for convenience even if not included
             result["created_by_name"] = row.created_by.display_name
 
+        return result
+
+    def _format_user(self, user: Any) -> Dict[str, Any]:
+        """Format a User object into a safe dictionary."""
+        safe_columns = self.SAFE_COLUMNS.get("users", [])
+        result = {}
+        for col in safe_columns:
+            if hasattr(user, col):
+                value = getattr(user, col)
+                if isinstance(value, UUID):
+                    value = str(value)
+                result[col] = value
+        return result
+
+    def _format_project(self, project: Any) -> Dict[str, Any]:
+        """Format a Project object into a safe dictionary."""
+        safe_columns = self.SAFE_COLUMNS.get("projects", [])
+        result = {}
+        for col in safe_columns:
+            if hasattr(project, col):
+                value = getattr(project, col)
+                if isinstance(value, UUID):
+                    value = str(value)
+                elif isinstance(value, (date, datetime)):
+                    value = value.isoformat()
+                elif isinstance(value, list):
+                    value = [str(v) if isinstance(v, UUID) else v for v in value]
+                result[col] = value
         return result
