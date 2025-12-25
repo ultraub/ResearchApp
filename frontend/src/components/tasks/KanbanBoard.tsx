@@ -109,13 +109,26 @@ export default function KanbanBoard({
     const columnEl = columnRefs.current.get(columnId);
     const board = boardRef.current;
     if (columnEl && board) {
-      // Instant scroll to exact position, then let scroll-snap + scroll-smooth
-      // handle the final snap animation. This is more reliable than trying
-      // to time when a smooth scroll animation completes.
-      board.style.scrollBehavior = 'auto';
-      board.scrollLeft = columnEl.offsetLeft;
-      // Restore smooth behavior for future scrolls
-      board.style.scrollBehavior = '';
+      // Disable scroll-snap during programmatic scroll
+      board.style.scrollSnapType = 'none';
+
+      // Scroll smoothly to the column
+      board.scrollTo({ left: columnEl.offsetLeft, behavior: 'smooth' });
+
+      // Re-enable scroll-snap after scroll completes using scrollend event
+      const handleScrollEnd = () => {
+        board.style.scrollSnapType = 'x mandatory';
+        board.removeEventListener('scrollend', handleScrollEnd);
+      };
+      board.addEventListener('scrollend', handleScrollEnd, { once: true });
+
+      // Fallback for browsers without scrollend support
+      setTimeout(() => {
+        board.removeEventListener('scrollend', handleScrollEnd);
+        if (board.style.scrollSnapType === 'none') {
+          board.style.scrollSnapType = 'x mandatory';
+        }
+      }, 1000);
     }
   }, []);
 
