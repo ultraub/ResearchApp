@@ -164,10 +164,10 @@ export default function KanbanBoard({
   };
 
   return (
-    <div className="flex flex-col">
-      {/* Navigation Pills - Hidden on mobile, sticky within board area */}
+    <div className="space-y-3">
+      {/* Navigation Pills - Hidden on mobile */}
       <nav
-        className="hidden md:flex gap-2 overflow-x-auto pb-2 sticky top-16 z-10 bg-white dark:bg-gray-900 py-2 -mx-2 px-2 border-b border-gray-100 dark:border-gray-800"
+        className="hidden md:flex gap-2 overflow-x-auto pb-2"
         aria-label="Board columns"
       >
         {columns.map((column) => {
@@ -204,7 +204,7 @@ export default function KanbanBoard({
       {/* Kanban Board */}
       <div
         ref={boardRef}
-        className="flex gap-4 overflow-x-auto pb-4 pt-3 scroll-smooth"
+        className="flex gap-4 overflow-x-auto pb-4 scroll-smooth"
         style={{ scrollSnapType: 'x mandatory' }}
       >
         {columns.map((column) => {
