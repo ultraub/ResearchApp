@@ -706,29 +706,25 @@ Would you like to try rephrasing your question?"""
         """
         from sqlalchemy import select, and_
 
-        # For CREATE operations, compute a hash of the tool_input for deduplication
-        # This allows multiple creates of different entities while preventing true duplicates
-        content_hash = None
-        if preview.entity_id is None:
-            content_hash = self._compute_action_hash(preview.tool_input)
+        # Compute hash of tool_input for deduplication
+        # This ensures different actions produce different hashes, even on the same entity
+        # Examples that should NOT be deduplicated:
+        #   - "Create task A" vs "Create task B" (different titles)
+        #   - "Update task X priority" vs "Update task X status" (different fields)
+        #   - "Add comment A to task" vs "Add comment B to task" (different content)
+        # Examples that SHOULD be deduplicated:
+        #   - Two identical "Create task A" requests (exact same tool_input)
+        content_hash = self._compute_action_hash(preview.tool_input)
 
-        # Build deduplication conditions
+        # Build deduplication conditions - always use content_hash
+        # This handles all operation types uniformly
         dedup_conditions = [
             AIPendingAction.user_id == self.user_id,
             AIPendingAction.tool_name == preview.tool_name,
-            AIPendingAction.entity_type == preview.entity_type,
+            AIPendingAction.content_hash == content_hash,
             AIPendingAction.status == "pending",
             AIPendingAction.expires_at > datetime.now(timezone.utc),
         ]
-
-        if preview.entity_id is not None:
-            # For UPDATE/DELETE operations, match on entity_id
-            dedup_conditions.append(AIPendingAction.entity_id == preview.entity_id)
-        else:
-            # For CREATE operations, match on content_hash
-            # This allows "Create task: A" and "Create task: B" to both succeed
-            # while preventing duplicate "Create task: A" requests
-            dedup_conditions.append(AIPendingAction.content_hash == content_hash)
 
         existing_query = (
             select(AIPendingAction)
