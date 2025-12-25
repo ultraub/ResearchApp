@@ -388,7 +388,8 @@ Use this context to provide relevant suggestions and defaults for actions."""
         force_iteration = 4  # Strongly encourage response
 
         # Hard limit on total tool calls to prevent runaway queries
-        max_total_tool_calls = 8
+        # Increased from 8 to 15 to allow batch operations (e.g., creating 5 tasks)
+        max_total_tool_calls = 15
         total_tool_calls = 0
         hit_tool_limit = False
 
@@ -678,6 +679,18 @@ Would you like to try rephrasing your question?"""
 
         return conversation.id
 
+    def _compute_action_hash(self, tool_input: Dict[str, Any]) -> str:
+        """Compute a hash of tool_input for deduplication of CREATE operations.
+
+        This ensures that different actions (e.g., creating 2 different tasks,
+        or adding 2 different comments to the same task) are not deduplicated.
+        """
+        import hashlib
+
+        # Sort keys for consistent hashing
+        input_str = json.dumps(tool_input, sort_keys=True, default=str)
+        return hashlib.sha256(input_str.encode()).hexdigest()[:16]
+
     async def _store_pending_action(
         self,
         conversation_id: UUID,
@@ -686,24 +699,40 @@ Would you like to try rephrasing your question?"""
         """Store a pending action for approval.
 
         Includes deduplication to prevent duplicate actions with the same
-        tool, entity, and state from being created within the expiration window.
+        tool, entity, and content from being created within the expiration window.
+
+        For CREATE operations (where entity_id is None), we use a hash of the
+        tool_input to distinguish between different create requests.
         """
         from sqlalchemy import select, and_
 
-        # Check for existing pending action with same tool, entity, and state
-        # to prevent duplicates from concurrent requests or retries
+        # For CREATE operations, compute a hash of the tool_input for deduplication
+        # This allows multiple creates of different entities while preventing true duplicates
+        content_hash = None
+        if preview.entity_id is None:
+            content_hash = self._compute_action_hash(preview.tool_input)
+
+        # Build deduplication conditions
+        dedup_conditions = [
+            AIPendingAction.user_id == self.user_id,
+            AIPendingAction.tool_name == preview.tool_name,
+            AIPendingAction.entity_type == preview.entity_type,
+            AIPendingAction.status == "pending",
+            AIPendingAction.expires_at > datetime.now(timezone.utc),
+        ]
+
+        if preview.entity_id is not None:
+            # For UPDATE/DELETE operations, match on entity_id
+            dedup_conditions.append(AIPendingAction.entity_id == preview.entity_id)
+        else:
+            # For CREATE operations, match on content_hash
+            # This allows "Create task: A" and "Create task: B" to both succeed
+            # while preventing duplicate "Create task: A" requests
+            dedup_conditions.append(AIPendingAction.content_hash == content_hash)
+
         existing_query = (
             select(AIPendingAction)
-            .where(
-                and_(
-                    AIPendingAction.user_id == self.user_id,
-                    AIPendingAction.tool_name == preview.tool_name,
-                    AIPendingAction.entity_type == preview.entity_type,
-                    AIPendingAction.entity_id == preview.entity_id,
-                    AIPendingAction.status == "pending",
-                    AIPendingAction.expires_at > datetime.now(timezone.utc),
-                )
-            )
+            .where(and_(*dedup_conditions))
             .limit(1)
         )
         result = await self.db.execute(existing_query)
@@ -717,6 +746,8 @@ Would you like to try rephrasing your question?"""
             conversation_id=conversation_id,
             tool_name=preview.tool_name,
             tool_input=preview.tool_input,
+            description=preview.description,
+            content_hash=content_hash,
             entity_type=preview.entity_type,
             entity_id=preview.entity_id,
             old_state=preview.old_state,

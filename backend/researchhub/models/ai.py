@@ -338,6 +338,10 @@ class AIPendingAction(BaseModel):
     # Human-readable description
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Content hash for deduplication of CREATE operations
+    # Hash of tool_input to distinguish different create requests
+    content_hash: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+
     # Status tracking
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending"
