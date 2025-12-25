@@ -479,7 +479,7 @@ class ActionExecutor:
         """Execute project creation."""
         from datetime import date as date_type
         from researchhub.models.user import User
-        from researchhub.models.collaboration import ProjectMember, ProjectTeam
+        from researchhub.models.project import ProjectMember, ProjectTeam
         from researchhub.services import access_control as ac
 
         # Get the user for personal team creation if needed
