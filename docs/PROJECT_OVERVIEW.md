@@ -96,6 +96,70 @@ Use cases:
 - Organizing related work streams
 - Delegating portions of work to sub-teams
 
+## Custom Fields
+
+Projects can define custom fields for domain-specific task data:
+
+### Field Types
+- **Text**: Free-form text input
+- **Number**: Numeric values (configurable min/max)
+- **Date**: Date picker
+- **Select**: Single choice from options
+- **Multi-select**: Multiple choices
+- **User**: Team member picker
+- **Checkbox**: Yes/no toggle
+- **URL**: Web link
+
+### Configuration
+- Defined at project level by admins
+- Each field has name, type, and optional validation
+- Can be marked as required
+- Display order configurable
+
+### Use Cases
+- Clinical study: Patient ID, Visit Number, Consent Status
+- Software project: Sprint, Story Points, Component
+- Lab work: Sample ID, Equipment, Protocol
+
+See [Task Workflows - Custom Fields](./TASK_WORKFLOWS.md#custom-fields) for implementation details.
+
+---
+
+## Recurring Tasks
+
+Automate creation of repeated work items:
+
+### Recurrence Patterns
+- **Daily**: Every day
+- **Weekly**: Specific days of week
+- **Biweekly**: Every two weeks
+- **Monthly**: Specific day of month
+- **Quarterly**: Every three months
+- **Yearly**: Annual tasks
+- **Custom**: Flexible patterns
+
+### Configuration
+- Base task as template
+- Recurrence schedule
+- Due date offset (days after creation)
+- Default assignees
+- Active/inactive toggle
+
+### Behavior
+1. System checks for pending task creation
+2. New task created from template
+3. Due date calculated from offset
+4. Template properties inherited
+5. Assigned to default assignees
+
+### Examples
+- Weekly team meeting notes
+- Monthly status report
+- Quarterly equipment calibration
+- Annual compliance review
+
+---
+
 ## Key Workflows
 
 ### Starting a New Project
@@ -105,7 +169,8 @@ Use cases:
 3. Select team and scope
 4. Choose project type (optional)
 5. Add initial tasks or use template
-6. Invite team members if needed
+6. Configure custom fields if needed
+7. Invite team members if needed
 
 ### Daily Work Pattern
 

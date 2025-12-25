@@ -245,6 +245,100 @@ Feed of team activity:
 
 ---
 
+## Gantt Chart / Timeline View
+
+Visual timeline for task planning and tracking.
+
+### Weekly Timeline View
+
+Dashboard component showing a 7-day Gantt-style timeline:
+
+**Library**: wx-react-gantt (SVAR React Gantt)
+
+**Features**:
+- 7-day rolling view from current date
+- Tasks plotted by due date
+- Color-coded by priority:
+  - Urgent: Red
+  - High: Orange
+  - Medium: Blue
+  - Low: Gray
+- Click task bar to navigate to task detail
+- Progress bars for completed tasks
+- Blocked tasks visually indicated
+
+### Task Visualization
+
+| Property | Display |
+|----------|---------|
+| Due Date | Bar position on timeline |
+| Priority | Bar color |
+| Status | Progress fill (0% or 100%) |
+| Blocked | Visual indicator |
+
+### Timeline Scales
+
+- Day view (default): Shows individual days
+- Each bar spans 1 day width
+
+### Navigation
+
+- Click any task bar to open task detail
+- Hover for task info tooltip
+- Scrollable for tasks outside visible range
+
+### Data Requirements
+
+Tasks must have `due_date` to appear on timeline. Tasks without due dates are filtered out.
+
+---
+
+## Sharing System
+
+Granular access control beyond team membership.
+
+### Sharing Models
+
+| Model | Purpose |
+|-------|---------|
+| **ProjectShare** | Share project with specific user |
+| **DocumentShare** | Share document outside project context |
+| **ShareLink** | Public/semi-public link access |
+
+### Share Link Features
+
+- Unique 64-character token
+- Access levels: view, comment, edit
+- Security options:
+  - Public access
+  - Require authentication
+  - Password protection
+  - Domain restriction (email domains)
+- Usage controls:
+  - Expiration date
+  - Maximum use count
+  - Active/inactive toggle
+
+### Sharing Workflow
+
+**Direct User Share**:
+1. Select resource (project/document)
+2. Enter user email
+3. Set permission level
+4. Optional: Add message, set expiration
+5. User notified
+
+**Link Sharing**:
+1. Create share link for resource
+2. Configure security options
+3. Copy link
+4. Share externally
+5. Monitor usage
+
+See [Team Collaboration Guide](./TEAM_COLLABORATION.md#sharing-system) for complete details.
+
+---
+
 ## Search
 
 Global search across all content.

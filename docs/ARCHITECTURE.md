@@ -65,15 +65,28 @@ backend/researchhub/
 │   └── ...
 ├── models/              # SQLAlchemy ORM models
 │   ├── organization.py  # Org/Team/Member models
-│   ├── project.py       # Project/Task/Blocker models
+│   ├── project.py       # Project/Task/Blocker/CustomField models
 │   ├── document.py      # Document/Version models
 │   ├── review.py        # Review workflow models
-│   └── ai.py            # AI conversation models
+│   ├── ai.py            # AI conversation models
+│   ├── activity.py      # Activity/Notification/Preferences
+│   ├── collaboration.py # Sharing/Comments/Reactions
+│   ├── journal.py       # Journal entries and links
+│   ├── idea.py          # Ideas inbox
+│   └── knowledge.py     # Papers/Collections/Highlights
 ├── services/            # Business logic layer
 │   ├── access_control.py    # Permission checking
 │   ├── workflow.py          # Task workflows
 │   ├── review.py            # Review processing
-│   └── ...
+│   ├── auto_review.py       # AI-powered document reviews
+│   ├── notification.py      # Notification dispatch
+│   ├── recurring_task.py    # Recurring task generation
+│   ├── task_assignment.py   # Assignment management
+│   ├── task_document.py     # Document-task linking
+│   ├── custom_field.py      # Custom field handling
+│   ├── google_oauth.py      # OAuth authentication
+│   ├── pdf_generator.py     # PDF export generation
+│   └── external_apis.py     # External API integrations
 ├── ai/                  # AI subsystem
 │   ├── providers/       # LLM provider implementations
 │   ├── assistant/       # Assistant service with tools
@@ -84,6 +97,10 @@ backend/researchhub/
 │   ├── session.py       # Async session management
 │   └── base.py          # Base model class
 ├── middleware/          # Request middleware
+│   ├── logging.py       # Structured request logging
+│   └── request_id.py    # Request ID tracking
+├── tasks.py             # Celery background tasks
+├── worker.py            # Celery worker configuration
 └── config.py            # Settings from environment
 ```
 
@@ -152,6 +169,56 @@ frontend/src/
 3. Celery worker picks up and processes
 4. Results stored in Redis result backend
 5. Frontend can poll for task status
+
+#### Celery Task Types
+
+| Task | Schedule | Description |
+|------|----------|-------------|
+| `process_document` | On-demand | Extract text, generate summaries |
+| `send_notification` | On-demand | Send email/in-app notifications |
+| `cleanup_expired_sessions` | Periodic | Remove stale sessions |
+| `process_recurring_tasks` | Daily | Create tasks from recurring rules |
+| `auto_review_document` | On-demand | AI-powered document review |
+
+### WebSocket (Real-time)
+
+**Location**: `backend/researchhub/api/v1/websocket.py`
+
+Provides real-time updates via WebSocket connections:
+
+| Channel | Purpose |
+|---------|---------|
+| Organization | Org-wide updates, team changes |
+| Project | Project updates, task changes |
+| Document | Collaborative editing, presence |
+| User | Personal notifications |
+
+**Events**:
+- `user_joined` / `user_left`: Presence tracking
+- `cursor_position`: Collaborative editing cursors
+- `document_changed`: Real-time document sync
+- `notification`: Push notifications
+
+### Activity & Notification System
+
+**Models** (in `models/activity.py`):
+
+| Model | Purpose |
+|-------|---------|
+| `Activity` | Audit log of all system actions |
+| `Notification` | User notifications (read/unread) |
+| `NotificationPreference` | Per-user notification settings |
+
+**Activity Tracking**:
+- Records entity changes (task updates, document edits)
+- Tracks actor, action, timestamp
+- Supports activity feeds and audit trails
+
+**Notification Flow**:
+1. Action triggers notification creation
+2. User preferences checked (email/in-app settings)
+3. In-app: Stored in DB, pushed via WebSocket
+4. Email: Queued via Celery (immediate/daily/weekly digest)
 
 ## Environment Configuration
 

@@ -30,7 +30,17 @@ frontend/src/
 │   ├── teams/           # Team management
 │   ├── calendar/        # Calendar views
 │   ├── search/          # Search components
-│   └── ...
+│   ├── dashboard/       # Dashboard widgets
+│   ├── sharing/         # Sharing UI components
+│   ├── activity/        # Activity feed components
+│   ├── journals/        # Journal entry components
+│   ├── knowledge/       # Knowledge base (papers)
+│   ├── ideas/           # Ideas inbox components
+│   ├── export/          # Export functionality
+│   ├── invitations/     # Team invitations
+│   ├── onboarding/      # User onboarding flow
+│   ├── editor/          # TipTap rich text editor
+│   └── common/          # Shared utilities
 ├── pages/               # Route page components
 │   ├── auth/            # Login, callback
 │   ├── onboarding/      # Onboarding flow
@@ -38,10 +48,17 @@ frontend/src/
 │   ├── projects/        # Project list/detail
 │   ├── documents/       # Document editor
 │   ├── reviews/         # Review workflows
-│   └── ...
+│   ├── teams/           # Team management pages
+│   ├── settings/        # User/org settings
+│   ├── journals/        # Journal entries
+│   ├── knowledge/       # Knowledge base pages
+│   ├── ideas/           # Ideas inbox
+│   ├── organizations/   # Org management
+│   └── join/            # Team join flow
 ├── stores/              # Zustand stores
-│   ├── auth.ts          # Authentication
-│   └── organization.ts  # Org context
+│   ├── auth.ts          # Authentication state
+│   ├── organization.ts  # Org/team context
+│   └── theme.ts         # Theme preferences
 ├── hooks/               # Custom hooks
 ├── lib/                 # Utility libraries
 │   └── api-client.ts    # Axios instance
@@ -228,6 +245,30 @@ components/tasks/
 - `Sidebar.tsx` - Navigation sidebar
 - `Header.tsx` - Top header bar
 
+### Dashboard Components
+
+**Location**: `components/dashboard/`
+
+| Component | Description |
+|-----------|-------------|
+| `CommandCenterDashboard.tsx` | Main dashboard orchestrator |
+| `WeeklyTimelineView.tsx` | 7-day Gantt timeline (wx-react-gantt) |
+| `UpcomingTasksSection.tsx` | Tasks due soon list |
+| `UnscheduledTasksSection.tsx` | Tasks without due dates |
+| `BlockersSection.tsx` | Open blockers summary |
+| `ReviewDashboardWidget.tsx` | Pending reviews widget |
+| `ProjectProgressItem.tsx` | Project progress indicator |
+| `TaskRowItem.tsx` | Compact task row display |
+| `ScopeToggle.tsx` | Team/personal scope switcher |
+| `QuickActionsDropdown.tsx` | Quick action menu |
+
+### Knowledge Base Components
+
+**Location**: `components/knowledge/`
+
+- `LinkPaperToProjectModal.tsx` - Link papers to projects
+- `ProjectPapersSection.tsx` - Papers linked to project
+
 ## Rich Text Editor
 
 TipTap-based editor for documents and task descriptions.
@@ -270,7 +311,25 @@ TipTap-based editor for documents and task descriptions.
 - `useChatBubble.ts` - Chat state management
 - `usePageContext.ts` - Current page context
 
-**SSE Handling**:
+## Custom Hooks
+
+**Location**: `src/hooks/`
+
+| Hook | Purpose |
+|------|---------|
+| `useChatBubble` | AI chat state and SSE handling |
+| `usePageContext` | Current page context for AI |
+| `useDocumentComments` | Document comment operations |
+| `useCommentReads` | Track read/unread comments |
+| `useEditorPreferences` | Editor settings |
+| `useAutoReview` | AI auto-review functionality |
+| `useAIEnabled` | Check if AI features enabled |
+| `useWebSocket` | WebSocket connection management |
+| `useTeams` | Team data and operations |
+| `useDemoProject` | Demo project for onboarding |
+
+### SSE Handling (AI Chat)
+
 ```typescript
 const eventSource = new EventSource('/api/v1/assistant/chat');
 

@@ -77,7 +77,8 @@ jobs:
             cd /home/ec2-user/app
             source .env
             # Docs are now baked into the image at /app/docs
-            docker exec pasteur-backend python -m researchhub.scripts.sync_system_docs --docs-dir /app/docs
+            # Note: exit 137 can occur from SSH timeout after successful completion
+            docker exec pasteur-backend python -m researchhub.scripts.sync_system_docs --docs-dir /app/docs || true
 
       - name: Notify on failure
         if: failure()
