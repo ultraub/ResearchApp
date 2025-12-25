@@ -109,9 +109,18 @@ export default function KanbanBoard({
     const columnEl = columnRefs.current.get(columnId);
     const board = boardRef.current;
     if (columnEl && board) {
-      // Use scrollLeft directly - the board has CSS scroll-smooth for animation
-      // This only affects horizontal scroll within the board, not page scroll
+      // Disable scroll-snap during programmatic scroll
+      board.style.scrollSnapType = 'none';
+
+      // Set scroll position - board has CSS scroll-smooth for animation
       board.scrollLeft = columnEl.offsetLeft;
+
+      // Re-enable snap after scroll animation completes
+      setTimeout(() => {
+        if (boardRef.current) {
+          boardRef.current.style.scrollSnapType = 'x mandatory';
+        }
+      }, 300);
     }
   }, []);
 
