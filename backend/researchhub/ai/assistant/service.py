@@ -650,7 +650,36 @@ Would you like to try rephrasing your question?"""
         conversation_id: UUID,
         preview: ActionPreview,
     ) -> AIPendingAction:
-        """Store a pending action for approval."""
+        """Store a pending action for approval.
+
+        Includes deduplication to prevent duplicate actions with the same
+        tool, entity, and state from being created within the expiration window.
+        """
+        from sqlalchemy import select, and_
+
+        # Check for existing pending action with same tool, entity, and state
+        # to prevent duplicates from concurrent requests or retries
+        existing_query = (
+            select(AIPendingAction)
+            .where(
+                and_(
+                    AIPendingAction.user_id == self.user_id,
+                    AIPendingAction.tool_name == preview.tool_name,
+                    AIPendingAction.entity_type == preview.entity_type,
+                    AIPendingAction.entity_id == preview.entity_id,
+                    AIPendingAction.status == "pending",
+                    AIPendingAction.expires_at > datetime.now(timezone.utc),
+                )
+            )
+            .limit(1)
+        )
+        result = await self.db.execute(existing_query)
+        existing_action = result.scalar_one_or_none()
+
+        if existing_action:
+            # Return existing pending action instead of creating duplicate
+            return existing_action
+
         pending_action = AIPendingAction(
             conversation_id=conversation_id,
             tool_name=preview.tool_name,

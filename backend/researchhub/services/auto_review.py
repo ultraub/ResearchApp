@@ -824,12 +824,14 @@ class AutoReviewService:
         """
         cutoff = datetime.now(timezone.utc) - timedelta(hours=cooldown_hours)
 
+        # Check for both pending and completed to prevent race conditions
+        # where concurrent jobs both pass the check before either completes
         result = await self.db.execute(
             select(AutoReviewLog).where(
                 and_(
                     AutoReviewLog.content_hash == content_hash,
                     AutoReviewLog.created_at >= cutoff,
-                    AutoReviewLog.status == "completed",
+                    AutoReviewLog.status.in_(["pending", "completed"]),
                 )
             ).limit(1)
         )

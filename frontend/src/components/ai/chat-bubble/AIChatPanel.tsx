@@ -338,9 +338,22 @@ export function AIChatPanel({
     };
   };
 
-  // Auto-scroll to bottom on new messages
+  // Track previous message count to detect new messages vs. status updates
+  const prevMessageCountRef = useRef(messages.length);
+
+  // Auto-scroll to bottom only on new messages or while streaming
+  // Don't scroll when action status changes (approve/reject)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const lastMessage = messages[messages.length - 1];
+    const isNewMessage = messages.length > prevMessageCountRef.current;
+    const isStreaming = lastMessage?.isStreaming;
+
+    // Scroll for new messages or while streaming
+    if (isNewMessage || isStreaming) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    prevMessageCountRef.current = messages.length;
   }, [messages]);
 
   // Focus input when panel opens

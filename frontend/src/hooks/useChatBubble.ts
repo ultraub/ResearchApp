@@ -222,15 +222,24 @@ export function useChatBubble(): UseChatBubbleResult {
                   ? String(actionData.expires_at || actionData.expiresAt)
                   : undefined,
               };
-              accumulatedActions.push(action);
-              setPendingActions((prev) => [...prev, action]);
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantMessageId
-                    ? { ...m, actions: [...(m.actions || []), action] }
-                    : m
-                )
-              );
+              // Deduplicate: only add if not already present (by ID)
+              const isDuplicate = accumulatedActions.some((a) => a.id === action.id);
+              if (!isDuplicate) {
+                accumulatedActions.push(action);
+                setPendingActions((prev) => {
+                  // Also check existing state for duplicates
+                  if (prev.some((a) => a.id === action.id)) return prev;
+                  return [...prev, action];
+                });
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id !== assistantMessageId) return m;
+                    // Check if action already exists in this message
+                    if (m.actions?.some((a) => a.id === action.id)) return m;
+                    return { ...m, actions: [...(m.actions || []), action] };
+                  })
+                );
+              }
               break;
             }
 
