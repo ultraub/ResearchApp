@@ -546,18 +546,31 @@ Use the 'include' parameter to load related data. When included, the full relate
             # Comments filtered by organization - user must be in the org
             conditions.append(model.organization_id == org_id)
         elif table_name == "teams":
-            # Teams in user's org, or personal teams owned by the user
-            conditions.append(
-                or_(
-                    model.organization_id == org_id,
-                    and_(model.is_personal == True, model.owner_id == user_id),
-                )
+            # Teams the user can access:
+            # 1. Teams in user's organization
+            # 2. Personal teams owned by the user
+            # 3. Teams where the user is a member (via team_members)
+            member_team_result = await db.execute(
+                select(TeamMember.team_id).where(TeamMember.user_id == user_id)
             )
+            member_team_ids = [row[0] for row in member_team_result.all()]
+
+            team_conditions = [
+                model.organization_id == org_id,
+                and_(model.is_personal == True, model.owner_id == user_id),
+            ]
+            if member_team_ids:
+                team_conditions.append(model.id.in_(member_team_ids))
+
+            conditions.append(or_(*team_conditions))
         elif table_name == "organizations":
             # Only show user's organization
             conditions.append(model.id == org_id)
         elif table_name == "team_members":
-            # Get team IDs the user can see (org teams + personal teams they own)
+            # Get team IDs the user can see:
+            # 1. Teams in user's organization
+            # 2. Personal teams the user owns
+            # 3. Teams where the user is a member
             team_result = await db.execute(
                 select(Team.id).where(
                     or_(
@@ -566,9 +579,16 @@ Use the 'include' parameter to load related data. When included, the full relate
                     )
                 )
             )
-            visible_team_ids = [row[0] for row in team_result.all()]
+            visible_team_ids = set(row[0] for row in team_result.all())
+
+            # Also include teams where user is a member
+            member_result = await db.execute(
+                select(TeamMember.team_id).where(TeamMember.user_id == user_id)
+            )
+            visible_team_ids.update(row[0] for row in member_result.all())
+
             if visible_team_ids:
-                conditions.append(model.team_id.in_(visible_team_ids))
+                conditions.append(model.team_id.in_(list(visible_team_ids)))
             else:
                 conditions.append(False)  # No visible teams
         elif table_name == "organization_members":
