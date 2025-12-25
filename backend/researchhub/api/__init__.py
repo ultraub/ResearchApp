@@ -10,6 +10,7 @@ from researchhub.api.v1 import (
     auth,
     blockers,
     comment_reads,
+    dashboard,
     documents,
     exports,
     health,
@@ -48,6 +49,7 @@ router.include_router(activities.router, prefix="/activities", tags=["Activities
 router.include_router(sharing.router, prefix="/sharing", tags=["Sharing"])
 router.include_router(search.router, prefix="/search", tags=["Search"])
 router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
+router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 router.include_router(exports.router, prefix="/exports", tags=["Exports"])
 router.include_router(websocket.router, tags=["WebSocket"])
 router.include_router(ai.router, prefix="/ai", tags=["AI"])

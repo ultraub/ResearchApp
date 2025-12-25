@@ -1,7 +1,7 @@
 """Tasks API endpoints."""
 
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
@@ -2793,3 +2793,115 @@ async def get_task_attention_details(
         total_comments=total_comments,
         unread_comments=unread_comments,
     )
+
+
+# =============================================================================
+# Dashboard Quick Actions
+# =============================================================================
+
+
+class SnoozeRequest(BaseModel):
+    """Request to snooze a task's due date."""
+    snooze_to: str = Field(
+        ...,
+        pattern="^(tomorrow|next_week)$",
+        description="When to snooze the task to: 'tomorrow' or 'next_week'"
+    )
+
+
+@router.post("/{task_id}/quick-complete", response_model=TaskResponse)
+async def quick_complete_task(
+    task_id: UUID,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Task:
+    """Quickly mark a task as complete from the dashboard.
+
+    This is a convenience endpoint that sets status to 'done' and
+    records the completion timestamp.
+    """
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found",
+        )
+
+    # Verify project access
+    await check_project_access(db, task.project_id, current_user.id, "member")
+
+    # Mark as complete
+    task.status = "done"
+    task.completed_at = datetime.now(timezone.utc)
+
+    await db.commit()
+
+    # Re-query with fresh data and relationships
+    stmt = select(Task).options(selectinload(Task.created_by)).where(Task.id == task_id)
+    result = await db.execute(stmt)
+    task = result.scalar_one()
+
+    logger.info("Task quick-completed", task_id=str(task_id), user_id=str(current_user.id))
+    return task
+
+
+@router.post("/{task_id}/snooze", response_model=TaskResponse)
+async def snooze_task(
+    task_id: UUID,
+    snooze_data: SnoozeRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Task:
+    """Snooze a task by moving its due date.
+
+    - 'tomorrow': Sets due date to tomorrow
+    - 'next_week': Sets due date to 7 days from today
+
+    If the task has no due date, one will be assigned.
+    """
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found",
+        )
+
+    # Verify project access
+    await check_project_access(db, task.project_id, current_user.id, "member")
+
+    # Calculate new due date
+    today = date.today()
+    if snooze_data.snooze_to == "tomorrow":
+        new_due_date = today + timedelta(days=1)
+    elif snooze_data.snooze_to == "next_week":
+        new_due_date = today + timedelta(days=7)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid snooze_to value",
+        )
+
+    # Update due date
+    old_due_date = task.due_date
+    task.due_date = new_due_date
+
+    await db.commit()
+
+    # Re-query with fresh data and relationships
+    stmt = select(Task).options(selectinload(Task.created_by)).where(Task.id == task_id)
+    result = await db.execute(stmt)
+    task = result.scalar_one()
+
+    logger.info(
+        "Task snoozed",
+        task_id=str(task_id),
+        user_id=str(current_user.id),
+        old_due_date=str(old_due_date) if old_due_date else None,
+        new_due_date=str(new_due_date),
+        snooze_to=snooze_data.snooze_to,
+    )
+    return task
