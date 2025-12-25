@@ -37,6 +37,7 @@ export default function KanbanBoard({
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(columns.map(c => c.id));
+  const [scrollSnapEnabled, setScrollSnapEnabled] = useState(true);
 
   const boardRef = useRef<HTMLDivElement>(null);
   const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -109,35 +110,21 @@ export default function KanbanBoard({
     const columnEl = columnRefs.current.get(columnId);
     const board = boardRef.current;
     if (columnEl && board) {
-      // Disable scroll-snap during programmatic scroll
-      board.style.scrollSnapType = 'none';
+      // Disable scroll-snap via React state (prevents re-renders from re-enabling it)
+      setScrollSnapEnabled(false);
 
       // Scroll smoothly to the column
       board.scrollTo({ left: columnEl.offsetLeft, behavior: 'smooth' });
 
-      // Re-enable scroll-snap after scroll completes using scrollend event
-      const handleScrollEnd = () => {
-        board.style.scrollSnapType = 'x mandatory';
-        board.removeEventListener('scrollend', handleScrollEnd);
-      };
-      board.addEventListener('scrollend', handleScrollEnd, { once: true });
-
-      // Fallback for browsers without scrollend support
-      setTimeout(() => {
-        board.removeEventListener('scrollend', handleScrollEnd);
-        if (board.style.scrollSnapType === 'none') {
-          board.style.scrollSnapType = 'x mandatory';
-        }
-      }, 1000);
+      // Re-enable scroll-snap after animation completes
+      setTimeout(() => setScrollSnapEnabled(true), 500);
     }
   }, []);
 
   const handleDragStart = (e: React.DragEvent, task: Task) => {
     setDraggedTask(task);
     // Disable scroll snap during drag for smoother movement
-    if (boardRef.current) {
-      boardRef.current.style.scrollSnapType = 'none';
-    }
+    setScrollSnapEnabled(false);
     e.dataTransfer.effectAllowed = "move";
   };
 
@@ -165,9 +152,7 @@ export default function KanbanBoard({
     setDraggedTask(null);
     setDragOverColumn(null);
     // Re-enable scroll snap after drag
-    if (boardRef.current) {
-      boardRef.current.style.scrollSnapType = 'x mandatory';
-    }
+    setScrollSnapEnabled(true);
   };
 
   return (
@@ -211,8 +196,8 @@ export default function KanbanBoard({
       {/* Kanban Board */}
       <div
         ref={boardRef}
-        className="flex gap-4 overflow-x-auto pb-4 scroll-smooth"
-        style={{ scrollSnapType: 'x mandatory' }}
+        className="flex gap-4 overflow-x-auto pb-4"
+        style={{ scrollSnapType: scrollSnapEnabled ? 'x mandatory' : 'none' }}
       >
         {columns.map((column) => {
           const columnTasks = tasks[column.id as keyof TasksByStatus] || [];
