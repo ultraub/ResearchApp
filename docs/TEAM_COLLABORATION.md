@@ -177,76 +177,366 @@ For open invitations:
 - Usage limits optional
 - Great for onboarding events
 
-## Sharing Workflows
+---
 
-### Sharing a Project with Another Team
+## Sharing System
 
-1. Project owner/admin opens project settings
-2. Navigate to "Team Access"
-3. Select team to add
-4. Choose access role
-5. Confirm addition
-6. Team members can now access
+The sharing system enables granular access control for projects and documents beyond team membership.
 
-### Creating an Invite Link
+### Sharing Models Overview
 
-1. Team lead opens team settings
-2. Click "Create Invite Link"
-3. Set role for new members
-4. Set expiration (optional)
-5. Set max uses (optional)
-6. Share the generated link
-7. Monitor usage
+| Model | Purpose | Granularity |
+|-------|---------|-------------|
+| **ProjectShare** | Share project with individual user | User-level |
+| **DocumentShare** | Share document outside project context | User-level |
+| **ShareLink** | Public/semi-public link access | Link-based |
 
-### Excluding a User from a Project
+### ProjectShare
 
-1. Project admin opens project settings
-2. Navigate to "Member Access"
-3. Find user to exclude
-4. Click "Remove Access"
-5. User loses access immediately
-6. They remain on the team
+Direct sharing of a project with a specific user. Useful when:
+- User needs project access but isn't on the team
+- Different access level than team default
+- Temporary collaborators
+
+**ProjectShare Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| project_id | UUID | Project being shared |
+| user_id | UUID | User receiving access |
+| role | string | Access role (viewer, member, editor, admin) |
+| shared_by_id | UUID | User who created the share |
+| message | string | Optional personal message |
+| expires_at | datetime | Optional expiration |
+| accepted_at | datetime | When user accepted |
+| is_active | boolean | Share status |
+
+### DocumentShare
+
+Share individual documents with users who may not have project access.
+
+**DocumentShare Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| document_id | UUID | Document being shared |
+| user_id | UUID | User receiving access |
+| permission | string | view, comment, or edit |
+| shared_by_id | UUID | User who created the share |
+| message | string | Optional personal message |
+| expires_at | datetime | Optional expiration |
+| accepted_at | datetime | When user accepted |
+| is_active | boolean | Share status |
+
+### ShareLink (Public Links)
+
+Create shareable links that don't require user accounts (optional).
+
+**ShareLink Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| token | string | Unique 64-char link token |
+| resource_type | string | project, document, collection |
+| resource_id | UUID | Resource being shared |
+| access_level | string | view, comment, edit |
+| requires_auth | boolean | Require login to access |
+| password_hash | string | Optional password protection |
+| allowed_domains | string[] | Restrict to email domains |
+| expires_at | datetime | Optional expiration |
+| max_uses | int | Maximum access count |
+| use_count | int | Current access count |
+| is_active | boolean | Link status |
+| created_by_id | UUID | Link creator |
+
+### Share Link Security Options
+
+| Option | Description |
+|--------|-------------|
+| **Public** | Anyone with link can access |
+| **Auth Required** | Must be logged in |
+| **Password Protected** | Requires password |
+| **Domain Restricted** | Only specific email domains |
+| **Expiring** | Auto-deactivates after date |
+| **Limited Uses** | Deactivates after N accesses |
+
+### Sharing Workflows
+
+**Sharing a Project with a User**:
+1. Navigate to project settings → Sharing
+2. Enter user's email
+3. Select access role
+4. Optionally add message
+5. Optionally set expiration
+6. User receives notification/email
+
+**Creating a Share Link**:
+1. Navigate to resource settings → Share Link
+2. Configure access level
+3. Set security options (auth, password, domains)
+4. Set expiration/use limits
+5. Copy and distribute link
+
+---
 
 ## Comments and Discussions
 
-### Where Comments Happen
+### Comment Types in the System
 
-| Location | Purpose |
-|----------|---------|
-| Tasks | Task-specific discussion |
-| Documents | Document feedback (inline or general) |
-| Reviews | Formal review feedback |
+The system has multiple comment implementations for different contexts:
+
+| Comment Type | Location | Model |
+|--------------|----------|-------|
+| **Task Comments** | Task detail view | TaskComment |
+| **Document Comments** | Document editor | DocumentComment |
+| **Review Comments** | Review workflow | ReviewComment |
+| **Generic Comments** | Any resource | Comment (polymorphic) |
+
+### Generic Comment Model (Polymorphic)
+
+The `Comment` model supports discussions on any resource type.
+
+**Polymorphic Targeting**:
+| resource_type | Description |
+|---------------|-------------|
+| project | Project-level discussions |
+| task | Task discussions |
+| document | Document feedback |
+| idea | Idea comments |
+| paper | Research paper discussions |
+
+**Comment Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| content | text | Plain text content |
+| content_html | text | Rendered HTML with mentions/links |
+| resource_type | string | Target resource type |
+| resource_id | UUID | Target resource ID |
+| parent_id | UUID | Parent comment (for replies) |
+| thread_id | UUID | Root comment ID for threading |
+| author_id | UUID | Comment author |
+| mentioned_user_ids | string[] | @mentioned user IDs |
+| is_edited | boolean | Whether comment was edited |
+| edited_at | datetime | Last edit timestamp |
+| is_deleted | boolean | Soft delete flag |
+| deleted_at | datetime | Deletion timestamp |
+| is_resolved | boolean | Resolution status |
+| resolved_by_id | UUID | User who resolved |
+| resolved_at | datetime | Resolution timestamp |
 
 ### Comment Features
 
-**Threading**: Reply to comments for conversations
-**@Mentions**: Notify specific users
-**Reactions**: Quick emoji responses
-**Resolution**: Mark comments as resolved
-**Edit Tracking**: See when comments were edited
+**Threading**:
+- Replies linked via `parent_id`
+- Thread tracking via `thread_id`
+- Nested conversation support
 
-### Comment Read Tracking
-System tracks which comments users have read:
-- Count unread comments per resource
-- Mark as read on view
-- Filter to show unread only
+**@Mentions**:
+- Store mentioned users in `mentioned_user_ids` array
+- Rendered in `content_html`
+- Trigger notifications to mentioned users
+
+**Edit Tracking**:
+- `is_edited` flag shows modified comments
+- `edited_at` timestamp for last edit
+- Original content preserved in history
+
+**Resolution**:
+- Mark comments as resolved
+- Track who resolved and when
+- Useful for feedback workflows
+
+**Soft Delete**:
+- `is_deleted` flag preserves thread structure
+- Shows "[deleted]" in place of content
+- Maintains reply context
+
+### Task Comment Model (TaskComment)
+
+Specific implementation for task discussions:
+
+**TaskComment Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| task_id | UUID | Parent task |
+| user_id | UUID | Comment author |
+| content | text | Comment text (TipTap JSON) |
+| is_edited | boolean | Edit flag |
+| edited_at | datetime | Edit timestamp |
+
+### Document Comment Model (DocumentComment)
+
+For inline and general document feedback:
+
+**DocumentComment Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| document_id | UUID | Parent document |
+| user_id | UUID | Comment author |
+| content | text | Comment text |
+| quote_text | text | Quoted document text |
+| position_data | JSONB | Selection position in doc |
+| is_inline | boolean | Inline vs general comment |
+| is_resolved | boolean | Resolution status |
+| resolved_by_id | UUID | Resolver |
+| resolved_at | datetime | Resolution time |
+
+---
+
+## Reactions
+
+### Reaction Types
+
+The system supports two reaction implementations:
+
+| Model | Used For | Scope |
+|-------|----------|-------|
+| **CommentReaction** | Task comments only | Task discussions |
+| **Reaction** | Any resource (polymorphic) | Universal |
+
+### CommentReaction (Task Comments)
+
+**CommentReaction Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| comment_id | UUID | Task comment being reacted to |
+| user_id | UUID | User adding reaction |
+| emoji | string | Emoji or reaction code |
+
+**Constraints**: One reaction per user per emoji per comment
+
+### Reaction (Polymorphic)
+
+Universal reaction model for any resource type.
+
+**Reaction Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| resource_type | string | Type of resource (comment, task, etc.) |
+| resource_id | UUID | Resource being reacted to |
+| user_id | UUID | User adding reaction |
+| emoji | string | Emoji or reaction code |
+
+**Constraints**: One reaction per user per emoji per resource
+
+### Common Reactions
+
+| Emoji | Typical Meaning |
+|-------|-----------------|
+| 👍 | Agree / Approve |
+| ❤️ | Love it |
+| 🎉 | Celebrate |
+| 👀 | Looking into it |
+| 🚀 | Ship it |
+| 😕 | Confused |
+| ➕ | +1 / Me too |
+
+---
+
+## Comment Read Tracking
+
+### CommentRead Model
+
+Tracks which comments a user has read across all comment types.
+
+**Polymorphic Design**:
+Works across task, document, review, and generic comments using `comment_type` + `comment_id`.
+
+**CommentRead Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| comment_type | string | task, document, review, generic |
+| comment_id | UUID | Comment being tracked |
+| user_id | UUID | User who read |
+| read_at | datetime | When read |
+
+### Comment Types for Read Tracking
+
+| comment_type | Source Model |
+|--------------|--------------|
+| task | TaskComment |
+| document | DocumentComment |
+| review | ReviewComment |
+| generic | Comment |
+
+### Read Tracking Behavior
+
+**Auto-Mark Read**:
+- Comments marked read after viewing for ~2 seconds
+- Prevents accidental mark-as-read on scroll-by
+- Frontend hook `useCommentReads` handles timing
+
+**Manual Mark Unread**:
+- Users can mark comments as unread
+- Useful for "come back to this" workflow
+
+**Unread Counts**:
+- Badge counts on tasks/documents
+- Filter views to show only unread
+- Per-resource unread aggregation
+
+### Frontend Integration
+
+```typescript
+// useCommentReads hook
+const {
+  unreadCount,      // Number of unread comments
+  isRead,           // Check if specific comment is read
+  markAsRead,       // Mark comments as read
+  markAsUnread,     // Mark comment as unread
+} = useTaskCommentReads(commentIds);
+```
+
+---
 
 ## Notifications
 
 ### Notification Triggers
-- Task assigned to you
-- Mentioned in comment
-- Task you created was updated
-- Due date approaching
-- Task completed
-- Review requested
-- Document updated
+
+| Trigger | Recipients |
+|---------|------------|
+| Task assigned | Assignee |
+| @mentioned in comment | Mentioned users |
+| Task you own updated | Task creator |
+| Due date approaching | Assignee |
+| Task completed | Watchers, creator |
+| Review requested | Reviewers |
+| Document updated | Collaborators |
+| Comment on your content | Content author |
+| Reply to your comment | Parent comment author |
+
+### Notification Model
+
+**Notification Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| user_id | UUID | Recipient |
+| notification_type | string | Type of notification |
+| title | string | Short title |
+| message | text | Full message |
+| resource_type | string | Related resource type |
+| resource_id | UUID | Related resource ID |
+| actor_id | UUID | User who triggered |
+| is_read | boolean | Read status |
+| read_at | datetime | When read |
 
 ### Notification Preferences
-Configure per user:
+
+**NotificationPreference Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| user_id | UUID | User |
+| notification_type | string | Type of notification |
+| email_enabled | boolean | Send emails |
+| in_app_enabled | boolean | Show in-app |
+| push_enabled | boolean | Push notifications |
+
+### Configurable Preferences
+
+Users can configure per notification type:
 - Email notifications on/off
-- In-app notifications
-- Per-type preferences
+- In-app notifications on/off
+- Push notifications on/off (future)
+- Quiet hours (future)
+
+---
 
 ## Real-Time Collaboration
 
@@ -263,6 +553,8 @@ Stay updated on team activity:
 - New comments
 - Team member changes
 
+---
+
 ## Best Practices
 
 ### For Team Leads
@@ -278,6 +570,7 @@ Stay updated on team activity:
 - Add teams rather than individuals
 - Review org visibility settings
 - Document project purpose
+- Use share links for external collaborators
 
 ### For Team Members
 - Check assigned tasks regularly
@@ -285,6 +578,9 @@ Stay updated on team activity:
 - Keep task status current
 - Use comments for discussion
 - Respect access boundaries
+- React to comments to show engagement
+
+---
 
 ## Onboarding New Members
 
@@ -307,6 +603,8 @@ Stay updated on team activity:
 - [ ] Assign initial tasks
 - [ ] Add to relevant reviews
 
+---
+
 ## Access Troubleshooting
 
 ### User Can't Access Project
@@ -315,6 +613,8 @@ Check:
 2. Is user in project exclusion list?
 3. Does project scope allow access?
 4. What is user's effective role?
+5. Is there a ProjectShare granting access?
+6. Is there a valid ShareLink they should use?
 
 ### Access Flow Decision Tree
 ```
@@ -323,5 +623,16 @@ Check:
 3. Check ProjectExclusion → if excluded, deny
 4. Check team membership → if on team, grant team role
 5. Check org membership + is_org_public → grant org_public_role
-6. Deny access
+6. Check ShareLink with valid token → grant link access_level
+7. Deny access
 ```
+
+### Common Access Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| "Access denied" | Not on team | Add to team or create ProjectShare |
+| "Project not found" | Excluded from project | Remove from ProjectExclusion |
+| "Link expired" | ShareLink past expires_at | Create new ShareLink |
+| "Max uses reached" | ShareLink use_count ≥ max_uses | Increase max_uses or new link |
+| "Domain not allowed" | Email not in allowed_domains | Add domain or remove restriction |

@@ -122,3 +122,4 @@ _build/
 frontend/bun.lock
 frontend/package-lock.json
 backend/CLAUDE.md
+CLAUDE.md

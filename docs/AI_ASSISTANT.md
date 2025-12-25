@@ -148,6 +148,8 @@ Registry of available query and action tools.
 
 Query tools provide read-only access to system data. They execute immediately when called by the LLM.
 
+### Project & Task Queries
+
 | Tool | Description |
 |------|-------------|
 | `get_projects` | List accessible projects |
@@ -155,11 +157,37 @@ Query tools provide read-only access to system data. They execute immediately wh
 | `get_tasks` | List tasks with filters |
 | `get_task_details` | Get task with comments and assignments |
 | `get_blockers` | List blockers for a project |
+
+### Document Queries
+
+| Tool | Description |
+|------|-------------|
 | `get_documents` | List documents with filters |
 | `get_document_details` | Get document content and metadata |
+
+### Search & Discovery
+
+| Tool | Description |
+|------|-------------|
 | `search_content` | Search across entities |
 | `get_attention_summary` | Get items needing attention |
 | `get_team_members` | List team members |
+
+### System Documentation (RAG)
+
+The assistant can query the system's own documentation to answer questions about architecture, data models, and features:
+
+| Tool | Description |
+|------|-------------|
+| `list_system_docs` | List available system documentation files |
+| `search_system_docs` | Search documentation by keyword (returns excerpts) |
+| `read_system_doc` | Read full content of a specific doc by ID or title |
+
+**System Doc Tool Usage**:
+- Used when users ask "how does X work?" or "what is the data model for Y?"
+- Queries documents marked with `is_system = true`
+- Supports filtering by `document_type` (architecture, data_model, guide)
+- Returns excerpts with context around matched keywords
 
 ### Query Tool Example
 
@@ -195,15 +223,61 @@ class GetTasksTool(QueryTool):
 
 Action tools propose changes that require user approval before execution.
 
+### Task Actions
+
 | Tool | Description |
 |------|-------------|
 | `create_task` | Create a new task |
-| `update_task` | Update task fields |
+| `update_task` | Update task fields (title, description, priority, due date, status) |
 | `complete_task` | Mark task as complete |
 | `assign_task` | Assign task to user |
+
+### Blocker Actions
+
+| Tool | Description |
+|------|-------------|
 | `create_blocker` | Create a new blocker |
 | `resolve_blocker` | Resolve a blocker |
-| `add_comment` | Add comment to task |
+
+### Document Actions
+
+| Tool | Description |
+|------|-------------|
+| `create_document` | Create a new document in a project |
+| `update_document` | Update document title, status, or content |
+| `link_document_to_task` | Link document to task as deliverable/reference |
+
+### Comment Actions
+
+| Tool | Description |
+|------|-------------|
+| `add_comment` | Add comment to task or document |
+
+### Document Action Details
+
+**`create_document` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| project_id | Yes | Project to create document in |
+| title | Yes | Document title |
+| document_type | No | general, protocol, report (default: general) |
+| content | No | Initial content (markdown) |
+| status | No | draft, in_review, approved, published (default: draft) |
+
+**`update_document` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| document_id | Yes | Document to update |
+| title | No | New title |
+| status | No | New status |
+| content | No | New content (replaces existing) |
+
+**`link_document_to_task` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| document_id | Yes | Document to link |
+| task_id | Yes | Task to link to |
+| link_type | No | deliverable, reference, related (default: related) |
 
 ### Action Approval Flow
 
