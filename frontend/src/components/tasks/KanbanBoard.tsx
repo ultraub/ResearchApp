@@ -140,9 +140,9 @@ export default function KanbanBoard({
 
   return (
     <div className="space-y-3">
-      {/* Navigation Pills - Hidden on mobile, sticky on desktop */}
+      {/* Navigation Pills - Hidden on mobile */}
       <nav
-        className="hidden md:flex gap-2 overflow-x-auto pb-2 sticky top-0 z-10 bg-white dark:bg-dark-base pt-1 -mt-1"
+        className="hidden md:flex gap-2 overflow-x-auto pb-2"
         aria-label="Board columns"
       >
         {columns.map((column) => {
