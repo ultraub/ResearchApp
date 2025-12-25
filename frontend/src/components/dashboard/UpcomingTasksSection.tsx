@@ -142,12 +142,26 @@ export function UpcomingTasksSection({
           <CalendarDaysIcon className="h-5 w-5 text-gray-400" />
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Upcoming Tasks</h2>
         </div>
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-3">
-            <span className="text-2xl">🎉</span>
+        <div className="flex flex-col items-center justify-center py-10 text-center">
+          {/* Celebration indicator with gradient */}
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary-100 to-primary-50 dark:from-primary-900/30 dark:to-primary-900/20 flex items-center justify-center mb-4 ring-4 ring-primary-50 dark:ring-primary-900/20">
+            <span className="text-3xl">🎉</span>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">No upcoming tasks</p>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">You're all caught up!</p>
+          <p className="text-base font-medium text-gray-700 dark:text-gray-200">
+            All caught up!
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-[220px]">
+            No upcoming tasks scheduled. Time to plan ahead?
+          </p>
+          {/* Actionable hints */}
+          <div className="mt-4 flex items-center gap-3">
+            <a
+              href="/projects"
+              className="text-xs px-3 py-1.5 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-900/50 transition-colors"
+            >
+              View Projects
+            </a>
+          </div>
         </div>
       </div>
     );

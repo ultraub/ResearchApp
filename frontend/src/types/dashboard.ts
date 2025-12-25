@@ -94,21 +94,33 @@ export const IMPACT_COLORS = {
     bg: 'bg-red-100 dark:bg-red-900/30',
     text: 'text-red-700 dark:text-red-300',
     dot: 'bg-red-500',
+    border: 'border-l-red-500',
+    headerBg: 'bg-red-50 dark:bg-red-900/20',
+    headerBorder: 'border-red-200 dark:border-red-800',
   },
   high: {
     bg: 'bg-orange-100 dark:bg-orange-900/30',
     text: 'text-orange-700 dark:text-orange-300',
     dot: 'bg-orange-500',
+    border: 'border-l-orange-500',
+    headerBg: 'bg-orange-50 dark:bg-orange-900/20',
+    headerBorder: 'border-orange-200 dark:border-orange-800',
   },
   medium: {
     bg: 'bg-blue-100 dark:bg-blue-900/30',
     text: 'text-blue-700 dark:text-blue-300',
     dot: 'bg-blue-500',
+    border: 'border-l-blue-400',
+    headerBg: 'bg-blue-50 dark:bg-blue-900/20',
+    headerBorder: 'border-blue-200 dark:border-blue-800',
   },
   low: {
     bg: 'bg-gray-100 dark:bg-gray-800',
     text: 'text-gray-600 dark:text-gray-400',
     dot: 'bg-gray-400',
+    border: 'border-l-gray-400',
+    headerBg: 'bg-gray-50 dark:bg-gray-900/20',
+    headerBorder: 'border-gray-200 dark:border-gray-800',
   },
 } as const;
 

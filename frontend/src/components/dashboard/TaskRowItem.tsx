@@ -75,19 +75,20 @@ export function TaskRowItem({ task, showProject = true, onComplete }: TaskRowIte
       className={clsx(
         'group flex items-center gap-3 p-3 rounded-lg cursor-pointer',
         'border-l-4 bg-white dark:bg-dark-card',
-        'hover:shadow-sm transition-all',
+        'hover:shadow-sm hover:bg-gray-50 dark:hover:bg-dark-elevated',
+        'transition-all',
         priorityColors.border,
-        task.is_blocked && 'opacity-75'
+        task.is_blocked && 'opacity-80 ring-1 ring-amber-200 dark:ring-amber-800'
       )}
     >
-      {/* Complete checkbox */}
+      {/* Complete checkbox - larger tap target */}
       <button
         onClick={handleComplete}
         disabled={completeMutation.isPending}
         className={clsx(
-          'flex-shrink-0 rounded-full p-0.5 transition-colors',
-          'text-gray-300 hover:text-green-500',
-          'dark:text-gray-600 dark:hover:text-green-400',
+          'flex-shrink-0 rounded-full p-1 transition-colors',
+          'text-gray-300 hover:text-green-500 hover:bg-green-50',
+          'dark:text-gray-600 dark:hover:text-green-400 dark:hover:bg-green-900/20',
           completeMutation.isPending && 'opacity-50'
         )}
       >
@@ -105,7 +106,10 @@ export function TaskRowItem({ task, showProject = true, onComplete }: TaskRowIte
             {task.title}
           </span>
           {task.is_blocked && (
-            <ExclamationTriangleIcon className="h-4 w-4 text-amber-500 flex-shrink-0" />
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30">
+              <ExclamationTriangleIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span className="text-xs text-amber-700 dark:text-amber-300">Blocked</span>
+            </span>
           )}
         </div>
         {showProject && (
