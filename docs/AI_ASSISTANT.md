@@ -18,6 +18,10 @@ The assistant can search and retrieve information across your workspace:
 | **Team Members** | "Who's on the Clinical Study project?", "Find Sarah's email" |
 | **Documents** | "List documents in this project", "Search for onboarding docs" |
 | **Blockers** | "Show open blockers", "What's blocking progress?" |
+| **Team Activity** | "What has the team been working on?", "Show recent activity" |
+| **Workload** | "What's on my plate?", "How busy is Sarah?", "Show my assignments" |
+| **Collaborators** | "Who am I working with?", "Who's on this project?" |
+| **Flexible Queries** | "Show me tasks created this week", "Find overdue items assigned to me" |
 
 ### Actions (Require Your Approval)
 
@@ -35,6 +39,12 @@ The assistant can propose changes, but **you must approve them** before they hap
 | **Update Document** | Change document title, status, or content |
 | **Link Document** | Link a document to a task as deliverable or reference |
 | **Add Comment** | Add a comment to a task or document |
+| **Create Project** | Create a new project (personal, team, or organization scope) |
+| **Update Project** | Change project name, description, status, dates, or colors |
+| **Archive Project** | Archive a project to hide from default views |
+| **Create Journal Entry** | Create a personal or project lab notebook entry |
+| **Update Journal Entry** | Modify journal entry content, tags, or status |
+| **Link Journal Entry** | Link a journal entry to projects, tasks, or documents |
 
 ### System Knowledge (RAG)
 
@@ -186,6 +196,72 @@ Query tools provide read-only access to system data. They execute immediately wh
 | `get_attention_summary` | Get items needing attention |
 | `get_team_members` | List team members |
 
+### Collaboration & Team Awareness
+
+| Tool | Description |
+|------|-------------|
+| `get_team_activity` | Get recent activity from team members across accessible projects |
+| `get_user_workload` | Get a user's current task load and assignments |
+| `get_collaborators` | Find people collaborating on shared projects |
+| `get_recent_activity` | Get activity feed across all accessible projects |
+
+**`get_team_activity` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| days | No | Days of activity to retrieve (1-30, default: 7) |
+| user_id | No | Filter to a specific user's activity |
+| project_id | No | Filter to a specific project |
+| activity_types | No | Filter by type: task, document, comment, project, blocker |
+| limit | No | Maximum activities to return (default: 25, max: 100) |
+
+**`get_user_workload` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| user_id | No | User to get workload for (defaults to current user) |
+| include_completed | No | Include recently completed tasks (default: false) |
+
+**`get_collaborators` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| project_id | No | Get collaborators for a specific project |
+| user_id | No | Find collaborators of a specific user |
+
+**`get_recent_activity` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| hours | No | Hours of activity to look back (1-168, default: 24) |
+| limit | No | Maximum activities to return (default: 30, max: 100) |
+| exclude_own | No | Exclude your own activity (default: false) |
+
+### Dynamic Queries
+
+The `dynamic_query` tool allows flexible database queries with structured filters across multiple tables.
+
+| Tool | Description |
+|------|-------------|
+| `dynamic_query` | Execute flexible queries with filters across projects, tasks, blockers, documents, users, journal entries, comments, teams, and more |
+
+**Supported Tables**: projects, tasks, blockers, documents, users, journal_entries, comments, teams, organizations, team_members, organization_members, departments, project_members
+
+**Common Filters**:
+| Filter | Description |
+|--------|-------------|
+| status | Filter by status (single value or array) |
+| priority | Filter by priority level |
+| project_id | Filter by project UUID |
+| project_name | Filter by project name (partial match) |
+| assignee_name | Filter by assignee name (partial match) |
+| assigned_to_me | Filter to items assigned to current user |
+| created_by_me | Filter to items created by current user |
+| due_before / due_after | Filter by due date range |
+| updated_after / created_after | Filter to recently modified items |
+| is_overdue | Items with due date in past and not done |
+| is_stalled | Items in_progress with no update in 7+ days |
+| exclude_done | Exclude completed items |
+| search | Search text in title/name fields |
+
+**Include Relationships**: Use the `include` parameter to load related data (e.g., `include: ["project", "assignee"]` for tasks).
+
 ### System Documentation (RAG)
 
 The assistant can query the system's own documentation to answer questions about architecture, data models, and features:
@@ -265,6 +341,89 @@ Action tools propose changes that require user approval before execution.
 | Tool | Description |
 |------|-------------|
 | `add_comment` | Add comment to task or document |
+
+### Project Actions
+
+| Tool | Description |
+|------|-------------|
+| `create_project` | Create a new project |
+| `update_project` | Update project properties |
+| `archive_project` | Archive a project |
+
+**`create_project` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| name | Yes | The project name |
+| description | No | Project description |
+| project_type | No | general, clinical_study, data_analysis, literature_review, lab_operations (default: general) |
+| scope | No | PERSONAL, TEAM, ORGANIZATION (default: PERSONAL) |
+| team_id | No | Team ID for TEAM/ORGANIZATION scope projects |
+| parent_id | No | Parent project ID for creating subprojects |
+| start_date | No | Project start date (YYYY-MM-DD) |
+| target_end_date | No | Target end date (YYYY-MM-DD) |
+| color | No | Hex color for visual identification (e.g., #3B82F6) |
+| emoji | No | Emoji icon for visual identification |
+
+**`update_project` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| project_id | Yes | The project to update |
+| name | No | New project name |
+| description | No | New project description |
+| status | No | active, completed, on_hold, archived |
+| project_type | No | Project type |
+| start_date | No | Project start date (YYYY-MM-DD) |
+| target_end_date | No | Target end date (YYYY-MM-DD) |
+| color | No | Hex color |
+| emoji | No | Emoji icon |
+
+**`archive_project` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| project_id | Yes | The project to archive |
+| reason | No | Optional reason for archiving |
+
+### Journal Entry Actions
+
+| Tool | Description |
+|------|-------------|
+| `create_journal_entry` | Create a personal or project journal entry |
+| `update_journal_entry` | Update an existing journal entry |
+| `link_journal_entry` | Link a journal entry to projects, tasks, or documents |
+
+**`create_journal_entry` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| content_text | Yes | The journal entry content as plain text |
+| title | No | Entry title (recommended) |
+| entry_date | No | Date of the entry (YYYY-MM-DD, defaults to today) |
+| scope | No | personal, project (default: personal) |
+| project_id | No | Project ID (required if scope=project) |
+| entry_type | No | observation, experiment, meeting, idea, reflection, protocol (default: observation) |
+| tags | No | Tags for organizing the entry |
+| mood | No | Optional mood/status indicator |
+
+**`update_journal_entry` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| entry_id | Yes | The journal entry to update |
+| title | No | New entry title |
+| content_text | No | New entry content |
+| entry_date | No | New entry date (YYYY-MM-DD) |
+| entry_type | No | New entry type |
+| tags | No | New tags |
+| mood | No | New mood/status |
+| is_pinned | No | Whether to pin the entry |
+| is_archived | No | Whether to archive the entry |
+
+**`link_journal_entry` Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| entry_id | Yes | The journal entry to link from |
+| entity_type | Yes | project, task, or document |
+| entity_id | Yes | ID of the entity to link to |
+| link_type | No | reference, result, follow_up, related (default: reference) |
+| notes | No | Optional notes about the link |
 
 ### Document Action Details
 
