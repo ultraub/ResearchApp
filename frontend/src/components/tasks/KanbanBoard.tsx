@@ -107,51 +107,9 @@ export default function KanbanBoard({
   // Scroll to a specific column (horizontal only, preserves vertical position)
   const scrollToColumn = useCallback((columnId: string) => {
     const columnEl = columnRefs.current.get(columnId);
-    const board = boardRef.current;
-    if (columnEl && board) {
-      // Disable scroll snap during programmatic scroll to prevent it from overriding
-      board.style.scrollSnapType = 'none';
-
-      // Calculate the scroll position to bring the column to the left edge
-      const targetLeft = columnEl.offsetLeft;
-      board.scrollTo({ left: targetLeft, behavior: 'smooth' });
-
-      // Wait for scroll to actually complete by detecting when position stabilizes
-      let lastScrollLeft = board.scrollLeft;
-      let stableFrames = 0;
-      let totalFrames = 0;
-      const maxFrames = 120; // Safety timeout ~2s at 60fps
-
-      const checkScrollComplete = () => {
-        if (!boardRef.current) return;
-
-        totalFrames++;
-        const currentLeft = boardRef.current.scrollLeft;
-
-        // Check if scroll position has stabilized (not changing for several frames)
-        if (Math.abs(currentLeft - lastScrollLeft) < 1) {
-          stableFrames++;
-          if (stableFrames >= 5) {
-            // Scroll complete, re-enable snap
-            boardRef.current.style.scrollSnapType = 'x mandatory';
-            return;
-          }
-        } else {
-          stableFrames = 0;
-        }
-
-        lastScrollLeft = currentLeft;
-
-        // Safety timeout to prevent infinite loop
-        if (totalFrames >= maxFrames) {
-          boardRef.current.style.scrollSnapType = 'x mandatory';
-          return;
-        }
-
-        requestAnimationFrame(checkScrollComplete);
-      };
-
-      requestAnimationFrame(checkScrollComplete);
+    if (columnEl) {
+      // scrollIntoView works well with scroll-snap - no need to disable it
+      columnEl.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
     }
   }, []);
 
