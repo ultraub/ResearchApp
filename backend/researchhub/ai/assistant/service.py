@@ -68,8 +68,9 @@ class AssistantService:
         self,
         page_context: Optional[PageContext],
         user: Optional[User] = None,
+        action_history: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> str:
-        """Build the system prompt with page context and user info."""
+        """Build the system prompt with page context, user info, and action history."""
         # Include current date so the LLM knows what "today" means for overdue/upcoming calculations
         today = date.today()
         date_info = f"""Current Date: {today.strftime('%A, %B %d, %Y')} ({today.isoformat()})
@@ -91,7 +92,36 @@ When the user says "my tasks", "my projects", or refers to themselves, use this 
 
 """
 
-        base_prompt = date_info + user_info + """You are a helpful AI assistant for a knowledge management application. You help users manage their projects, tasks, documents, and blockers.
+        # Include action history so AI knows what was already done
+        action_context = ""
+        if action_history:
+            executed = action_history.get("executed", [])
+            rejected = action_history.get("rejected", [])
+
+            if executed or rejected:
+                action_context = """
+## Recently Handled Actions (DO NOT suggest these again)
+
+"""
+                if executed:
+                    action_context += "**Actions already executed (approved by user):**\n"
+                    for action in executed:
+                        desc = action.get("description", action.get("tool_name", "Unknown action"))
+                        action_context += f"- ✅ {desc}\n"
+                    action_context += "\n"
+
+                if rejected:
+                    action_context += "**Actions rejected by user (do not suggest again):**\n"
+                    for action in rejected:
+                        desc = action.get("description", action.get("tool_name", "Unknown action"))
+                        action_context += f"- ❌ {desc}\n"
+                    action_context += "\n"
+
+                action_context += """IMPORTANT: Do not propose actions that appear in the lists above. If an action was executed, the entity already exists or was already modified. If an action was rejected, the user explicitly declined it.
+
+"""
+
+        base_prompt = date_info + user_info + action_context + """You are a helpful AI assistant for a knowledge management application. You help users manage their projects, tasks, documents, and blockers.
 
 You have access to tools that let you:
 1. Query data (projects, tasks, documents, blockers, team members)
@@ -329,6 +359,9 @@ Use this context to provide relevant suggestions and defaults for actions."""
         # Fetch user info for context
         user = await self._get_user_info()
 
+        # Get action history to prevent re-suggesting executed/rejected actions
+        action_history = await self.get_action_history(conversation_id)
+
         # Build messages
         messages: List[AIMessage] = []
 
@@ -346,7 +379,7 @@ Use this context to provide relevant suggestions and defaults for actions."""
 
         # Get tool definitions
         tools = self._get_tool_definitions()
-        system_prompt = self._build_system_prompt(request.page_context, user)
+        system_prompt = self._build_system_prompt(request.page_context, user, action_history)
 
         # Tool results for multi-turn
         tool_results: List[ToolResult] = []
@@ -736,3 +769,58 @@ Would you like to try rephrasing your question?"""
             }
             for action in actions
         ]
+
+    async def get_action_history(
+        self,
+        conversation_id: Optional[UUID] = None,
+        limit: int = 20,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Get recently executed and rejected actions for context.
+
+        This helps the AI know:
+        - What actions were already approved and executed (don't suggest again)
+        - What actions were rejected by the user (don't suggest again)
+
+        Returns:
+            Dict with 'executed' and 'rejected' lists of actions
+        """
+        from sqlalchemy import select, or_
+
+        # Get actions from the last hour for this user
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
+
+        query = (
+            select(AIPendingAction)
+            .where(AIPendingAction.user_id == self.user_id)
+            .where(or_(
+                AIPendingAction.status == "executed",
+                AIPendingAction.status == "rejected",
+            ))
+            .where(AIPendingAction.created_at >= cutoff)
+        )
+
+        if conversation_id:
+            query = query.where(AIPendingAction.conversation_id == conversation_id)
+
+        query = query.order_by(AIPendingAction.created_at.desc()).limit(limit)
+
+        result = await self.db.execute(query)
+        actions = result.scalars().all()
+
+        executed = []
+        rejected = []
+
+        for action in actions:
+            action_info = {
+                "tool_name": action.tool_name,
+                "entity_type": action.entity_type,
+                "entity_id": str(action.entity_id) if action.entity_id else None,
+                "description": action.description,
+                "new_state": action.new_state,
+            }
+            if action.status == "executed":
+                executed.append(action_info)
+            elif action.status == "rejected":
+                rejected.append(action_info)
+
+        return {"executed": executed, "rejected": rejected}
