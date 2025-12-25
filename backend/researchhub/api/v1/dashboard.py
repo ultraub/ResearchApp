@@ -199,10 +199,10 @@ def blocker_to_summary(blocker: Blocker) -> BlockerSummary:
 
 @router.get("/command-center", response_model=CommandCenterData)
 async def get_command_center_data(
-    days_ahead: int = Query(default=7, le=30, ge=1),
-    scope: Literal["personal", "team"] = Query(default="personal"),
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
+    days_ahead: int = Query(default=7, le=30, ge=1),
+    scope: Literal["personal", "team"] = Query(default="personal"),
 ) -> CommandCenterData:
     """Get command center dashboard data.
 
