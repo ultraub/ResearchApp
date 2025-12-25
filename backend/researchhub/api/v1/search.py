@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from researchhub.api.deps import CurrentUser, get_db_session
+from researchhub.api.v1.auth import CurrentUser
+from researchhub.db.session import get_db
 from researchhub.models import (
     Blocker,
     Project,
@@ -78,7 +79,7 @@ async def global_search(
     sort_by: Literal["relevance", "created_at", "updated_at"] = Query("relevance"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Global search across all content types.
@@ -507,7 +508,7 @@ async def search_suggestions(
     q: str = Query(..., min_length=1),
     organization_id: UUID = Query(...),  # Kept for backward compatibility
     limit: int = Query(10, ge=1, le=20),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get search autocomplete suggestions.
