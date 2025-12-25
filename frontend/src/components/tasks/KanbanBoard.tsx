@@ -89,11 +89,14 @@ export default function KanbanBoard({
     }
   }, []);
 
-  // Scroll to a specific column
+  // Scroll to a specific column (horizontal only, preserves vertical position)
   const scrollToColumn = useCallback((columnId: string) => {
     const columnEl = columnRefs.current.get(columnId);
-    if (columnEl) {
-      columnEl.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+    const board = boardRef.current;
+    if (columnEl && board) {
+      // Calculate the scroll position to bring the column to the left edge
+      const columnLeft = columnEl.offsetLeft;
+      board.scrollTo({ left: columnLeft, behavior: 'smooth' });
     }
   }, []);
 
@@ -137,8 +140,11 @@ export default function KanbanBoard({
 
   return (
     <div className="space-y-3">
-      {/* Navigation Pills */}
-      <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Board columns">
+      {/* Navigation Pills - Hidden on mobile, sticky on desktop */}
+      <nav
+        className="hidden md:flex gap-2 overflow-x-auto pb-2 sticky top-0 z-10 bg-white dark:bg-dark-base pt-1 -mt-1"
+        aria-label="Board columns"
+      >
         {columns.map((column) => {
           const columnTasks = tasks[column.id as keyof TasksByStatus] || [];
           const isVisible = visibleColumns.includes(column.id);

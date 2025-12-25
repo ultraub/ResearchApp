@@ -2,7 +2,7 @@
  * Project Tree Sidebar - Collapsible tree navigation for projects
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -158,7 +158,8 @@ export default function ProjectTreeSidebar({
   className = "",
 }: ProjectTreeSidebarProps) {
   const [sidebarState, setSidebarState] = useState<SidebarState>(loadSidebarState);
-  const expandedIds = new Set(sidebarState.expandedIds);
+  // Memoize the Set to avoid recreating on every render
+  const expandedIds = useMemo(() => new Set(sidebarState.expandedIds), [sidebarState.expandedIds]);
   const { filterDemoProjects } = useDemoProject();
 
   // Save state to localStorage when it changes
@@ -192,7 +193,7 @@ export default function ProjectTreeSidebar({
     }));
   };
 
-  const toggleExpand = (id: string) => {
+  const toggleExpand = useCallback((id: string) => {
     setSidebarState((prev) => {
       const newExpandedIds = new Set(prev.expandedIds);
       if (newExpandedIds.has(id)) {
@@ -205,7 +206,7 @@ export default function ProjectTreeSidebar({
         expandedIds: Array.from(newExpandedIds),
       };
     });
-  };
+  }, []);
 
   // Collapsed state - show only icons
   if (sidebarState.isCollapsed) {

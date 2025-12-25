@@ -182,7 +182,7 @@ function ProjectCard({
 const VIEW_MODE_STORAGE_KEY = "projects-view-mode";
 const MOBILE_VIEW_MODE_STORAGE_KEY = "projects-view-mode-mobile";
 
-function loadViewMode(key: string, defaultMode: ViewMode): ViewMode | null {
+function loadViewMode(key: string, _defaultMode?: ViewMode): ViewMode | null {
   try {
     const saved = localStorage.getItem(key);
     if (saved && ["grid", "list", "grouped"].includes(saved)) {

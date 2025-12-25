@@ -75,17 +75,17 @@ export default function HierarchicalProjectList({
 }: HierarchicalProjectListProps) {
   const { organization } = useOrganizationStore();
   const { filterDemoProjects } = useDemoProject();
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
-    // Start with saved expanded state or empty set
-    const saved = loadExpandedIds();
-    return new Set(saved);
+  // Use array instead of Set for state to avoid React rendering issues
+  const [expandedIds, setExpandedIds] = useState<string[]>(() => {
+    // Start with saved expanded state or empty array
+    return loadExpandedIds();
   });
   const [hasInitializedExpanded, setHasInitializedExpanded] = useState(false);
 
   // Save expanded state when it changes
   useEffect(() => {
     if (hasInitializedExpanded) {
-      saveExpandedIds(Array.from(expandedIds));
+      saveExpandedIds(expandedIds);
     }
   }, [expandedIds, hasInitializedExpanded]);
 
@@ -208,6 +208,9 @@ export default function HierarchicalProjectList({
     return result;
   }, [projects, teams]);
 
+  // Create a Set from the array for efficient lookups (passed to children)
+  const expandedIdsSet = useMemo(() => new Set(expandedIds), [expandedIds]);
+
   // Default to all projects expanded on first load (if no saved state)
   useEffect(() => {
     if (projects.length > 0 && !hasInitializedExpanded) {
@@ -215,7 +218,7 @@ export default function HierarchicalProjectList({
       // If no saved state, expand all projects with children by default
       if (savedIds.length === 0) {
         const allExpandableIds = projects.filter((p) => p.has_children).map((p) => p.id);
-        setExpandedIds(new Set(allExpandableIds));
+        setExpandedIds(allExpandableIds);
       }
       setHasInitializedExpanded(true);
     }
@@ -223,24 +226,22 @@ export default function HierarchicalProjectList({
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      if (prev.includes(id)) {
+        return prev.filter((existingId) => existingId !== id);
       } else {
-        next.add(id);
+        return [...prev, id];
       }
-      return next;
     });
   };
 
   // Expand all / collapse all helpers
   const expandAll = () => {
     const allIds = projects.filter((p) => p.has_children).map((p) => p.id);
-    setExpandedIds(new Set(allIds));
+    setExpandedIds(allIds);
   };
 
   const collapseAll = () => {
-    setExpandedIds(new Set());
+    setExpandedIds([]);
   };
 
   if (isLoading) {
@@ -318,7 +319,7 @@ export default function HierarchicalProjectList({
         <TeamSection
           key={group.id}
           group={group}
-          expandedIds={expandedIds}
+          expandedIds={expandedIdsSet}
           onToggleExpand={toggleExpand}
           attentionMap={attentionMap}
           showOnlyMyTasks={showOnlyMyTasks}
