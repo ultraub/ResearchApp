@@ -12,17 +12,24 @@ export interface User {
   created_at: string;
 }
 
+export interface ThemeCustomization {
+  preset: 'warm' | 'cool' | 'vibrant' | 'minimal' | 'custom';
+  accent_color: string;
+  card_style: 'gradient' | 'flat' | 'bordered';
+  animation_intensity: 'minimal' | 'moderate' | 'playful';
+}
+
 export interface UserPreferences {
   theme: "light" | "dark" | "system";
-  language: string;
-  timezone: string;
+  theme_customization: ThemeCustomization;
   notification_email: boolean;
   notification_email_digest: "immediate" | "daily" | "weekly" | "none";
   notification_in_app: boolean;
-  default_project_view: "list" | "kanban" | "timeline";
+  default_project_view: "list" | "grid" | "grouped";
   editor_font_size: number;
   editor_line_height: number;
   ai_suggestions_enabled: boolean;
+  additional_settings: Record<string, unknown>;
 }
 
 // Auth types

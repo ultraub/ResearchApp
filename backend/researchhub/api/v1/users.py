@@ -58,8 +58,7 @@ class UserPreferencesResponse(BaseModel):
     """User preferences response."""
 
     theme: str
-    language: str
-    timezone: str
+    theme_customization: dict = {}
     notification_email: bool
     notification_email_digest: str
     notification_in_app: bool
@@ -77,14 +76,13 @@ class UserPreferencesUpdate(BaseModel):
     """User preferences update request."""
 
     theme: str | None = Field(None, pattern="^(light|dark|system)$")
-    language: str | None = Field(None, pattern="^[a-z]{2}(-[A-Z]{2})?$")
-    timezone: str | None = None
+    theme_customization: dict | None = None
     notification_email: bool | None = None
     notification_email_digest: str | None = Field(
         None, pattern="^(immediate|daily|weekly|none)$"
     )
     notification_in_app: bool | None = None
-    default_project_view: str | None = Field(None, pattern="^(list|kanban|timeline)$")
+    default_project_view: str | None = Field(None, pattern="^(list|grid|grouped)$")
     editor_font_size: int | None = Field(None, ge=10, le=24)
     editor_line_height: float | None = Field(None, ge=1.0, le=2.5)
     ai_suggestions_enabled: bool | None = None
@@ -202,6 +200,10 @@ async def update_my_preferences(
             # Merge additional_settings instead of overwriting
             current_settings = preferences.additional_settings or {}
             preferences.additional_settings = {**current_settings, **value}
+        elif field == "theme_customization" and value is not None:
+            # Merge theme_customization instead of overwriting
+            current_customization = preferences.theme_customization or {}
+            preferences.theme_customization = {**current_customization, **value}
         else:
             setattr(preferences, field, value)
 

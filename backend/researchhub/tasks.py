@@ -24,7 +24,36 @@ def process_document(self, document_id: str) -> dict:
 
 @celery_app.task(bind=True, name="researchhub.tasks.send_notification")
 def send_notification(self, user_id: str, notification_type: str, data: dict) -> dict:
-    """Background task to send notifications."""
+    """
+    Background task to send notifications.
+
+    Respects user preferences:
+    - notification_email: Whether to send email notifications
+    - notification_email_digest: Email frequency (immediate, daily, weekly, none)
+    - notification_in_app: Whether to show in-app notifications
+
+    Args:
+        user_id: The user to notify
+        notification_type: Type of notification (e.g., task_assigned, comment_added)
+        data: Notification payload data
+
+    Returns:
+        Dict with status and notification details
+    """
+    # TODO: When email/in-app notification system is implemented:
+    # 1. Fetch user preferences from database
+    # 2. Check notification_email and notification_in_app settings
+    # 3. For email: check notification_email_digest frequency
+    # 4. Skip sending if user has disabled the relevant notification type
+
+    # Preference check stub - log that preferences would be checked
+    logger.info(
+        "notification_would_check_prefs",
+        user_id=user_id,
+        notification_type=notification_type,
+        note="Preferences check will be implemented when notification system is built",
+    )
+
     # Placeholder for actual notification sending logic
     return {
         "status": "sent",

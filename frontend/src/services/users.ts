@@ -40,18 +40,20 @@ export interface UserPreferences {
   // Color mode
   theme: 'light' | 'dark' | 'system';
 
-  // Theme customization (new)
+  // Theme customization
   theme_customization: ThemeCustomization;
 
-  // Existing preferences
-  language: string;
-  timezone: string;
+  // Notification preferences
   notification_email: boolean;
   notification_email_digest: 'immediate' | 'daily' | 'weekly' | 'none';
   notification_in_app: boolean;
-  default_project_view: 'list' | 'kanban' | 'timeline';
+
+  // View preferences
+  default_project_view: 'list' | 'grid' | 'grouped';
   editor_font_size: number;
   editor_line_height: number;
+
+  // AI preferences
   ai_suggestions_enabled: boolean;
 
   // Additional settings (for extensible preferences like hidden_demo_project)
@@ -61,12 +63,10 @@ export interface UserPreferences {
 export interface UserPreferencesUpdate {
   theme?: 'light' | 'dark' | 'system';
   theme_customization?: Partial<ThemeCustomization>;
-  language?: string;
-  timezone?: string;
   notification_email?: boolean;
   notification_email_digest?: 'immediate' | 'daily' | 'weekly' | 'none';
   notification_in_app?: boolean;
-  default_project_view?: 'list' | 'kanban' | 'timeline';
+  default_project_view?: 'list' | 'grid' | 'grouped';
   editor_font_size?: number;
   editor_line_height?: number;
   ai_suggestions_enabled?: boolean;

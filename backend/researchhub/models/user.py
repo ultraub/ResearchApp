@@ -98,8 +98,7 @@ class UserPreferences(BaseModel):
 
     # Display preferences
     theme: Mapped[str] = mapped_column(String(20), nullable=False, default="system")
-    language: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
-    timezone: Mapped[str] = mapped_column(String(50), nullable=False, default="UTC")
+    theme_customization: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     # Notification preferences
     notification_email: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

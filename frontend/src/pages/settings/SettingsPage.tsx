@@ -448,7 +448,7 @@ function AppearanceSettings() {
     setAccentColor(color);
   };
 
-  const handleViewChange = (view: 'list' | 'kanban' | 'timeline') => {
+  const handleViewChange = (view: 'list' | 'grid' | 'grouped') => {
     updatePreferencesMutation.mutate({ default_project_view: view });
   };
 
@@ -688,21 +688,22 @@ function AppearanceSettings() {
             Choose your preferred way to view projects
           </p>
           <div className="mt-3 flex gap-3">
-            {(['list', 'kanban', 'timeline'] as const).map((view) => (
+            {([
+              { value: 'list' as const, label: 'List', emoji: '📋' },
+              { value: 'grid' as const, label: 'Grid', emoji: '📊' },
+              { value: 'grouped' as const, label: 'Grouped', emoji: '📁' },
+            ]).map(({ value, label, emoji }) => (
               <button
-                key={view}
-                onClick={() => handleViewChange(view)}
+                key={value}
+                onClick={() => handleViewChange(value)}
                 className={clsx(
-                  'flex-1 rounded-xl border-2 px-4 py-3 text-center capitalize transition-all hover:shadow-md',
-                  preferences?.default_project_view === view
+                  'flex-1 rounded-xl border-2 px-4 py-3 text-center transition-all hover:shadow-md',
+                  preferences?.default_project_view === value
                     ? 'border-primary-500 bg-primary-50/50 text-primary-700 shadow-md ring-2 ring-primary-500/20 dark:bg-primary-900/20 dark:text-primary-400'
                     : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'
                 )}
               >
-                {view === 'list' && '📋 '}
-                {view === 'kanban' && '📊 '}
-                {view === 'timeline' && '📅 '}
-                {view}
+                {emoji} {label}
               </button>
             ))}
           </div>

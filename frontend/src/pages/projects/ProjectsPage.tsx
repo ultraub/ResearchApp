@@ -30,6 +30,7 @@ import { ProjectFiltersSheet } from "@/components/projects/ProjectFiltersSheet";
 import { projectsService } from "@/services/projects";
 import { teamsService } from "@/services/teams";
 import { analyticsApi } from "@/services/analytics";
+import { usersApi } from "@/services/users";
 import { useOrganizationStore } from "@/stores/organization";
 import type { Project } from "@/types";
 
@@ -181,7 +182,7 @@ function ProjectCard({
 const VIEW_MODE_STORAGE_KEY = "projects-view-mode";
 const MOBILE_VIEW_MODE_STORAGE_KEY = "projects-view-mode-mobile";
 
-function loadViewMode(key: string, defaultMode: ViewMode): ViewMode {
+function loadViewMode(key: string, defaultMode: ViewMode): ViewMode | null {
   try {
     const saved = localStorage.getItem(key);
     if (saved && ["grid", "list", "grouped"].includes(saved)) {
@@ -190,6 +191,20 @@ function loadViewMode(key: string, defaultMode: ViewMode): ViewMode {
   } catch {
     // Ignore storage errors
   }
+  return null; // Return null to indicate no saved preference
+}
+
+function getInitialViewMode(key: string, preferenceViewMode: ViewMode | undefined, defaultMode: ViewMode): ViewMode {
+  // First check localStorage (user explicitly set a view mode)
+  const savedMode = loadViewMode(key, defaultMode);
+  if (savedMode) return savedMode;
+
+  // Then use user's preference from backend
+  if (preferenceViewMode && ["grid", "list", "grouped"].includes(preferenceViewMode)) {
+    return preferenceViewMode;
+  }
+
+  // Fall back to default
   return defaultMode;
 }
 
@@ -208,13 +223,27 @@ export default function ProjectsPage() {
   const isMobile = useIsMobile();
   const { filterDemoProjects, hideDemoProject, isHiding } = useDemoProject();
 
-  // View mode with localStorage persistence
-  const [desktopViewMode, setDesktopViewModeState] = useState<ViewMode>(() =>
-    loadViewMode(VIEW_MODE_STORAGE_KEY, "list")
-  );
-  const [mobileViewMode, setMobileViewModeState] = useState<ViewMode>(() =>
-    loadViewMode(MOBILE_VIEW_MODE_STORAGE_KEY, "grouped")
-  );
+  // Fetch user preferences for default view mode
+  const { data: preferences } = useQuery({
+    queryKey: ["userPreferences"],
+    queryFn: () => usersApi.getPreferences(),
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  // View mode with localStorage persistence, falling back to user preference
+  const [desktopViewMode, setDesktopViewModeState] = useState<ViewMode>("list");
+  const [mobileViewMode, setMobileViewModeState] = useState<ViewMode>("grouped");
+  const [viewModeInitialized, setViewModeInitialized] = useState(false);
+
+  // Initialize view modes once preferences are loaded
+  useEffect(() => {
+    if (!viewModeInitialized && preferences !== undefined) {
+      const preferredView = preferences?.default_project_view as ViewMode | undefined;
+      setDesktopViewModeState(getInitialViewMode(VIEW_MODE_STORAGE_KEY, preferredView, "list"));
+      setMobileViewModeState(getInitialViewMode(MOBILE_VIEW_MODE_STORAGE_KEY, preferredView, "grouped"));
+      setViewModeInitialized(true);
+    }
+  }, [preferences, viewModeInitialized]);
 
   // Wrap setters to persist to localStorage
   const setDesktopViewMode = (mode: ViewMode) => {

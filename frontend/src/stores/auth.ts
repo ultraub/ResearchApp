@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { apiClient } from "@/lib/api-client";
 import type { User, TokenResponse } from "@/types/api";
 import { useOrganizationStore } from "./organization";
+import { initializeThemeFromBackend } from "./theme";
 
 interface AuthState {
   user: User | null;
@@ -48,6 +49,9 @@ export const useAuthStore = create<AuthState>()(
 
           // Fetch user info
           await get().fetchUser();
+
+          // Initialize theme customization from backend
+          initializeThemeFromBackend();
         } catch (error: any) {
           set({
             error: error.response?.data?.detail || "Login failed",

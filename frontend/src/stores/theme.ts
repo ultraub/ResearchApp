@@ -1,10 +1,12 @@
 /**
  * Theme store for managing appearance settings.
  * Supports dark/light mode, theme presets, accent colors, and visual preferences.
+ * Syncs theme customization to backend for cross-device persistence.
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { usersApi } from '@/services/users';
 
 type ColorMode = 'light' | 'dark' | 'system';
 type ThemePreset = 'warm' | 'cool' | 'vibrant' | 'minimal' | 'custom';
@@ -228,6 +230,61 @@ const DEFAULT_CUSTOMIZATION: ThemeCustomization = {
   animationIntensity: 'moderate',
 };
 
+// Debounce timer for backend sync
+let syncTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Sync theme customization to backend (debounced to avoid excessive API calls).
+ * Converts camelCase frontend format to snake_case backend format.
+ */
+function syncCustomizationToBackend(customization: ThemeCustomization) {
+  if (syncTimeoutId) {
+    clearTimeout(syncTimeoutId);
+  }
+
+  syncTimeoutId = setTimeout(async () => {
+    try {
+      await usersApi.updatePreferences({
+        theme_customization: {
+          preset: customization.preset,
+          accent_color: customization.accentColor,
+          card_style: customization.cardStyle,
+          animation_intensity: customization.animationIntensity,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to sync theme customization to backend:', error);
+    }
+  }, 500); // 500ms debounce
+}
+
+/**
+ * Initialize theme customization from backend.
+ * Call this on app startup after user authentication.
+ */
+export async function initializeThemeFromBackend(): Promise<void> {
+  try {
+    const preferences = await usersApi.getPreferences();
+    const backendCustomization = preferences.theme_customization;
+
+    if (backendCustomization && Object.keys(backendCustomization).length > 0) {
+      // Convert snake_case backend format to camelCase frontend format
+      const customization: ThemeCustomization = {
+        preset: backendCustomization.preset || DEFAULT_CUSTOMIZATION.preset,
+        accentColor: backendCustomization.accent_color || DEFAULT_CUSTOMIZATION.accentColor,
+        cardStyle: backendCustomization.card_style || DEFAULT_CUSTOMIZATION.cardStyle,
+        animationIntensity: backendCustomization.animation_intensity || DEFAULT_CUSTOMIZATION.animationIntensity,
+      };
+
+      // Apply without triggering backend sync (already from backend)
+      applyThemeCustomization(customization);
+      useThemeStore.setState({ customization });
+    }
+  } catch (error) {
+    console.error('Failed to load theme customization from backend:', error);
+  }
+}
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
@@ -261,30 +318,35 @@ export const useThemeStore = create<ThemeState>()(
         const customization = { ...get().customization, preset };
         applyThemeCustomization(customization);
         set({ customization });
+        syncCustomizationToBackend(customization);
       },
 
       setAccentColor: (color: string) => {
         const customization = { ...get().customization, accentColor: color, preset: 'custom' as ThemePreset };
         applyThemeCustomization(customization);
         set({ customization });
+        syncCustomizationToBackend(customization);
       },
 
       setCardStyle: (style: CardStyle) => {
         const customization = { ...get().customization, cardStyle: style };
         applyThemeCustomization(customization);
         set({ customization });
+        syncCustomizationToBackend(customization);
       },
 
       setAnimationIntensity: (intensity: AnimationIntensity) => {
         const customization = { ...get().customization, animationIntensity: intensity };
         applyThemeCustomization(customization);
         set({ customization });
+        syncCustomizationToBackend(customization);
       },
 
       setCustomization: (updates: Partial<ThemeCustomization>) => {
         const customization = { ...get().customization, ...updates };
         applyThemeCustomization(customization);
         set({ customization });
+        syncCustomizationToBackend(customization);
       },
     }),
     {

@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Sparkles,
   X,
@@ -12,11 +13,13 @@ import {
   ChevronDown,
   ChevronUp,
   FileSearch,
+  Settings,
 } from 'lucide-react';
 import { AIQuickActions } from './AIQuickActions';
 import { AIConversation } from './AIConversation';
 import { AISuggestionsPanel } from './AISuggestionsPanel';
 import { useAutoReview } from '../../hooks/useAutoReview';
+import { useAIEnabled } from '../../hooks/useAIEnabled';
 
 interface AISidebarProps {
   documentId: string;
@@ -39,6 +42,7 @@ export function AISidebar({
   onReplaceSelection,
   documentType = 'document',
 }: AISidebarProps) {
+  const aiEnabled = useAIEnabled();
   const [activeTab, setActiveTab] = useState<TabType>('actions');
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -62,6 +66,50 @@ export function AISidebar({
 
   const hasContent = documentContent.trim().length >= 50;
   const pendingSuggestionsCount = suggestions.filter((s) => s.status === 'pending').length;
+
+  // Show disabled state when AI suggestions are turned off
+  if (!aiEnabled) {
+    return (
+      <div className="h-full flex flex-col bg-white dark:bg-dark-card border-l border-gray-200 dark:border-dark-border">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-gray-400 rounded-xl">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <span className="font-medium text-gray-500 dark:text-gray-400">AI Assistant</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-white/50 dark:hover:bg-dark-elevated rounded-xl transition-all"
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Disabled content */}
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full mb-4">
+            <Sparkles className="h-8 w-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
+            AI Suggestions Disabled
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 max-w-xs">
+            AI features have been turned off in your preferences. Enable them to use AI assistance.
+          </p>
+          <Link
+            to="/settings/notifications"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-accent-600 dark:text-accent-400 hover:text-accent-700 dark:hover:text-accent-300 bg-accent-50 dark:bg-accent-900/20 hover:bg-accent-100 dark:hover:bg-accent-900/30 rounded-xl transition-colors"
+          >
+            <Settings className="h-4 w-4" />
+            Enable in Settings
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-dark-card border-l border-gray-200 dark:border-dark-border">

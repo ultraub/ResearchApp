@@ -7,6 +7,7 @@ import Highlight from '@tiptap/extension-highlight';
 import { useCallback, useEffect, useState } from 'react';
 import { clsx } from 'clsx';
 import { ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
+import { useEditorPreferences } from '@/hooks/useEditorPreferences';
 import { ReviewCommentMark, reviewCommentMarkStyles } from './extensions/ReviewCommentMark';
 import { DocumentCommentMark, documentCommentMarkStyles } from './extensions/DocumentCommentMark';
 import { InlineReviewPanel } from './InlineReviewPanel';
@@ -96,6 +97,7 @@ export function DocumentEditor({
   onEditDocComment,
   onDeleteDocComment,
 }: DocumentEditorProps) {
+  const { fontSize, lineHeight } = useEditorPreferences();
   const [wordCount, setWordCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedComment, setSelectedComment] = useState<ReviewComment | null>(null);
@@ -517,6 +519,10 @@ export function DocumentEditor({
           '[&_.ProseMirror]:outline-none',
           '[&_.ProseMirror]:min-h-[400px]'
         )}
+        style={{
+          '--editor-font-size': `${fontSize}px`,
+          '--editor-line-height': `${lineHeight}`,
+        } as React.CSSProperties}
       />
 
       {/* Inline Review Panel */}
@@ -543,8 +549,13 @@ export function DocumentEditor({
         onDelete={onDeleteDocComment}
       />
 
-      {/* Comment mark styles */}
-      <style dangerouslySetInnerHTML={{ __html: reviewCommentMarkStyles + documentCommentMarkStyles }} />
+      {/* Comment mark styles and editor preferences */}
+      <style dangerouslySetInnerHTML={{ __html: reviewCommentMarkStyles + documentCommentMarkStyles + `
+        .ProseMirror {
+          font-size: var(--editor-font-size, 14px);
+          line-height: var(--editor-line-height, 1.6);
+        }
+      ` }} />
     </div>
   );
 }
