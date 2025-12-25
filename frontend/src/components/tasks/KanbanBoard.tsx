@@ -36,10 +36,10 @@ export default function KanbanBoard({
 }: KanbanBoardProps) {
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(columns.map(c => c.id)));
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(columns.map(c => c.id));
 
   const boardRef = useRef<HTMLDivElement>(null);
-  const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Track which columns are visible using IntersectionObserver
   useEffect(() => {
@@ -48,35 +48,50 @@ export default function KanbanBoard({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        setVisibleColumns((prev) => {
-          const next = new Set(prev);
-          entries.forEach((entry) => {
-            const columnId = entry.target.getAttribute('data-column-id');
-            if (columnId) {
-              if (entry.isIntersecting) {
-                next.add(columnId);
-              } else {
-                next.delete(columnId);
-              }
+        const visible = new Set(visibleColumns);
+        let changed = false;
+
+        entries.forEach((entry) => {
+          const columnId = entry.target.getAttribute('data-column-id');
+          if (columnId) {
+            const wasVisible = visible.has(columnId);
+            if (entry.isIntersecting && !wasVisible) {
+              visible.add(columnId);
+              changed = true;
+            } else if (!entry.isIntersecting && wasVisible) {
+              visible.delete(columnId);
+              changed = true;
             }
-          });
-          return next;
+          }
         });
+
+        if (changed) {
+          setVisibleColumns(Array.from(visible));
+        }
       },
       { root: board, threshold: 0.5 }
     );
 
     // Observe all column elements
-    Object.entries(columnRefs.current).forEach(([, el]) => {
-      if (el) observer.observe(el);
+    columnRefs.current.forEach((el) => {
+      observer.observe(el);
     });
 
     return () => observer.disconnect();
+  }, [visibleColumns]);
+
+  // Set up column ref
+  const setColumnRef = useCallback((columnId: string, el: HTMLDivElement | null) => {
+    if (el) {
+      columnRefs.current.set(columnId, el);
+    } else {
+      columnRefs.current.delete(columnId);
+    }
   }, []);
 
   // Scroll to a specific column
   const scrollToColumn = useCallback((columnId: string) => {
-    const columnEl = columnRefs.current[columnId];
+    const columnEl = columnRefs.current.get(columnId);
     if (columnEl) {
       columnEl.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
     }
@@ -126,7 +141,7 @@ export default function KanbanBoard({
       <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Board columns">
         {columns.map((column) => {
           const columnTasks = tasks[column.id as keyof TasksByStatus] || [];
-          const isVisible = visibleColumns.has(column.id);
+          const isVisible = visibleColumns.includes(column.id);
 
           return (
             <button
@@ -168,7 +183,7 @@ export default function KanbanBoard({
           return (
             <div
               key={column.id}
-              ref={(el) => { columnRefs.current[column.id] = el; }}
+              ref={(el) => setColumnRef(column.id, el)}
               data-column-id={column.id}
               className={clsx(
                 "flex-shrink-0 w-72 rounded-xl bg-gray-100 p-3 shadow-soft dark:bg-dark-elevated",
