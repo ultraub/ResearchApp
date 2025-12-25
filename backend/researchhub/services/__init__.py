@@ -1,6 +1,5 @@
 """Services package."""
 
-from researchhub.services.azure_ad import AzureADService
 from researchhub.services.custom_field import CustomFieldService
 from researchhub.services.task_assignment import TaskAssignmentService
 from researchhub.services.task_document import TaskDocumentService
@@ -18,7 +17,6 @@ from researchhub.services.external_apis import (
 )
 
 __all__ = [
-    "AzureADService",
     "CustomFieldService",
     "TaskAssignmentService",
     "TaskDocumentService",
