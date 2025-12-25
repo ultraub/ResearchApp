@@ -656,42 +656,28 @@ Use the 'include' parameter to load related data. When included, the full relate
                     value = [str(v) if isinstance(v, UUID) else v for v in value]
                 result[col] = value
 
-        # Add relationship data based on include parameter
+        # Add relationship data ONLY for explicitly included relationships
+        # (accessing non-eagerly-loaded relationships triggers lazy load errors in async)
         if "assignee" in include and hasattr(row, "assignee") and row.assignee:
             result["assignee"] = self._format_user(row.assignee)
-        elif hasattr(row, "assignee") and row.assignee:
-            # Fallback: just add name for convenience even if not included
-            result["assignee_name"] = row.assignee.display_name
 
         if "project" in include and hasattr(row, "project") and row.project:
             result["project"] = self._format_project(row.project)
-        elif hasattr(row, "project") and row.project:
-            # Fallback: just add name for convenience even if not included
-            result["project_name"] = row.project.name
 
         if "created_by" in include and hasattr(row, "created_by") and row.created_by:
             result["created_by"] = self._format_user(row.created_by)
-        elif hasattr(row, "created_by") and row.created_by:
-            # Fallback: just add name for convenience even if not included
-            result["created_by_name"] = row.created_by.display_name
 
         # Author relationship (for comments)
         if "author" in include and hasattr(row, "author") and row.author:
             result["author"] = self._format_user(row.author)
-        elif hasattr(row, "author") and row.author:
-            result["author_name"] = row.author.display_name
 
         # Resolved by relationship (for comments)
         if "resolved_by" in include and hasattr(row, "resolved_by") and row.resolved_by:
             result["resolved_by"] = self._format_user(row.resolved_by)
-        elif hasattr(row, "resolved_by") and row.resolved_by:
-            result["resolved_by_name"] = row.resolved_by.display_name
 
         # User relationship (for journal_entries - the owner of personal journals)
         if "user" in include and hasattr(row, "user") and row.user:
             result["user"] = self._format_user(row.user)
-        elif hasattr(row, "user") and row.user:
-            result["user_name"] = row.user.display_name
 
         return result
 
