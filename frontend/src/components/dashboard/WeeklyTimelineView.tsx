@@ -10,21 +10,53 @@ import { CalendarIcon } from '@heroicons/react/24/outline';
 import type { TaskSummary } from '@/types/dashboard';
 
 // Error boundary to catch Gantt chart errors on resize
-class GanttErrorBoundary extends Component<{ children: ReactNode; onError?: () => void }, { hasError: boolean }> {
-  state = { hasError: false };
+class GanttErrorBoundary extends Component<
+  { children: ReactNode; fallback?: ReactNode },
+  { hasError: boolean; errorCount: number }
+> {
+  state = { hasError: false, errorCount: 0 };
+  resetTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   static getDerivedStateFromError() {
     return { hasError: true };
   }
 
   componentDidCatch() {
-    // Reset after a short delay to allow re-render
-    setTimeout(() => this.setState({ hasError: false }), 100);
+    // Clear any existing timeout
+    if (this.resetTimeoutId) {
+      clearTimeout(this.resetTimeoutId);
+    }
+
+    // Increment error count
+    this.setState(prev => ({ errorCount: prev.errorCount + 1 }));
+
+    // Only reset if we haven't had too many errors (prevent infinite loops)
+    if (this.state.errorCount < 3) {
+      // Reset after a longer delay to prevent rapid re-renders
+      this.resetTimeoutId = setTimeout(() => {
+        this.setState({ hasError: false });
+      }, 500);
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.resetTimeoutId) {
+      clearTimeout(this.resetTimeoutId);
+    }
   }
 
   render() {
     if (this.state.hasError) {
-      return null; // Temporarily hide while recovering
+      // If too many errors, show fallback permanently
+      if (this.state.errorCount >= 3 && this.props.fallback) {
+        return this.props.fallback;
+      }
+      // Temporarily hide while recovering
+      return (
+        <div className="h-[300px] flex items-center justify-center text-gray-400 dark:text-gray-600">
+          <span className="text-sm">Loading timeline...</span>
+        </div>
+      );
     }
     return this.props.children;
   }
@@ -176,7 +208,13 @@ export function WeeklyTimelineView({ tasks, className }: WeeklyTimelineViewProps
 
         {/* Gantt Chart */}
         <div className="h-[300px] overflow-hidden rounded-lg border border-gray-200 dark:border-dark-border">
-          <GanttErrorBoundary>
+          <GanttErrorBoundary
+            fallback={
+              <div className="h-full flex items-center justify-center text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-800">
+                <span className="text-sm">Timeline temporarily unavailable</span>
+              </div>
+            }
+          >
             <Gantt
               init={handleInit}
               tasks={ganttTasks}

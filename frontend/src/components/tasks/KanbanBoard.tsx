@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { clsx } from "clsx";
 import type { Task, TasksByStatus } from "@/types";
@@ -40,45 +40,60 @@ export default function KanbanBoard({
 
   const boardRef = useRef<HTMLDivElement>(null);
   const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Use ref to track visible columns to avoid recreating observer on state changes
+  const visibleColumnsRef = useRef<Set<string>>(new Set(columns.map(c => c.id)));
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Memoize column IDs to use as stable dependency
+  const columnIds = useMemo(() => columns.map(c => c.id), []);
 
   // Track which columns are visible using IntersectionObserver
   useEffect(() => {
     const board = boardRef.current;
     if (!board) return;
 
+    // Clean up existing observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
-        const visible = new Set(visibleColumns);
         let changed = false;
 
         entries.forEach((entry) => {
           const columnId = entry.target.getAttribute('data-column-id');
           if (columnId) {
-            const wasVisible = visible.has(columnId);
+            const wasVisible = visibleColumnsRef.current.has(columnId);
             if (entry.isIntersecting && !wasVisible) {
-              visible.add(columnId);
+              visibleColumnsRef.current.add(columnId);
               changed = true;
             } else if (!entry.isIntersecting && wasVisible) {
-              visible.delete(columnId);
+              visibleColumnsRef.current.delete(columnId);
               changed = true;
             }
           }
         });
 
         if (changed) {
-          setVisibleColumns(Array.from(visible));
+          setVisibleColumns(Array.from(visibleColumnsRef.current));
         }
       },
       { root: board, threshold: 0.5 }
     );
+
+    observerRef.current = observer;
 
     // Observe all column elements
     columnRefs.current.forEach((el) => {
       observer.observe(el);
     });
 
-    return () => observer.disconnect();
-  }, [visibleColumns]);
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+    };
+  }, [columnIds]); // Only recreate when columns change, not on visibleColumns change
 
   // Set up column ref
   const setColumnRef = useCallback((columnId: string, el: HTMLDivElement | null) => {
@@ -140,9 +155,9 @@ export default function KanbanBoard({
 
   return (
     <div className="space-y-3">
-      {/* Navigation Pills - Hidden on mobile */}
+      {/* Navigation Pills - Hidden on mobile, sticky to top of board */}
       <nav
-        className="hidden md:flex gap-2 overflow-x-auto pb-2"
+        className="hidden md:flex gap-2 overflow-x-auto pb-2 sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 -mx-1 px-1 py-2 -mt-2"
         aria-label="Board columns"
       >
         {columns.map((column) => {
