@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from researchhub.api.v1.auth import CurrentUser
 from researchhub.db.session import get_db_session
@@ -212,17 +213,19 @@ async def create_review(
 
     # Send notifications to assigned reviewers
     if request.reviewer_ids:
-        project_result = await db.execute(select(Project).where(Project.id == request.project_id))
+        project_result = await db.execute(
+            select(Project).options(selectinload(Project.team)).where(Project.id == request.project_id)
+        )
         project = project_result.scalar_one_or_none()
 
-        if project and project.organization_id:
+        if project and project.team and project.team.organization_id:
             notification_service = NotificationService(db)
             await notification_service.notify_many(
                 user_ids=request.reviewer_ids,
                 notification_type="review_requested",
                 title=f"Review requested: {request.title}",
                 message=f"You have been asked to review '{request.title}'",
-                organization_id=project.organization_id,
+                organization_id=project.team.organization_id,
                 target_type="review",
                 target_id=review.id,
                 target_url=f"/projects/{request.project_id}/reviews/{review.id}",
@@ -382,17 +385,19 @@ async def add_reviewer(
     # Send notification to the new reviewer
     review = await service.get_review(review_id)
     if review:
-        project_result = await db.execute(select(Project).where(Project.id == review.project_id))
+        project_result = await db.execute(
+            select(Project).options(selectinload(Project.team)).where(Project.id == review.project_id)
+        )
         project = project_result.scalar_one_or_none()
 
-        if project and project.organization_id:
+        if project and project.team and project.team.organization_id:
             notification_service = NotificationService(db)
             await notification_service.notify(
                 user_id=request.reviewer_id,
                 notification_type="reviewer_assigned",
                 title=f"You were added as reviewer: {review.title}",
                 message=f"You have been added as a reviewer for '{review.title}'",
-                organization_id=project.organization_id,
+                organization_id=project.team.organization_id,
                 target_type="review",
                 target_id=review_id,
                 target_url=f"/projects/{review.project_id}/reviews/{review_id}",
@@ -495,17 +500,19 @@ async def add_comment(
     # Send notification to the review requester
     review = await service.get_review(review_id)
     if review and review.requested_by_id:
-        project_result = await db.execute(select(Project).where(Project.id == review.project_id))
+        project_result = await db.execute(
+            select(Project).options(selectinload(Project.team)).where(Project.id == review.project_id)
+        )
         project = project_result.scalar_one_or_none()
 
-        if project and project.organization_id:
+        if project and project.team and project.team.organization_id:
             notification_service = NotificationService(db)
             await notification_service.notify(
                 user_id=review.requested_by_id,
                 notification_type="review_comment_added",
                 title=f"New comment on review: {review.title}",
                 message=f"A comment was added to your review '{review.title}'",
-                organization_id=project.organization_id,
+                organization_id=project.team.organization_id,
                 target_type="review",
                 target_id=review_id,
                 target_url=f"/projects/{review.project_id}/reviews/{review_id}",

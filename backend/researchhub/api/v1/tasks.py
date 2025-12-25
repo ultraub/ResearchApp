@@ -828,11 +828,13 @@ async def update_task(
     # Notify assignees if status changed
     new_status = update_data.get("status")
     if new_status and new_status != old_status:
-        # Get project for organization_id
-        project_result = await db.execute(select(Project).where(Project.id == task.project_id))
+        # Get project with team for organization_id
+        project_result = await db.execute(
+            select(Project).options(selectinload(Project.team)).where(Project.id == task.project_id)
+        )
         project = project_result.scalar_one_or_none()
 
-        if project and project.organization_id:
+        if project and project.team and project.team.organization_id:
             # Get all task assignees
             assignment_service = TaskAssignmentService(db)
             assignments = await assignment_service.get_task_assignments(task_id)
@@ -845,7 +847,7 @@ async def update_task(
                     notification_type="task_status_changed",
                     title=f"Task status changed: {task.title}",
                     message=f"Task '{task.title}' moved from {old_status} to {new_status}",
-                    organization_id=project.organization_id,
+                    organization_id=project.team.organization_id,
                     target_type="task",
                     target_id=task_id,
                     target_url=f"/projects/{task.project_id}/tasks/{task_id}",
@@ -1470,12 +1472,14 @@ async def assign_users_to_task(
         )
         assignments.append(assignment)
 
-    # Get project for organization_id
-    project_result = await db.execute(select(Project).where(Project.id == task.project_id))
+    # Get project with team for organization_id
+    project_result = await db.execute(
+        select(Project).options(selectinload(Project.team)).where(Project.id == task.project_id)
+    )
     project = project_result.scalar_one_or_none()
 
     # Send notifications to assigned users
-    if project and project.organization_id:
+    if project and project.team and project.team.organization_id:
         notification_service = NotificationService(db)
         for user_id in assignment_data.user_ids:
             await notification_service.notify(
@@ -1483,7 +1487,7 @@ async def assign_users_to_task(
                 notification_type="task_assigned",
                 title=f"You were assigned to: {task.title}",
                 message=f"You have been assigned to the task '{task.title}'",
-                organization_id=project.organization_id,
+                organization_id=project.team.organization_id,
                 target_type="task",
                 target_id=task_id,
                 target_url=f"/projects/{task.project_id}/tasks/{task_id}",
@@ -1600,17 +1604,19 @@ async def remove_task_assignment(
     )
 
     # Send notification to unassigned user
-    project_result = await db.execute(select(Project).where(Project.id == task.project_id))
+    project_result = await db.execute(
+        select(Project).options(selectinload(Project.team)).where(Project.id == task.project_id)
+    )
     project = project_result.scalar_one_or_none()
 
-    if project and project.organization_id:
+    if project and project.team and project.team.organization_id:
         notification_service = NotificationService(db)
         await notification_service.notify(
             user_id=removed_user_id,
             notification_type="task_unassigned",
             title=f"You were removed from: {task.title}",
             message=f"You have been unassigned from the task '{task.title}'",
-            organization_id=project.organization_id,
+            organization_id=project.team.organization_id,
             target_type="task",
             target_id=task_id,
             target_url=f"/projects/{task.project_id}/tasks/{task_id}",
@@ -2153,12 +2159,13 @@ async def submit_task_for_review(
         )
 
         # Trigger AI auto-review for each created review in background
+        org_id = project.team.organization_id if project.team else None
         for review in reviews:
             try:
                 auto_review_for_review_task.delay(
                     review_id=str(review.id),
                     user_id=str(current_user.id),
-                    organization_id=str(project.organization_id),
+                    organization_id=str(org_id) if org_id else None,
                 )
             except Exception as e:
                 # Don't fail the submit if auto-review trigger fails

@@ -303,17 +303,19 @@ async def share_project(
     await db.refresh(share, ["user"])
 
     # Send notification to the user receiving access
-    project_result = await db.execute(select(Project).where(Project.id == project_id))
+    project_result = await db.execute(
+        select(Project).options(selectinload(Project.team)).where(Project.id == project_id)
+    )
     project = project_result.scalar_one_or_none()
 
-    if project and project.organization_id:
+    if project and project.team and project.team.organization_id:
         notification_service = NotificationService(db)
         await notification_service.notify(
             user_id=share_data.user_id,
             notification_type="document_shared",
             title=f"Project shared with you: {project.name}",
             message=f"You now have {share_data.role} access to '{project.name}'",
-            organization_id=project.organization_id,
+            organization_id=project.team.organization_id,
             target_type="project",
             target_id=project_id,
             target_url=f"/projects/{project_id}",

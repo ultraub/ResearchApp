@@ -291,10 +291,11 @@ async def create_document(
 
     # Trigger auto-review in background if enabled for document creation
     try:
+        org_id = project.team.organization_id if project.team else None
         auto_review_document_task.delay(
             document_id=str(document.id),
             user_id=str(current_user.id),
-            organization_id=str(project.organization_id),
+            organization_id=str(org_id) if org_id else None,
             trigger_source="document_create",
         )
     except Exception as e:
@@ -497,10 +498,11 @@ async def update_document(
     # Trigger auto-review in background if content changed and enabled
     if content_changed:
         try:
+            org_id = project.team.organization_id if project.team else None
             auto_review_document_task.delay(
                 document_id=str(document.id),
                 user_id=str(current_user.id),
-                organization_id=str(project.organization_id),
+                organization_id=str(org_id) if org_id else None,
                 trigger_source="document_update",
             )
         except Exception as e:
@@ -851,10 +853,12 @@ async def create_document_comment(
         await db.commit()
 
         # Send notifications to mentioned users
-        project_result = await db.execute(select(Project).where(Project.id == document.project_id))
+        project_result = await db.execute(
+            select(Project).options(selectinload(Project.team)).where(Project.id == document.project_id)
+        )
         project = project_result.scalar_one_or_none()
 
-        if project and project.organization_id:
+        if project and project.team and project.team.organization_id:
             notification_service = NotificationService(db)
             for mention in mentions_info:
                 await notification_service.notify(
@@ -862,7 +866,7 @@ async def create_document_comment(
                     notification_type="user_mentioned",
                     title=f"You were mentioned in: {document.title}",
                     message=f"You were mentioned in a comment on '{document.title}'",
-                    organization_id=project.organization_id,
+                    organization_id=project.team.organization_id,
                     target_type="document",
                     target_id=document_id,
                     target_url=f"/projects/{document.project_id}/documents/{document_id}",

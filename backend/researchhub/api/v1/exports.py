@@ -74,7 +74,7 @@ async def export_project(
 ):
     """Export project data with tasks and documents."""
     # Fetch project with related data
-    query = select(Project).where(Project.id == project_id)
+    query = select(Project).options(selectinload(Project.team)).where(Project.id == project_id)
     if include_tasks:
         query = query.options(selectinload(Project.tasks))
     if include_documents:
@@ -89,7 +89,9 @@ async def export_project(
             detail="Project not found",
         )
 
-    await verify_org_access(project.organization_id, current_user, db)
+    org_id = project.team.organization_id if project.team else None
+    if org_id:
+        await verify_org_access(org_id, current_user, db)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     filename = f"project_{project.name.replace(' ', '_')}_{timestamp}"
@@ -257,11 +259,11 @@ async def export_document(
 
     # Verify access through project
     result = await db.execute(
-        select(Project).where(Project.id == document.project_id)
+        select(Project).options(selectinload(Project.team)).where(Project.id == document.project_id)
     )
     project = result.scalar_one_or_none()
-    if project:
-        await verify_org_access(project.organization_id, current_user, db)
+    if project and project.team and project.team.organization_id:
+        await verify_org_access(project.team.organization_id, current_user, db)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     filename = f"doc_{document.title.replace(' ', '_')}_{timestamp}"

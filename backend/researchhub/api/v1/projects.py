@@ -190,6 +190,7 @@ async def check_project_access(
             selectinload(Project.members),
             selectinload(Project.project_teams),
             selectinload(Project.exclusions),
+            selectinload(Project.team),
         )
         .where(Project.id == project_id)
     )
