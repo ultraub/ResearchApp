@@ -16,7 +16,9 @@ from sqlalchemy.orm import selectinload
 
 from researchhub.ai.assistant.queries.access import get_accessible_project_ids
 from researchhub.ai.assistant.tools import QueryTool
+from researchhub.models.collaboration import Comment
 from researchhub.models.document import Document
+from researchhub.models.journal import JournalEntry
 from researchhub.models.project import Blocker, Project, Task
 from researchhub.models.user import User
 
@@ -40,6 +42,8 @@ class DynamicQueryTool(QueryTool):
         "blockers": Blocker,
         "documents": Document,
         "users": User,
+        "journal_entries": JournalEntry,
+        "comments": Comment,
     }
 
     # Safe columns per table (excludes sensitive data)
@@ -68,6 +72,18 @@ class DynamicQueryTool(QueryTool):
         "users": [
             "id", "display_name", "email", "title", "department",
         ],
+        "journal_entries": [
+            "id", "title", "content_text", "entry_date", "scope", "entry_type",
+            "word_count", "is_archived", "is_pinned", "mood", "tags",
+            "created_at", "updated_at",
+            "user_id", "project_id", "created_by_id",
+        ],
+        "comments": [
+            "id", "content", "resource_type", "resource_id",
+            "parent_id", "thread_id", "is_edited", "is_resolved",
+            "created_at", "updated_at", "edited_at", "resolved_at",
+            "author_id",
+        ],
     }
 
     @property
@@ -78,7 +94,7 @@ class DynamicQueryTool(QueryTool):
     def description(self) -> str:
         return """Execute a dynamic database query with structured filters.
 
-Use this tool for flexible queries across projects, tasks, blockers, documents, or users.
+Use this tool for flexible queries across projects, tasks, blockers, documents, journal_entries, comments, or users.
 Access control is automatically enforced - you can only see data from accessible projects.
 
 ## Database Schema
@@ -103,6 +119,17 @@ Relationships: project (Project), assignee (User), created_by (User)
 Columns: id, title, document_type, status, version, word_count, tags, created_at, updated_at, project_id, created_by_id
 Relationships: project (Project), created_by (User)
 
+### journal_entries
+Columns: id, title, content_text, entry_date, scope, entry_type, word_count, is_archived, is_pinned, mood, tags, created_at, updated_at, user_id, project_id, created_by_id
+Scope values: personal, project
+Entry type values: observation, experiment, meeting, idea, reflection, protocol
+Relationships: user (User), project (Project), created_by (User)
+
+### comments
+Columns: id, content, resource_type, resource_id, parent_id, thread_id, is_edited, is_resolved, created_at, updated_at, edited_at, resolved_at, author_id
+Resource type values: project, task, document, idea, paper
+Relationships: author (User), resolved_by (User)
+
 ### users
 Columns: id, display_name, email, title, department
 
@@ -111,6 +138,8 @@ Use the 'include' parameter to load related data. When included, the full relate
 - tasks: include=["project", "assignee", "created_by"]
 - blockers: include=["project", "assignee", "created_by"]
 - documents: include=["project", "created_by"]
+- journal_entries: include=["user", "project", "created_by"]
+- comments: include=["author", "resolved_by"]
 
 ## Filter Patterns
 - status: Filter by status value(s)
@@ -124,11 +153,14 @@ Use the 'include' parameter to load related data. When included, the full relate
 - is_stalled: Items in_progress with no update in 7+ days
 - exclude_done: Exclude completed items
 - search: Search text in title/name fields
+- resource_type / resource_id: Filter comments by target entity
 
 ## Examples
 - Tasks with project details: table=tasks, include=["project"], filters={assigned_to_me: true}
 - User workload with context: table=tasks, include=["project", "assignee"], filters={status: ["todo", "in_progress"]}
 - Open blockers: table=blockers, include=["project"], filters={status: ["open", "in_progress"]}
+- Recent journal entries: table=journal_entries, include=["project"], filters={updated_after: "7 days ago"}
+- Comments on a task: table=comments, include=["author"], filters={resource_type: "task", resource_id: "<uuid>"}
 """
 
     # Available relationships per table
@@ -136,6 +168,8 @@ Use the 'include' parameter to load related data. When included, the full relate
         "tasks": ["project", "assignee", "created_by"],
         "blockers": ["project", "assignee", "created_by"],
         "documents": ["project", "created_by"],
+        "journal_entries": ["user", "project", "created_by"],
+        "comments": ["author", "resolved_by"],
         "projects": [],
         "users": [],
     }
@@ -147,13 +181,13 @@ Use the 'include' parameter to load related data. When included, the full relate
             "properties": {
                 "table": {
                     "type": "string",
-                    "enum": ["projects", "tasks", "blockers", "documents", "users"],
+                    "enum": ["projects", "tasks", "blockers", "documents", "journal_entries", "comments", "users"],
                     "description": "The table to query",
                 },
                 "include": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Relationships to include in results. For tasks/blockers: project, assignee, created_by. For documents: project, created_by.",
+                    "description": "Relationships to include in results. Tasks/blockers: project, assignee, created_by. Documents: project, created_by. Journal entries: user, project, created_by. Comments: author, resolved_by.",
                 },
                 "filters": {
                     "type": "object",
@@ -224,6 +258,22 @@ Use the 'include' parameter to load related data. When included, the full relate
                         "exclude_done": {
                             "type": "boolean",
                             "description": "Exclude completed/done items",
+                        },
+                        "resource_type": {
+                            "type": "string",
+                            "description": "For comments: filter by target entity type (project, task, document, idea, paper)",
+                        },
+                        "resource_id": {
+                            "type": "string",
+                            "description": "For comments: filter by target entity UUID",
+                        },
+                        "scope": {
+                            "type": "string",
+                            "description": "For journal_entries: filter by scope (personal, project)",
+                        },
+                        "entry_type": {
+                            "type": "string",
+                            "description": "For journal_entries: filter by entry type (observation, experiment, meeting, idea, reflection, protocol)",
                         },
                     },
                 },
@@ -378,12 +428,25 @@ Use the 'include' parameter to load related data. When included, the full relate
         """Build SQLAlchemy filter conditions from structured filters."""
         conditions = []
 
-        # ALWAYS filter by accessible projects (except for users table)
-        if table_name != "users":
-            if hasattr(model, "project_id"):
-                conditions.append(model.project_id.in_(accessible_project_ids))
-            elif table_name == "projects":
-                conditions.append(model.id.in_(accessible_project_ids))
+        # ALWAYS filter by accessible data (access control)
+        if table_name == "users":
+            pass  # Users table has no access control beyond org membership
+        elif table_name == "projects":
+            conditions.append(model.id.in_(accessible_project_ids))
+        elif table_name == "journal_entries":
+            # Personal journals: owned by user, Project journals: in accessible projects
+            conditions.append(
+                or_(
+                    model.user_id == user_id,  # Personal journals owned by user
+                    model.project_id.in_(accessible_project_ids),  # Project journals
+                )
+            )
+        elif table_name == "comments":
+            # Comments filtered by organization - user must be in the org
+            conditions.append(model.organization_id == org_id)
+        elif hasattr(model, "project_id"):
+            # Standard project-based access control
+            conditions.append(model.project_id.in_(accessible_project_ids))
 
         # Status filter
         if "status" in filters:
@@ -506,6 +569,26 @@ Use the 'include' parameter to load related data. When included, the full relate
             if table_name == "blockers":
                 conditions.append(model.status.notin_(["resolved", "wont_fix"]))
 
+        # Resource type filter (for comments)
+        if "resource_type" in filters and hasattr(model, "resource_type"):
+            conditions.append(model.resource_type == filters["resource_type"])
+
+        # Resource ID filter (for comments)
+        if "resource_id" in filters and hasattr(model, "resource_id"):
+            try:
+                resource_uuid = UUID(filters["resource_id"])
+                conditions.append(model.resource_id == resource_uuid)
+            except ValueError:
+                pass
+
+        # Scope filter (for journal_entries)
+        if "scope" in filters and hasattr(model, "scope"):
+            conditions.append(model.scope == filters["scope"])
+
+        # Entry type filter (for journal_entries)
+        if "entry_type" in filters and hasattr(model, "entry_type"):
+            conditions.append(model.entry_type == filters["entry_type"])
+
         return conditions
 
     def _parse_date(self, date_str: str) -> Optional[date]:
@@ -591,6 +674,24 @@ Use the 'include' parameter to load related data. When included, the full relate
         elif hasattr(row, "created_by") and row.created_by:
             # Fallback: just add name for convenience even if not included
             result["created_by_name"] = row.created_by.display_name
+
+        # Author relationship (for comments)
+        if "author" in include and hasattr(row, "author") and row.author:
+            result["author"] = self._format_user(row.author)
+        elif hasattr(row, "author") and row.author:
+            result["author_name"] = row.author.display_name
+
+        # Resolved by relationship (for comments)
+        if "resolved_by" in include and hasattr(row, "resolved_by") and row.resolved_by:
+            result["resolved_by"] = self._format_user(row.resolved_by)
+        elif hasattr(row, "resolved_by") and row.resolved_by:
+            result["resolved_by_name"] = row.resolved_by.display_name
+
+        # User relationship (for journal_entries - the owner of personal journals)
+        if "user" in include and hasattr(row, "user") and row.user:
+            result["user"] = self._format_user(row.user)
+        elif hasattr(row, "user") and row.user:
+            result["user_name"] = row.user.display_name
 
         return result
 
