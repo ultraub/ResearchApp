@@ -113,11 +113,10 @@ export default function KanbanBoard({
       // Disable scroll-snap via React state (prevents re-renders from re-enabling it)
       setScrollSnapEnabled(false);
 
-      // Calculate scroll position based on column index (more reliable than offsetLeft)
-      const columnIndex = columns.findIndex(c => c.id === columnId);
-      const columnWidth = 288; // w-72 = 18rem = 288px
-      const gap = 16; // gap-4 = 1rem = 16px
-      const scrollPosition = columnIndex * (columnWidth + gap);
+      // Calculate scroll position using actual rendered positions (works across all devices/zoom levels)
+      const boardRect = board.getBoundingClientRect();
+      const columnRect = columnEl.getBoundingClientRect();
+      const scrollPosition = columnRect.left - boardRect.left + board.scrollLeft;
 
       board.scrollTo({ left: scrollPosition, behavior: 'smooth' });
 
