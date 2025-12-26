@@ -1234,6 +1234,38 @@ async def change_project_scope(
         project.scope = "TEAM"
         project.is_org_public = False
 
+        # Handle team transfer if team_id is provided
+        if scope_data.team_id and scope_data.team_id != project.team_id:
+            # Verify user is a member of the new team
+            membership = await db.execute(
+                select(TeamMember).where(
+                    TeamMember.team_id == scope_data.team_id,
+                    TeamMember.user_id == current_user.id,
+                )
+            )
+            if not membership.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Must be a member of the target team",
+                )
+
+            # Clear existing project teams
+            await db.execute(
+                delete(ProjectTeam).where(ProjectTeam.project_id == project_id)
+            )
+
+            # Update primary team
+            project.team_id = scope_data.team_id
+
+            # Add new primary team to project_teams
+            new_project_team = ProjectTeam(
+                project_id=project_id,
+                team_id=scope_data.team_id,
+                role="owner",
+                added_by_id=current_user.id,
+            )
+            db.add(new_project_team)
+
     elif old_scope == new_scope:
         # Same scope - handle team transfer or settings update
         if new_scope == "TEAM" and scope_data.team_id and scope_data.team_id != project.team_id:
