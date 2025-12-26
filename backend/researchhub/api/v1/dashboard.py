@@ -227,6 +227,7 @@ async def get_command_center_data(
             tasks_by_day={},
             overdue_tasks=[],
             stalled_tasks=[],
+            unscheduled_tasks=[],
             summary=DashboardSummary(
                 total_blockers=0,
                 critical_blockers=0,
