@@ -20,7 +20,7 @@ from researchhub.models.collaboration import Comment
 from researchhub.models.document import Document
 from researchhub.models.journal import JournalEntry
 from researchhub.models.organization import Department, Organization, OrganizationMember, Team, TeamMember
-from researchhub.models.project import Blocker, Project, ProjectMember, Task
+from researchhub.models.project import Blocker, Project, ProjectMember, Task, TaskAssignment
 from researchhub.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -647,7 +647,7 @@ Use the 'include' parameter to load related data. When included, the full relate
                     # No matching projects - return empty
                     conditions.append(False)
 
-        # Assignee name filter
+        # Assignee name filter (check both assignee_id and task_assignments table)
         if "assignee_name" in filters and hasattr(model, "assignee_id"):
             assignee_name = filters["assignee_name"]
             user_result = await db.execute(
@@ -660,13 +660,37 @@ Use the 'include' parameter to load related data. When included, the full relate
             )
             matching_user_ids = [row[0] for row in user_result.all()]
             if matching_user_ids:
-                conditions.append(model.assignee_id.in_(matching_user_ids))
+                if table_name == "tasks":
+                    # For tasks, check both the direct assignee_id and task_assignments table
+                    assigned_via_assignments = select(TaskAssignment.task_id).where(
+                        TaskAssignment.user_id.in_(matching_user_ids)
+                    )
+                    conditions.append(
+                        or_(
+                            model.assignee_id.in_(matching_user_ids),
+                            model.id.in_(assigned_via_assignments),
+                        )
+                    )
+                else:
+                    conditions.append(model.assignee_id.in_(matching_user_ids))
             else:
                 conditions.append(False)
 
-        # Assigned to current user
+        # Assigned to current user (check both assignee_id and task_assignments table)
         if filters.get("assigned_to_me") and hasattr(model, "assignee_id"):
-            conditions.append(model.assignee_id == user_id)
+            if table_name == "tasks":
+                # For tasks, check both the direct assignee_id and task_assignments table
+                assigned_via_assignments = select(TaskAssignment.task_id).where(
+                    TaskAssignment.user_id == user_id
+                )
+                conditions.append(
+                    or_(
+                        model.assignee_id == user_id,
+                        model.id.in_(assigned_via_assignments),
+                    )
+                )
+            else:
+                conditions.append(model.assignee_id == user_id)
 
         # Created by current user
         if filters.get("created_by_me") and hasattr(model, "created_by_id"):

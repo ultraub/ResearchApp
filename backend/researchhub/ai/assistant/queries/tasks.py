@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from researchhub.ai.assistant.queries.access import get_accessible_project_ids
 from researchhub.ai.assistant.tools import QueryTool
-from researchhub.models.project import Blocker, BlockerLink, Project, Task, TaskComment
+from researchhub.models.project import Blocker, BlockerLink, Project, Task, TaskAssignment, TaskComment
 from researchhub.models.user import User
 from researchhub.models.organization import OrganizationMember
 
@@ -159,7 +159,16 @@ class GetTasksTool(QueryTool):
                         "count": 0,
                     }
 
-            filters.append(Task.assignee_id == resolved_assignee_id)
+            # Check both the direct assignee_id and task_assignments table
+            assigned_via_assignments = select(TaskAssignment.task_id).where(
+                TaskAssignment.user_id == resolved_assignee_id
+            )
+            filters.append(
+                or_(
+                    Task.assignee_id == resolved_assignee_id,
+                    Task.id.in_(assigned_via_assignments),
+                )
+            )
 
         if priority:
             filters.append(Task.priority == priority)
