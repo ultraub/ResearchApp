@@ -14,7 +14,7 @@ from researchhub.api.v1.auth import CurrentUser
 from researchhub.db.session import get_db_session
 from researchhub.models import Blocker, Project, Task, User
 from researchhub.models.organization import OrganizationMember, Team, TeamMember
-from researchhub.models.project import ProjectMember, ProjectTeam
+from researchhub.models.project import ProjectMember, ProjectTeam, TaskAssignment
 
 
 router = APIRouter(tags=["dashboard"])
@@ -241,7 +241,16 @@ async def get_command_center_data(
     # Base task filters
     task_filters = [Task.project_id.in_(accessible_project_ids)]
     if scope == "personal":
-        task_filters.append(Task.assignee_id == user_id)
+        # User is assigned via assignee_id OR task_assignments table
+        assigned_via_assignments = select(TaskAssignment.task_id).where(
+            TaskAssignment.user_id == user_id
+        )
+        task_filters.append(
+            or_(
+                Task.assignee_id == user_id,
+                Task.id.in_(assigned_via_assignments),
+            )
+        )
 
     # --- 1. Get all open blockers ---
     blocker_query = (
