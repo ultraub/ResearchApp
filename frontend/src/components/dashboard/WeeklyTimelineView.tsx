@@ -1,156 +1,178 @@
 /**
- * WeeklyTimelineView - Visual 7-day timeline using SVAR React Gantt.
+ * WeeklyTimelineView - Visual 7-day timeline for upcoming tasks.
+ * Custom implementation with proper links, colors, and tooltips.
  */
 
-import { useMemo, useRef, Component, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Gantt, type GanttApi } from 'wx-react-gantt';
-import 'wx-react-gantt/dist/gantt.css';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CalendarIcon } from '@heroicons/react/24/outline';
 import type { TaskSummary } from '@/types/dashboard';
-
-// Error boundary to catch Gantt chart errors on resize
-class GanttErrorBoundary extends Component<
-  { children: ReactNode; fallback?: ReactNode },
-  { hasError: boolean; errorCount: number }
-> {
-  state = { hasError: false, errorCount: 0 };
-  resetTimeoutId: ReturnType<typeof setTimeout> | null = null;
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch() {
-    // Clear any existing timeout
-    if (this.resetTimeoutId) {
-      clearTimeout(this.resetTimeoutId);
-    }
-
-    // Increment error count
-    this.setState(prev => ({ errorCount: prev.errorCount + 1 }));
-
-    // Only reset if we haven't had too many errors (prevent infinite loops)
-    if (this.state.errorCount < 3) {
-      // Reset after a longer delay to prevent rapid re-renders
-      this.resetTimeoutId = setTimeout(() => {
-        this.setState({ hasError: false });
-      }, 500);
-    }
-  }
-
-  componentWillUnmount() {
-    if (this.resetTimeoutId) {
-      clearTimeout(this.resetTimeoutId);
-    }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      // If too many errors, show fallback permanently
-      if (this.state.errorCount >= 3 && this.props.fallback) {
-        return this.props.fallback;
-      }
-      // Temporarily hide while recovering
-      return (
-        <div className="h-[300px] flex items-center justify-center text-gray-400 dark:text-gray-600">
-          <span className="text-sm">Loading timeline...</span>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 interface WeeklyTimelineViewProps {
   tasks: TaskSummary[];
   className?: string;
 }
 
-// Priority to color mapping for task bars
-const PRIORITY_COLORS: Record<string, string> = {
-  urgent: '#ef4444', // red-500
-  high: '#f97316',   // orange-500
-  medium: '#3b82f6', // blue-500
-  low: '#9ca3af',    // gray-400
+// Priority colors with background and text variants
+const PRIORITY_STYLES: Record<string, { bg: string; border: string; text: string; dot: string }> = {
+  urgent: {
+    bg: 'bg-red-50 dark:bg-red-900/20',
+    border: 'border-red-300 dark:border-red-700',
+    text: 'text-red-700 dark:text-red-300',
+    dot: 'bg-red-500',
+  },
+  high: {
+    bg: 'bg-orange-50 dark:bg-orange-900/20',
+    border: 'border-orange-300 dark:border-orange-700',
+    text: 'text-orange-700 dark:text-orange-300',
+    dot: 'bg-orange-500',
+  },
+  medium: {
+    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    border: 'border-blue-300 dark:border-blue-700',
+    text: 'text-blue-700 dark:text-blue-300',
+    dot: 'bg-blue-500',
+  },
+  low: {
+    bg: 'bg-gray-50 dark:bg-gray-800/50',
+    border: 'border-gray-300 dark:border-gray-600',
+    text: 'text-gray-600 dark:text-gray-400',
+    dot: 'bg-gray-400',
+  },
 };
 
-// Custom styles for Gantt task bars by priority
-const ganttStyles = `
-  .wx-gantt .task-urgent .wx-task-bar { background-color: ${PRIORITY_COLORS.urgent} !important; }
-  .wx-gantt .task-high .wx-task-bar { background-color: ${PRIORITY_COLORS.high} !important; }
-  .wx-gantt .task-medium .wx-task-bar { background-color: ${PRIORITY_COLORS.medium} !important; }
-  .wx-gantt .task-low .wx-task-bar { background-color: ${PRIORITY_COLORS.low} !important; }
-  .wx-gantt .wx-task-bar { border-radius: 4px; min-height: 20px; }
-  .wx-gantt .wx-grid-cell { cursor: pointer; }
-`;
+// Generate next 7 days
+function getNext7Days(): Date[] {
+  const days: Date[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(today);
+    day.setDate(today.getDate() + i);
+    days.push(day);
+  }
+  return days;
+}
+
+// Format date for display
+function formatDayHeader(date: Date, isToday: boolean): { day: string; date: string } {
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return {
+    day: isToday ? 'Today' : dayNames[date.getDay()],
+    date: `${date.getMonth() + 1}/${date.getDate()}`,
+  };
+}
+
+// Task item with tooltip
+function TaskItem({ task }: { task: TaskSummary }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const priority = task.priority || 'medium';
+  const styles = PRIORITY_STYLES[priority] || PRIORITY_STYLES.medium;
+
+  return (
+    <div className="relative">
+      <Link
+        to={`/projects/${task.project_id}/tasks/${task.id}`}
+        className={`
+          block px-2 py-1.5 rounded border text-xs
+          ${styles.bg} ${styles.border} ${styles.text}
+          hover:shadow-md transition-shadow cursor-pointer
+          truncate
+        `}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${styles.dot}`} />
+          <span className="truncate font-medium">{task.title}</span>
+        </div>
+      </Link>
+
+      {/* Tooltip */}
+      {showTooltip && (
+        <div
+          className="absolute z-50 left-0 top-full mt-1 w-64 p-3 rounded-lg shadow-lg
+            bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700
+            text-sm"
+          onMouseEnter={() => setShowTooltip(true)}
+          onMouseLeave={() => setShowTooltip(false)}
+        >
+          <div className="font-semibold text-gray-900 dark:text-white mb-2">
+            {task.title}
+          </div>
+          <div className="space-y-1 text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Project:</span>
+              <span className="text-gray-900 dark:text-gray-200">{task.project_name}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Priority:</span>
+              <span className={`capitalize ${styles.text}`}>{priority}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Status:</span>
+              <span className="text-gray-900 dark:text-gray-200 capitalize">
+                {task.status?.replace(/_/g, ' ') || 'To do'}
+              </span>
+            </div>
+            {task.assignee_name && (
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Assignee:</span>
+                <span className="text-gray-900 dark:text-gray-200">{task.assignee_name}</span>
+              </div>
+            )}
+            {task.is_blocked && (
+              <div className="mt-2 text-red-600 dark:text-red-400 font-medium">
+                ⚠️ Blocked
+              </div>
+            )}
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500">
+            Click to view task details
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function WeeklyTimelineView({ tasks, className }: WeeklyTimelineViewProps) {
-  const navigate = useNavigate();
-  const apiRef = useRef<unknown>(null);
+  const days = useMemo(() => getNext7Days(), []);
 
-  // Calculate date range for 7 days
-  const { start, end, scales } = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  // Group tasks by date
+  const tasksByDate = useMemo(() => {
+    const grouped: Record<string, TaskSummary[]> = {};
 
-    const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + 7);
+    tasks.forEach((task) => {
+      if (!task.due_date) return;
 
-    return {
-      start: today,
-      end: endDate,
-      scales: [
-        { unit: 'day' as const, step: 1, format: 'EEE d' },
-      ],
-    };
-  }, []);
+      const dueDate = new Date(task.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      const dateKey = dueDate.toISOString().split('T')[0];
 
-  // Transform tasks to Gantt format
-  const ganttTasks = useMemo(() => {
-    return tasks
-      .filter(task => task.due_date) // Only tasks with due dates
-      .map(task => {
-        const dueDate = new Date(task.due_date!);
-        dueDate.setHours(0, 0, 0, 0);
-        const startDate = new Date(dueDate);
-        // End date needs to be slightly after start for the bar to render
-        const endDate = new Date(dueDate);
-        endDate.setHours(23, 59, 59, 999);
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey].push(task);
+    });
 
-        return {
-          id: task.id,
-          text: task.title,
-          start: startDate,
-          end: endDate,
-          duration: 1,
-          progress: task.status === 'done' ? 100 : 0,
-          type: 'task' as const,
-          // Bar color based on priority
-          $css: `task-${task.priority}`,
-          // Custom data for navigation
-          priority: task.priority,
-          projectId: task.project_id,
-          projectName: task.project_name,
-          isBlocked: task.is_blocked,
-        };
+    // Sort tasks within each day by priority
+    const priorityOrder: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+    Object.values(grouped).forEach((dayTasks) => {
+      dayTasks.sort((a, b) => {
+        const aPriority = priorityOrder[a.priority || 'medium'] ?? 2;
+        const bPriority = priorityOrder[b.priority || 'medium'] ?? 2;
+        return aPriority - bPriority;
       });
+    });
+
+    return grouped;
   }, [tasks]);
 
-  // Handle task click
-  const handleInit = (api: GanttApi) => {
-    apiRef.current = api;
+  const totalTasks = Object.values(tasksByDate).reduce((sum, t) => sum + t.length, 0);
 
-    api.on('select-task', (ev) => {
-      const event = ev as { id: string };
-      const task = ganttTasks.find(t => t.id === event.id);
-      if (task) {
-        navigate(`/projects/${task.projectId}/tasks/${task.id}`);
-      }
-    });
-  };
-
-  if (ganttTasks.length === 0) {
+  if (totalTasks === 0) {
     return (
       <div className={className}>
         <div className="card p-6">
@@ -172,9 +194,6 @@ export function WeeklyTimelineView({ tasks, className }: WeeklyTimelineViewProps
 
   return (
     <div className={className}>
-      {/* Inject custom Gantt styles */}
-      <style>{ganttStyles}</style>
-
       <div className="card p-6">
         <div className="flex items-center gap-2 mb-4">
           <CalendarIcon className="h-5 w-5 text-primary-500" />
@@ -182,53 +201,91 @@ export function WeeklyTimelineView({ tasks, className }: WeeklyTimelineViewProps
             Weekly Timeline
           </h2>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            ({ganttTasks.length} task{ganttTasks.length !== 1 ? 's' : ''})
+            ({totalTasks} task{totalTasks !== 1 ? 's' : ''})
           </span>
         </div>
 
         {/* Legend */}
         <div className="flex items-center gap-4 mb-4 text-xs">
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded" style={{ background: PRIORITY_COLORS.urgent }} />
+            <div className={`h-3 w-3 rounded ${PRIORITY_STYLES.urgent.dot}`} />
             <span className="text-gray-600 dark:text-gray-400">Urgent</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded" style={{ background: PRIORITY_COLORS.high }} />
+            <div className={`h-3 w-3 rounded ${PRIORITY_STYLES.high.dot}`} />
             <span className="text-gray-600 dark:text-gray-400">High</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded" style={{ background: PRIORITY_COLORS.medium }} />
+            <div className={`h-3 w-3 rounded ${PRIORITY_STYLES.medium.dot}`} />
             <span className="text-gray-600 dark:text-gray-400">Medium</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded" style={{ background: PRIORITY_COLORS.low }} />
+            <div className={`h-3 w-3 rounded ${PRIORITY_STYLES.low.dot}`} />
             <span className="text-gray-600 dark:text-gray-400">Low</span>
           </div>
         </div>
 
-        {/* Gantt Chart */}
-        <div className="h-[300px] overflow-hidden rounded-lg border border-gray-200 dark:border-dark-border">
-          <GanttErrorBoundary
-            fallback={
-              <div className="h-full flex items-center justify-center text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-800">
-                <span className="text-sm">Timeline temporarily unavailable</span>
-              </div>
-            }
-          >
-            <Gantt
-              init={handleInit}
-              tasks={ganttTasks}
-              scales={scales}
-              start={start}
-              end={end}
-              cellWidth={100}
-              cellHeight={36}
-              readonly={true}
-              columns={[
-                { id: 'text', header: 'Task', width: 200 },
-              ]}
-            />
-          </GanttErrorBoundary>
+        {/* Timeline Grid */}
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          {/* Header row */}
+          <div className="grid grid-cols-7 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+            {days.map((day, index) => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const isToday = day.getTime() === today.getTime();
+              const { day: dayName, date } = formatDayHeader(day, isToday);
+
+              return (
+                <div
+                  key={index}
+                  className={`
+                    px-2 py-2 text-center border-r last:border-r-0 border-gray-200 dark:border-gray-700
+                    ${isToday ? 'bg-primary-50 dark:bg-primary-900/20' : ''}
+                  `}
+                >
+                  <div className={`text-xs font-semibold ${isToday ? 'text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                    {dayName}
+                  </div>
+                  <div className={`text-xs ${isToday ? 'text-primary-500 dark:text-primary-400' : 'text-gray-500 dark:text-gray-500'}`}>
+                    {date}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Task rows */}
+          <div className="grid grid-cols-7 min-h-[200px]">
+            {days.map((day, index) => {
+              const dateKey = day.toISOString().split('T')[0];
+              const dayTasks = tasksByDate[dateKey] || [];
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const isToday = day.getTime() === today.getTime();
+
+              return (
+                <div
+                  key={index}
+                  className={`
+                    p-2 border-r last:border-r-0 border-gray-200 dark:border-gray-700
+                    ${isToday ? 'bg-primary-50/30 dark:bg-primary-900/10' : ''}
+                    min-h-[200px]
+                  `}
+                >
+                  <div className="space-y-1.5">
+                    {dayTasks.map((task) => (
+                      <TaskItem key={task.id} task={task} />
+                    ))}
+                    {dayTasks.length === 0 && (
+                      <div className="text-xs text-gray-400 dark:text-gray-600 text-center py-4">
+                        No tasks
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
