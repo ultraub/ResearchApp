@@ -89,7 +89,7 @@ async def get_accessible_project_ids(
         access_conditions.append(Project.id.in_(select(org_public_subquery)))
 
     # Query accessible project IDs
-    # Exclude demo projects - they are for onboarding/examples only
+    # Exclude demo and archived projects
     query = (
         select(Project.id)
         .where(
@@ -97,6 +97,7 @@ async def get_accessible_project_ids(
                 or_(*access_conditions) if access_conditions else False,
                 ~exclusion_exists,
                 Project.is_demo == False,  # Exclude demo projects from AI queries
+                Project.is_archived == False,  # Exclude archived/deleted projects
             )
         )
     )

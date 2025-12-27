@@ -143,11 +143,12 @@ async def get_accessible_project_ids(
     if not access_conditions:
         return []
 
-    # Query accessible project IDs (exclude demo projects)
+    # Query accessible project IDs (exclude demo and archived projects)
     query = select(Project.id).where(
         and_(
             or_(*access_conditions),
             Project.is_demo == False,
+            Project.is_archived == False,
         )
     )
 

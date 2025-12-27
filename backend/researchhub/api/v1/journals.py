@@ -87,7 +87,17 @@ async def get_user_accessible_project_ids(user_id: UUID, db: AsyncSession) -> li
 
     # Combine all accessible project IDs
     all_project_ids = set(member_project_ids) | set(shared_project_ids) | set(team_project_ids) | set(multi_team_project_ids)
-    return list(all_project_ids)
+
+    # Filter out archived projects from the combined set
+    if all_project_ids:
+        active_result = await db.execute(
+            select(Project.id).where(
+                Project.id.in_(all_project_ids),
+                Project.is_archived == False,
+            )
+        )
+        return [row[0] for row in active_result.all()]
+    return []
 
 
 def count_words(content: dict) -> int:
