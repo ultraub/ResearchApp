@@ -48,6 +48,7 @@ async def check_project_access(
        - PERSONAL: owner (created_by_id) only
        - TEAM: member of any team in project_teams + not excluded
        - ORGANIZATION: team member, or if is_org_public → org members get org_public_role
+    4. Parent project inheritance → if user has access to parent, inherit that role
 
     Args:
         db: Database session
@@ -61,6 +62,31 @@ async def check_project_access(
     Raises:
         HTTPException 403 if access denied or insufficient role
     """
+    # Try direct access first (without parent inheritance)
+    try:
+        return await _check_direct_project_access(db, project, user_id, required_role)
+    except HTTPException:
+        pass  # No direct access, try parent inheritance
+
+    # Check parent project inheritance
+    inherited_role = await _check_parent_access(db, project, user_id)
+    if inherited_role:
+        return _validate_role(inherited_role, required_role)
+
+    # No access through any path
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied",
+    )
+
+
+async def _check_direct_project_access(
+    db: AsyncSession,
+    project: Project,
+    user_id: UUID,
+    required_role: str | None = None,
+) -> str:
+    """Check direct access to a project (without parent inheritance)."""
     # 1. Check direct ProjectMember (highest priority)
     member_result = await db.execute(
         select(ProjectMember).where(
@@ -108,6 +134,54 @@ async def check_project_access(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Access denied",
     )
+
+
+async def _check_parent_access(
+    db: AsyncSession,
+    project: Project,
+    user_id: UUID,
+    max_depth: int = 10,
+) -> str | None:
+    """
+    Check if user has access to any parent project (inheritance).
+
+    Walks up the project hierarchy and checks if user has access to any ancestor.
+    If so, returns the inherited role (capped at 'member' for inherited access).
+
+    Args:
+        db: Database session
+        project: Project to check parent access for
+        user_id: User ID to check
+        max_depth: Maximum depth to traverse (prevents infinite loops)
+
+    Returns:
+        The inherited role if user has parent access, None otherwise
+    """
+    if not project.parent_id or max_depth <= 0:
+        return None
+
+    # Get parent project
+    parent_result = await db.execute(
+        select(Project).where(Project.id == project.parent_id)
+    )
+    parent = parent_result.scalar_one_or_none()
+    if not parent:
+        return None
+
+    # Check if user has direct access to parent
+    try:
+        parent_role = await _check_direct_project_access(db, parent, user_id, None)
+        # User has access to parent - inherit access to child
+        # Cap inherited role at 'member' to prevent automatic admin/owner escalation
+        # unless they have admin/owner on parent
+        if ROLE_HIERARCHY.get(parent_role, 0) >= ROLE_HIERARCHY["admin"]:
+            return parent_role  # Admins/owners inherit their full role
+        return "member"  # Others get member access to children
+    except HTTPException:
+        pass  # No direct access to parent, check grandparent
+
+    # Recursively check grandparent
+    return await _check_parent_access(db, parent, user_id, max_depth - 1)
 
 
 async def _check_personal_access(
