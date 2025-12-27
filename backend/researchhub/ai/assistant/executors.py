@@ -508,6 +508,22 @@ class ActionExecutor:
         user_result = await self.db.execute(select(User).where(User.id == self.user_id))
         user = user_result.scalar_one()
 
+        # If creating a subproject, inherit parent's team_id and scope by default
+        parent_project = None
+        if input.get("parent_id"):
+            parent_result = await self.db.execute(
+                select(Project).where(Project.id == UUID(input["parent_id"]))
+            )
+            parent_project = parent_result.scalar_one_or_none()
+            if not parent_project:
+                return {"success": False, "error": "Parent project not found"}
+
+            # Inherit parent's scope and team_id if not explicitly provided
+            if not input.get("scope"):
+                input["scope"] = parent_project.scope
+            if not input.get("team_id"):
+                input["team_id"] = str(parent_project.team_id)
+
         # Handle team_id based on scope
         scope = input.get("scope", "PERSONAL")
         if scope == "PERSONAL":
@@ -515,7 +531,7 @@ class ActionExecutor:
             personal_team = await ac.get_or_create_personal_team(self.db, user)
             team_id = personal_team.id
         else:
-            # Use provided team_id
+            # Use provided team_id (may have been inherited from parent)
             if not input.get("team_id"):
                 return {"success": False, "error": "team_id is required for TEAM and ORGANIZATION scope projects"}
             team_id = UUID(input["team_id"])

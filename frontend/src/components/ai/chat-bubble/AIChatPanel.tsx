@@ -363,6 +363,22 @@ export function AIChatPanel({
     }
   }, [isMinimized]);
 
+  // Auto-expand textarea as content grows
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+
+    // Reset height to auto to get accurate scrollHeight
+    textarea.style.height = 'auto';
+
+    // Calculate new height with limits
+    const minHeight = isMobile ? 48 : 40;
+    const maxHeight = isMobile ? 160 : 200;
+    const newHeight = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight));
+
+    textarea.style.height = `${newHeight}px`;
+  }, [input, isMobile]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -618,8 +634,8 @@ export function AIChatPanel({
               onKeyDown={handleKeyDown}
               placeholder="Ask anything..."
               rows={1}
-              className="w-full px-4 py-3 md:py-2 pr-10 bg-gray-100 dark:bg-dark-elevated border-0 rounded-xl md:rounded-lg text-base md:text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-accent-500 resize-none"
-              style={{ minHeight: isMobile ? '48px' : '40px', maxHeight: '120px' }}
+              className="w-full px-4 py-3 md:py-2 pr-10 bg-gray-100 dark:bg-dark-elevated border-0 rounded-xl md:rounded-lg text-base md:text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-accent-500 resize-none transition-[height] duration-100 ease-out"
+              style={{ overflow: 'auto' }}
               disabled={isLoading}
             />
           </div>
