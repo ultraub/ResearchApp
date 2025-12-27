@@ -161,7 +161,7 @@ function BlockerHoverIndicator({
 
         <HoverCardFooter>
           <Link
-            to={`/projects/${task.project_id}/tasks/${task.id}`}
+            to={`/projects/${task.project_id}?task=${task.id}`}
             className="flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs"
             onClick={(e) => e.stopPropagation()}
           >

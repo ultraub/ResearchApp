@@ -73,7 +73,7 @@ function TaskItem({ task }: { task: TaskSummary }) {
   return (
     <div className="relative">
       <Link
-        to={`/projects/${task.project_id}/tasks/${task.id}`}
+        to={`/projects/${task.project_id}?task=${task.id}`}
         className={`
           block px-2 py-1.5 rounded border text-xs
           ${styles.bg} ${styles.border} ${styles.text}
