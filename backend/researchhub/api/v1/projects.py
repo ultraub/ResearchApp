@@ -790,8 +790,11 @@ async def delete_project(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    """Delete a project (soft delete by archiving)."""
-    project = await check_project_access(db, project_id, current_user.id, "owner")
+    """Delete a project (soft delete by archiving).
+
+    Requires admin role or higher (project lead, team owner, or project owner).
+    """
+    project = await check_project_access(db, project_id, current_user.id, "admin")
 
     project.is_archived = True
     project.status = "archived"

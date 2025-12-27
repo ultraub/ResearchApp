@@ -138,14 +138,20 @@ async def _check_team_access(
             detail="Access denied - explicit membership required for this project",
         )
 
-    # Get all teams linked to this project
+    # Get all teams linked to this project (with team details for owner check)
     project_teams_result = await db.execute(
-        select(ProjectTeam).where(ProjectTeam.project_id == project.id)
+        select(ProjectTeam, Team)
+        .join(Team, ProjectTeam.team_id == Team.id)
+        .where(ProjectTeam.project_id == project.id)
     )
-    project_teams = project_teams_result.scalars().all()
+    project_teams = project_teams_result.all()
 
     # Check if user is a member of any of these teams
-    for pt in project_teams:
+    for pt, team in project_teams:
+        # Check if user is the team owner - grant owner access
+        if team.owner_id == user_id:
+            return _validate_role("owner", required_role)
+
         team_member_result = await db.execute(
             select(TeamMember).where(
                 TeamMember.team_id == pt.team_id,
@@ -181,11 +187,17 @@ async def _check_organization_access(
     # NOTE: We check project_teams directly, NOT via _check_team_access,
     # because allow_all_team_members should only apply to TEAM scope projects.
     project_teams_result = await db.execute(
-        select(ProjectTeam).where(ProjectTeam.project_id == project.id)
+        select(ProjectTeam, Team)
+        .join(Team, ProjectTeam.team_id == Team.id)
+        .where(ProjectTeam.project_id == project.id)
     )
-    project_teams = project_teams_result.scalars().all()
+    project_teams = project_teams_result.all()
 
-    for pt in project_teams:
+    for pt, team in project_teams:
+        # Check if user is the team owner - grant owner access
+        if team.owner_id == user_id:
+            return _validate_role("owner", required_role)
+
         team_member_result = await db.execute(
             select(TeamMember).where(
                 TeamMember.team_id == pt.team_id,
