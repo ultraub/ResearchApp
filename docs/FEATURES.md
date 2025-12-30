@@ -341,21 +341,42 @@ See [Team Collaboration Guide](./TEAM_COLLABORATION.md#sharing-system) for compl
 
 ## Search
 
-Global search across all content.
+Global search across all content with intelligent hybrid ranking.
+
+### Search Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **hybrid** (default) | Combines keyword + semantic search | Best overall results |
+| **keyword** | Traditional text matching | Exact phrase searches |
+| **semantic** | Vector similarity search | Conceptual/meaning-based searches |
 
 ### Searchable Entities
 - Projects (name, description)
-- Tasks (title, description)
-- Documents (title, content)
+- Tasks (title, description) - *supports semantic search*
+- Documents (title, content) - *supports semantic search*
 - Blockers (title, description)
-- Papers (title, abstract, keywords)
-- Journal entries (title, content)
+- Papers (title, abstract, keywords) - *supports semantic search*
+- Journal entries (title, content) - *supports semantic search*
+
+### Hybrid Search Scoring
+
+Results are ranked using a weighted scoring system:
+
+| Match Type | Points |
+|------------|--------|
+| Exact title match | 100 |
+| Partial title match | 50 |
+| Content match | 20 |
+| Semantic similarity | 0-40 (based on cosine similarity) |
 
 ### Search Features
-- Full-text search with PostgreSQL tsvector
-- Results filtered by access permissions
-- Relevance ranking
-- Type filtering
+- **Hybrid ranking**: Combines keyword matches with semantic understanding
+- **Semantic embeddings**: Uses OpenAI text-embedding-3-small for meaning-based search
+- **Full-text search**: PostgreSQL tsvector for fast keyword matching
+- **Access filtering**: Results filtered by user permissions
+- **Type filtering**: Search specific entity types
+- **Deduplication**: Smart merging of keyword and semantic results
 
 ---
 

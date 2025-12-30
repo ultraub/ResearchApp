@@ -436,12 +436,38 @@ Detect potential PHI in content.
 ### Search (`/search`)
 
 #### GET /search
-Search across entities.
+Search across entities with hybrid keyword + semantic ranking.
 
 **Query Parameters**:
 - `q`: Search query (required)
-- `types`: Entity types to search (projects, tasks, documents, blockers)
+- `types`: Entity types to search (projects, tasks, documents, blockers, papers, journal_entries)
 - `project_id`: Limit to project scope
+- `mode`: Search mode - `hybrid` (default), `keyword`, or `semantic`
+
+**Response**:
+```json
+{
+  "results": [
+    {
+      "id": "uuid",
+      "type": "task",
+      "title": "Task Title",
+      "snippet": "...matching content...",
+      "score": 85.5,
+      "project_id": "uuid",
+      "project_name": "Project Name"
+    }
+  ],
+  "total": 15,
+  "mode": "hybrid"
+}
+```
+
+**Scoring** (hybrid mode):
+- Exact title match: +100 points
+- Partial title match: +50 points
+- Content match: +20 points
+- Semantic similarity: 0-40 points (cosine similarity × 40)
 
 ---
 
