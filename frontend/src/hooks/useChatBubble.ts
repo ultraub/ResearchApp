@@ -10,6 +10,7 @@ import type {
   ProposedAction,
   PageContext,
   ToolActivity,
+  ClarificationRequest,
 } from '../types/assistant';
 
 // Generate unique IDs using native crypto API
@@ -24,6 +25,7 @@ interface UseChatBubbleResult {
   error: string | null;
   conversationId: string | null;
   pendingActions: ProposedAction[];
+  pendingClarification: ClarificationRequest | null;
   pageContext: PageContext;
   contextLabel: string;
 
@@ -34,6 +36,7 @@ interface UseChatBubbleResult {
   maximize: () => void;
   toggle: () => void;
   sendMessage: (content: string) => Promise<void>;
+  respondToClarification: (response: string) => Promise<void>;
   approveAction: (actionId: string) => Promise<void>;
   rejectAction: (actionId: string, reason?: string) => Promise<void>;
   clearMessages: () => void;
@@ -47,6 +50,7 @@ export function useChatBubble(): UseChatBubbleResult {
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [pendingActions, setPendingActions] = useState<ProposedAction[]>([]);
+  const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
 
   const { pageContext, contextLabel } = usePageContext();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -243,6 +247,38 @@ export function useChatBubble(): UseChatBubbleResult {
               break;
             }
 
+            case 'clarification_needed': {
+              // Assistant is asking for clarification
+              const clarification: ClarificationRequest = {
+                id: generateId(),
+                question: event.data.question,
+                reason: event.data.reason,
+                options: event.data.options || [],
+                status: 'pending',
+              };
+              setPendingClarification(clarification);
+
+              // Add clarification to the message for display
+              // Also set the message content so it appears in history
+              const clarificationContent = event.data.reason
+                ? `${event.data.reason}\n\n${event.data.question}`
+                : event.data.question;
+
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMessageId
+                    ? {
+                        ...m,
+                        content: accumulatedContent || clarificationContent,
+                        clarification,
+                        isStreaming: false,
+                      }
+                    : m
+                )
+              );
+              break;
+            }
+
             case 'done':
               if (event.data.conversation_id) {
                 setConversationId(event.data.conversation_id);
@@ -315,9 +351,48 @@ export function useChatBubble(): UseChatBubbleResult {
     }
   }, []);
 
+  // Note: sendMessage is defined above, we use a ref to avoid circular dependency
+  const sendMessageRef = useRef<(content: string) => Promise<void>>();
+
+  const respondToClarification = useCallback(
+    async (response: string) => {
+      if (!pendingClarification) return;
+
+      // Clear pending clarification state
+      setPendingClarification(null);
+
+      // Mark clarification as answered (keep it visible but inactive)
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.clarification?.id === pendingClarification.id
+            ? {
+                ...m,
+                clarification: {
+                  ...m.clarification,
+                  status: 'answered' as const,
+                  userResponse: response,
+                },
+              }
+            : m
+        )
+      );
+
+      // Send the response as a regular message
+      // Each new chat request gets a fresh ToolBudget
+      if (sendMessageRef.current) {
+        await sendMessageRef.current(response);
+      }
+    },
+    [pendingClarification]
+  );
+
+  // Keep the ref updated
+  sendMessageRef.current = sendMessage;
+
   const clearMessages = useCallback(() => {
     setMessages([]);
     setPendingActions([]);
+    setPendingClarification(null);
     setConversationId(null);
     setError(null);
   }, []);
@@ -330,6 +405,7 @@ export function useChatBubble(): UseChatBubbleResult {
     error,
     conversationId,
     pendingActions,
+    pendingClarification,
     pageContext,
     contextLabel,
     open,
@@ -338,6 +414,7 @@ export function useChatBubble(): UseChatBubbleResult {
     maximize,
     toggle,
     sendMessage,
+    respondToClarification,
     approveAction,
     rejectAction,
     clearMessages,

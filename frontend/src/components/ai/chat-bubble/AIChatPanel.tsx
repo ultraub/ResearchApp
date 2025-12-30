@@ -22,6 +22,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessage, ToolActivity, PageContext } from '../../../types/assistant';
 import { ActionProposalCard } from './ActionProposalCard';
+import { ClarificationCard } from './ClarificationCard';
 
 /**
  * Generate context-aware suggestion prompts based on page context.
@@ -199,6 +200,7 @@ interface AIChatPanelProps {
   isLoading: boolean;
   error: string | null;
   onSendMessage: (content: string) => Promise<void>;
+  onRespondToClarification: (response: string) => Promise<void>;
   onApproveAction: (actionId: string) => Promise<void>;
   onRejectAction: (actionId: string, reason?: string) => Promise<void>;
   onClearMessages: () => void;
@@ -253,6 +255,7 @@ export function AIChatPanel({
   isLoading,
   error,
   onSendMessage,
+  onRespondToClarification,
   onApproveAction,
   onRejectAction,
   onClearMessages,
@@ -603,6 +606,18 @@ export function AIChatPanel({
                       onReject={(reason) => onRejectAction(action.id, reason)}
                     />
                   ))}
+                </div>
+              )}
+
+              {/* Clarification request */}
+              {message.clarification && (
+                <div className="mt-3">
+                  <ClarificationCard
+                    clarification={message.clarification}
+                    onRespond={onRespondToClarification}
+                    onDismiss={() => onRespondToClarification('[User declined to answer]')}
+                    isLoading={isLoading}
+                  />
                 </div>
               )}
             </div>

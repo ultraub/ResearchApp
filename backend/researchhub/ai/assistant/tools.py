@@ -223,6 +223,10 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
         GetCollaboratorsTool,
         GetRecentActivityTool,
     )
+    from researchhub.ai.assistant.queries.strategic import (
+        ThinkTool,
+        AskUserTool,
+    )
 
     from researchhub.ai.assistant.actions.tasks import (
         CreateTaskTool,
@@ -289,6 +293,10 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
     registry.register_query(GetUserWorkloadTool())
     registry.register_query(GetCollaboratorsTool())
     registry.register_query(GetRecentActivityTool())
+
+    # Register strategic reasoning tools (meta-tools for planning/reflection)
+    registry.register_query(ThinkTool())
+    registry.register_query(AskUserTool())
 
     # Register action tools
     registry.register_action(CreateTaskTool())

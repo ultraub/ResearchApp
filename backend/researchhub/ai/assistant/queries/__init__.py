@@ -25,6 +25,10 @@ from researchhub.ai.assistant.queries.system_docs import (
     SearchSystemDocsTool,
     ReadSystemDocTool,
 )
+from researchhub.ai.assistant.queries.strategic import (
+    ThinkTool,
+    AskUserTool,
+)
 
 __all__ = [
     "GetProjectsTool",
@@ -42,4 +46,6 @@ __all__ = [
     "ListSystemDocsTool",
     "SearchSystemDocsTool",
     "ReadSystemDocTool",
+    "ThinkTool",
+    "AskUserTool",
 ]

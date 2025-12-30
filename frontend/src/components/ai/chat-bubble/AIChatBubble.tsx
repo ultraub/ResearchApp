@@ -49,6 +49,7 @@ export function AIChatBubble() {
           isLoading={chatBubble.isLoading}
           error={chatBubble.error}
           onSendMessage={chatBubble.sendMessage}
+          onRespondToClarification={chatBubble.respondToClarification}
           onApproveAction={chatBubble.approveAction}
           onRejectAction={chatBubble.rejectAction}
           onClearMessages={chatBubble.clearMessages}

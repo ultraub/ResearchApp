@@ -14,6 +14,9 @@ from researchhub.ai.assistant.schemas import (
     SSEEvent,
 )
 from researchhub.ai.assistant.tools import ActionTool, QueryTool, create_default_registry
+from researchhub.ai.assistant.budget import ToolBudget
+from researchhub.ai.assistant.context import ExecutionContext
+from researchhub.ai.assistant.queries.strategic import ThinkTool, AskUserTool
 from researchhub.ai.providers.base import (
     AIMessage,
     AIProvider,
@@ -298,7 +301,35 @@ Don't keep gathering data for completeness. A good answer with available data be
 User: "What projects am I on with Sarah?"
 Plan: "I need to find projects where both the current user and Sarah are members. I'll query project_members filtered by Sarah's user_id (need to find her ID first), then cross-reference with projects I have access to."
 Approach: get_team_members to find Sarah → dynamic_query on project_members with her user_id → respond with shared projects.
-Estimated calls: 2"""
+Estimated calls: 2
+
+## Strategic Tools
+
+You have access to two special "meta" tools that help you work more effectively:
+
+### `think` - Reasoning Checkpoint
+Use this when you need to pause and reason about your approach:
+- **Planning**: Figure out how to approach a complex multi-step request
+- **Diagnosing**: Understand why results were unexpected (empty searches, errors)
+- **Reflecting**: Reassess your approach after gathering new information
+- **Synthesizing**: Decide if you have enough information to respond
+
+The system will enrich your thinking with context about your tool call history, patterns detected, and situational guidance. This tool does NOT count against your query budget.
+
+### `ask_user` - User Clarification
+Use this instead of guessing when you need user input:
+- Multiple entities match a name (which project/task did they mean?)
+- Required context is missing (what priority? which project?)
+- Search returned similar but not exact matches
+- The request is ambiguous
+
+You can provide structured options to make it easy for the user to respond. After the user clarifies, your query budget is refreshed so you can act on their answer.
+
+**When to use these tools:**
+- Got empty results? → Use `think` to diagnose, then `ask_user` if needed
+- Multiple matches? → Use `ask_user` to let user choose
+- Complex request? → Use `think` to plan before starting
+- Unsure if you have enough? → Use `think` to assess"""
 
         # Add dynamic query mode guidance if enabled
         if self.use_dynamic_queries:
@@ -387,17 +418,35 @@ Use this context to provide relevant suggestions and defaults for actions."""
         tools = self._get_tool_definitions()
         system_prompt = self._build_system_prompt(request.page_context, user, action_history)
 
+        # Initialize budget and context tracking
+        tool_budget = ToolBudget()
+
+        # Convert page_context to dict for ExecutionContext
+        page_context_dict = None
+        if request.page_context:
+            page_context_dict = {
+                "type": request.page_context.type.value if request.page_context.type else None,
+                "id": str(request.page_context.id) if request.page_context.id else None,
+                "project_id": str(request.page_context.project_id) if request.page_context.project_id else None,
+                "name": request.page_context.name,
+            }
+
+        execution_context = ExecutionContext(
+            db=self.db,
+            user_id=self.user_id,
+            org_id=self.org_id,
+            page_context=page_context_dict,
+        )
+        execution_context.set_original_goal(request.message)
+
+        # Set execution context on ThinkTool if available
+        think_tool = self.tool_registry.get_tool("think")
+        if think_tool and isinstance(think_tool, ThinkTool):
+            think_tool.set_execution_context(execution_context)
+
         # Tool results for multi-turn
         tool_results: List[ToolResult] = []
-        max_iterations = 6  # Reduced from 10 to encourage efficient responses
-        warning_iteration = 3  # Start nudging toward synthesis
-        force_iteration = 4  # Strongly encourage response
-
-        # Hard limit on total tool calls to prevent runaway queries
-        # Increased from 8 to 15 to allow batch operations (e.g., creating 5 tasks)
-        max_total_tool_calls = 15
-        total_tool_calls = 0
-        hit_tool_limit = False
+        max_iterations = 8  # Allow more iterations since meta-tools don't count against query budget
 
         for iteration in range(max_iterations):
             # Collect tool uses and text from the streaming response
@@ -480,14 +529,23 @@ Use this context to provide relevant suggestions and defaults for actions."""
             # Process any tool calls that were collected
             if pending_tool_uses:
                 for tool_use in pending_tool_uses:
-                    # Check if we've hit the total tool call limit
-                    total_tool_calls += 1
-                    if total_tool_calls > max_total_tool_calls:
-                        hit_tool_limit = True
-                        # Return a "limit reached" result for remaining tools
+                    # Record call with budget tracker
+                    tool_budget.record_call(tool_use.name)
+
+                    # Check if query or action budget is exhausted
+                    if tool_budget.is_query_exhausted() and tool_budget.get_tool_type(tool_use.name) == "query":
+                        # Return a "budget exhausted" result
                         tool_results.append(ToolResult(
                             tool_use_id=tool_use.id,
-                            content={"error": "Tool call limit reached. Please respond to the user with the information you have gathered."},
+                            content={"error": "Query budget exhausted. Please respond to the user with the information you have gathered."},
+                            is_error=True,
+                        ))
+                        continue
+
+                    if tool_budget.is_action_exhausted() and tool_budget.get_tool_type(tool_use.name) == "action":
+                        tool_results.append(ToolResult(
+                            tool_use_id=tool_use.id,
+                            content={"error": "Action budget exhausted for this session."},
                             is_error=True,
                         ))
                         continue
@@ -513,16 +571,51 @@ Use this context to provide relevant suggestions and defaults for actions."""
                                 org_id=self.org_id,
                             )
 
-                            # Emit tool result event
-                            yield SSEEvent(
-                                event="tool_result",
-                                data=result,
-                            )
+                            # Record with execution context for pattern detection
+                            # (skip meta-tools as they don't need pattern tracking)
+                            auto_injection = None
+                            if tool_use.name not in ToolBudget.META_TOOLS:
+                                auto_injection = await execution_context.record_tool_call(
+                                    tool_name=tool_use.name,
+                                    tool_input=tool_use.input,
+                                    result=result,
+                                )
+
+                            # Handle ask_user specially - emit clarification_needed event and stop
+                            if result.get("type") == "user_interaction_required":
+                                yield SSEEvent(
+                                    event="clarification_needed",
+                                    data={
+                                        "question": result.get("question"),
+                                        "reason": result.get("reason"),
+                                        "options": result.get("options", []),
+                                    },
+                                )
+                                # Stop the stream - user needs to respond before we continue
+                                # The done event will be emitted below
+                                yield SSEEvent(
+                                    event="done",
+                                    data={"conversation_id": str(conversation_id)},
+                                )
+                                return
+                            else:
+                                # Emit tool result event for regular tools
+                                yield SSEEvent(
+                                    event="tool_result",
+                                    data=result,
+                                )
 
                             tool_results.append(ToolResult(
                                 tool_use_id=tool_use.id,
                                 content=result,
                             ))
+
+                            # Inject auto-injection message if pattern detected
+                            if auto_injection:
+                                messages.append(AIMessage(
+                                    role="user",
+                                    content=auto_injection,
+                                ))
 
                         elif isinstance(tool, ActionTool):
                             # Create preview for action tools
@@ -594,35 +687,18 @@ Use this context to provide relevant suggestions and defaults for actions."""
                         content=accumulated_text,
                     ))
 
-                # Inject synthesis prompts when approaching limits
-                # This encourages the model to respond rather than keep querying
-                if hit_tool_limit:
-                    # Hard stop - tool limit reached, force synthesis
+                # Check for budget-based warnings and inject prompts
+                budget_warning = tool_budget.get_injection_message()
+                if budget_warning and not accumulated_text:
                     messages.append(AIMessage(
                         role="user",
-                        content="""[System: STOP. Tool call limit reached.
-
-You MUST respond to the user NOW. Do NOT call any more tools.
-
-Instructions:
-1. Look at ALL the information you gathered from previous tool calls
-2. Synthesize a helpful answer based on what you found
-3. If you found partial information, share it - a partial answer is better than none
-4. If you couldn't find what was needed, explain what you did find and suggest how the user could refine their question
-
-Respond now with your findings.]""",
+                        content=budget_warning,
                     ))
-                elif iteration >= force_iteration and not accumulated_text:
-                    # Final warning - strongly encourage response
+                elif iteration >= 5 and not accumulated_text:
+                    # Fallback iteration-based nudge if budget system doesn't trigger
                     messages.append(AIMessage(
                         role="user",
-                        content="[System: You have made multiple tool calls. Please provide your response to the user now based on the information you have gathered. Do not make additional tool calls - synthesize what you have and respond helpfully.]",
-                    ))
-                elif iteration >= warning_iteration and not accumulated_text:
-                    # Gentle nudge toward synthesis
-                    messages.append(AIMessage(
-                        role="user",
-                        content="[System: You have gathered information. Please synthesize your findings and respond to the user. Only make additional tool calls if absolutely necessary to answer their question.]",
+                        content="[System: You have made multiple tool calls. Please synthesize your findings and respond to the user.]",
                     ))
 
             # If no tool calls were made, we're done

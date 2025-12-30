@@ -18,6 +18,23 @@ export interface ToolActivity {
   timestamp: Date;
 }
 
+// Clarification option from assistant
+export interface ClarificationOption {
+  label: string;
+  value: string;
+  description?: string;
+}
+
+// Clarification request from assistant
+export interface ClarificationRequest {
+  id: string;
+  question: string;
+  reason?: string;
+  options: ClarificationOption[];
+  status?: 'pending' | 'answered';
+  userResponse?: string;
+}
+
 // Chat message
 export interface ChatMessage {
   id: string;
@@ -30,6 +47,8 @@ export interface ChatMessage {
   thinking?: string;
   // For displaying tool call activity
   toolActivity?: ToolActivity[];
+  // For displaying clarification requests
+  clarification?: ClarificationRequest;
 }
 
 // Proposed action from assistant
@@ -62,6 +81,7 @@ export type AssistantSSEEvent =
   | { event: 'tool_call'; data: { tool: string; input: Record<string, unknown> } }
   | { event: 'tool_result'; data: Record<string, unknown> }
   | { event: 'action_preview'; data: ProposedAction }
+  | { event: 'clarification_needed'; data: { question: string; reason?: string; options: ClarificationOption[] } }
   | { event: 'done'; data: { conversation_id: string } }
   | { event: 'error'; data: { message: string } };
 
