@@ -191,7 +191,7 @@ async def global_search(
     if run_semantic:
         try:
             embedding_service = get_embedding_service()
-            query_embedding = await embedding_service.get_embedding(q)
+            query_embedding = await embedding_service.generate_embedding(q)
         except Exception as e:
             logger.warning("Failed to get query embedding, falling back to keyword search", error=str(e))
             if mode == "semantic":
