@@ -48,6 +48,7 @@ class SSEEventType(str, Enum):
     TOOL_CALL = "tool_call"
     TOOL_RESULT = "tool_result"
     ACTION_PREVIEW = "action_preview"
+    CLARIFICATION_NEEDED = "clarification_needed"
     DONE = "done"
     ERROR = "error"
 
