@@ -274,24 +274,39 @@ class ExecutionContext:
         # For other searches
         self.dead_ends.append(dead_end)
 
+        # Default guidance for empty results - emphasize NOT to fabricate
+        default_empty_guidance = (
+            f"[System: No results found for '{search_term}'. "
+            "Tell the user you couldn't find it. "
+            "DO NOT make up or describe content that wasn't in the results.]"
+        )
+
         guidance_map = {
             "search_content": (
                 f"[System: No results for '{search_term}'. "
-                "Try broader terms, or ask the user what they're looking for.]"
+                "Tell the user you couldn't find anything matching that. "
+                "DO NOT fabricate content - if it's not in results, it doesn't exist.]"
             ),
             "get_tasks": (
                 "[System: No tasks match these filters. "
-                "The project may be empty, or filters may be too narrow.]"
+                "Tell the user no tasks were found. DO NOT invent task content.]"
             ),
             "get_project_details": (
-                "[System: Project not found. It may not exist or user may lack access.]"
+                "[System: Project not found. Tell the user it doesn't exist or they lack access. "
+                "DO NOT describe a fictional project.]"
             ),
             "get_task_details": (
-                "[System: Task not found. It may not exist or user may lack access.]"
+                "[System: Task not found. Tell the user it doesn't exist. "
+                "DO NOT make up task content.]"
+            ),
+            "dynamic_query": (
+                f"[System: Query returned no results for '{search_term}'. "
+                "Tell the user you couldn't find what they're looking for. "
+                "DO NOT fabricate or describe content that wasn't returned.]"
             ),
         }
 
-        return guidance_map.get(tool_name)
+        return guidance_map.get(tool_name, default_empty_guidance)
 
     def _get_search_term(self, tool_input: Dict[str, Any]) -> Optional[str]:
         """Extract the search term from tool input."""
