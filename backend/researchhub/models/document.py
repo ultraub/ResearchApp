@@ -8,15 +8,19 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Uni
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from researchhub.db.base import BaseModel
+from researchhub.db.base import BaseModel, EmbeddableMixin
 
 if TYPE_CHECKING:
     from researchhub.models.project import Project
     from researchhub.models.user import User
 
 
-class Document(BaseModel):
-    """Document with TipTap content and versioning support."""
+class Document(BaseModel, EmbeddableMixin):
+    """Document with TipTap content and versioning support.
+
+    Includes EmbeddableMixin for vector search capabilities.
+    The embedding is generated from title + content_text.
+    """
 
     __tablename__ = "documents"
 

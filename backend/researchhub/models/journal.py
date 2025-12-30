@@ -17,7 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PGUUID, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from researchhub.db.base import BaseModel
+from researchhub.db.base import BaseModel, EmbeddableMixin
 
 if TYPE_CHECKING:
     from researchhub.models.organization import Organization
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from researchhub.models.user import User
 
 
-class JournalEntry(BaseModel):
+class JournalEntry(BaseModel, EmbeddableMixin):
     """Journal entry for personal journals and project lab notebooks.
 
     Supports two scopes:

@@ -14,6 +14,10 @@ from researchhub.ai.assistant.queries.documents import (
     GetDocumentDetailsTool,
 )
 from researchhub.ai.assistant.queries.search import SearchContentTool
+from researchhub.ai.assistant.queries.semantic_search import (
+    SemanticSearchTool,
+    HybridSearchTool,
+)
 from researchhub.ai.assistant.queries.attention import GetAttentionSummaryTool
 from researchhub.ai.assistant.queries.members import GetTeamMembersTool
 from researchhub.ai.assistant.queries.system_docs import (
@@ -31,6 +35,8 @@ __all__ = [
     "GetDocumentsTool",
     "GetDocumentDetailsTool",
     "SearchContentTool",
+    "SemanticSearchTool",
+    "HybridSearchTool",
     "GetAttentionSummaryTool",
     "GetTeamMembersTool",
     "ListSystemDocsTool",

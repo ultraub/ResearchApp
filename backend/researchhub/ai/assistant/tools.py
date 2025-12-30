@@ -205,6 +205,10 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
         GetDocumentDetailsTool,
     )
     from researchhub.ai.assistant.queries.search import SearchContentTool
+    from researchhub.ai.assistant.queries.semantic_search import (
+        SemanticSearchTool,
+        HybridSearchTool,
+    )
     from researchhub.ai.assistant.queries.attention import GetAttentionSummaryTool
     from researchhub.ai.assistant.queries.members import GetTeamMembersTool
     from researchhub.ai.assistant.queries.system_docs import (
@@ -266,6 +270,10 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
         registry.register_query(SearchContentTool())  # Full-text search
         registry.register_query(GetAttentionSummaryTool())  # Complex aggregation
     registry.register_query(GetTeamMembersTool())  # User lookup (keep for name resolution)
+
+    # Register semantic search tools (always available - complement keyword search)
+    registry.register_query(SemanticSearchTool())  # Vector similarity search
+    registry.register_query(HybridSearchTool())  # Combined semantic + keyword
 
     # Register system documentation tools
     registry.register_query(ListSystemDocsTool())

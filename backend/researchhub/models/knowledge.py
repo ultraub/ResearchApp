@@ -8,15 +8,18 @@ from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Tex
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PGUUID, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from researchhub.db.base import BaseModel
+from researchhub.db.base import BaseModel, EmbeddableMixin
 
 if TYPE_CHECKING:
     from researchhub.models.organization import Organization
     from researchhub.models.user import User
 
 
-class Paper(BaseModel):
-    """Research paper in the knowledge library."""
+class Paper(BaseModel, EmbeddableMixin):
+    """Research paper in the knowledge library.
+
+    Includes EmbeddableMixin for vector search capabilities.
+    """
 
     __tablename__ = "papers"
 

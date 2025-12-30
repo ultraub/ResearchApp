@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr = SecretStr("")
     gemini_model: str = "gemini-3-flash-preview"
 
+    # Embeddings
+    openai_api_key: SecretStr = SecretStr("")
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dimensions: int = 1536
+    # Azure embedding deployment (if using Azure OpenAI for embeddings)
+    azure_embedding_deployment: str = "text-embedding-3-small"
+
     # Feature Flags
     feature_ai_enabled: bool = True
     feature_guest_access_enabled: bool = True

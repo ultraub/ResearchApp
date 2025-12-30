@@ -17,7 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from researchhub.db.base import BaseModel
+from researchhub.db.base import BaseModel, EmbeddableMixin
 
 # Maximum allowed hierarchy depth (project → subproject)
 MAX_HIERARCHY_DEPTH = 2
@@ -299,8 +299,12 @@ class ProjectExclusion(BaseModel):
         return f"<ProjectExclusion project={self.project_id} user={self.user_id}>"
 
 
-class Task(BaseModel):
-    """Task within a project."""
+class Task(BaseModel, EmbeddableMixin):
+    """Task within a project.
+
+    Includes EmbeddableMixin for vector search capabilities.
+    The embedding is generated from title + description (plain text).
+    """
 
     __tablename__ = "tasks"
 

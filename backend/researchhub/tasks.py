@@ -243,6 +243,231 @@ def auto_review_document_task(
         }
 
 
+@celery_app.task(bind=True, name="researchhub.tasks.generate_embedding")
+def generate_embedding(
+    self,
+    entity_type: str,
+    entity_id: str,
+) -> dict:
+    """
+    Generate embedding for a single entity.
+
+    This task is triggered when an entity is created or updated.
+    It generates a vector embedding for semantic search capabilities.
+
+    Args:
+        entity_type: Type of entity ("document", "task", "journal_entry", "paper")
+        entity_id: UUID of the entity
+
+    Returns:
+        Dict with status and entity info
+    """
+    async def _process():
+        from researchhub.db.session import async_session_factory
+        from researchhub.services.embedding import get_embedding_service
+
+        async with async_session_factory() as db:
+            service = get_embedding_service(db)
+            success = await service.embed_entity(
+                entity_type=entity_type,
+                entity_id=UUID(entity_id),
+            )
+            return success
+
+    try:
+        success = asyncio.run(_process())
+        if success:
+            logger.info(
+                "embedding_generated",
+                entity_type=entity_type,
+                entity_id=entity_id,
+            )
+            return {
+                "status": "success",
+                "entity_type": entity_type,
+                "entity_id": entity_id,
+            }
+        else:
+            logger.info(
+                "embedding_skipped",
+                entity_type=entity_type,
+                entity_id=entity_id,
+            )
+            return {
+                "status": "skipped",
+                "entity_type": entity_type,
+                "entity_id": entity_id,
+            }
+    except Exception as e:
+        logger.error(
+            "embedding_generation_failed",
+            entity_type=entity_type,
+            entity_id=entity_id,
+            error=str(e),
+        )
+        return {
+            "status": "error",
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "error": str(e),
+        }
+
+
+@celery_app.task(bind=True, name="researchhub.tasks.generate_embeddings_batch")
+def generate_embeddings_batch(
+    self,
+    entity_type: str,
+    entity_ids: list[str],
+) -> dict:
+    """
+    Generate embeddings for multiple entities of the same type.
+
+    More efficient than generating embeddings one at a time.
+    Used for backfilling embeddings on existing data.
+
+    Args:
+        entity_type: Type of entities ("document", "task", "journal_entry", "paper")
+        entity_ids: List of entity UUIDs
+
+    Returns:
+        Dict with success/skipped/failed counts
+    """
+    async def _process():
+        from researchhub.db.session import async_session_factory
+        from researchhub.services.embedding import get_embedding_service
+
+        async with async_session_factory() as db:
+            service = get_embedding_service(db)
+            result = await service.embed_entities_batch(
+                entity_type=entity_type,
+                entity_ids=[UUID(eid) for eid in entity_ids],
+            )
+            return result
+
+    try:
+        result = asyncio.run(_process())
+        logger.info(
+            "batch_embeddings_completed",
+            entity_type=entity_type,
+            batch_size=len(entity_ids),
+            **result,
+        )
+        return {
+            "status": "success",
+            "entity_type": entity_type,
+            **result,
+        }
+    except Exception as e:
+        logger.error(
+            "batch_embeddings_failed",
+            entity_type=entity_type,
+            batch_size=len(entity_ids),
+            error=str(e),
+        )
+        return {
+            "status": "error",
+            "entity_type": entity_type,
+            "batch_size": len(entity_ids),
+            "error": str(e),
+        }
+
+
+@celery_app.task(bind=True, name="researchhub.tasks.backfill_embeddings")
+def backfill_embeddings(
+    self,
+    entity_type: str,
+    batch_size: int = 50,
+    reembed_existing: bool = False,
+) -> dict:
+    """
+    Backfill embeddings for all entities of a given type.
+
+    Used to generate embeddings for existing data that was created
+    before the embedding system was enabled.
+
+    Args:
+        entity_type: Type of entities to backfill ("document", "task", "journal_entry", "paper")
+        batch_size: Number of entities to process per batch
+        reembed_existing: If True, regenerate embeddings even if they exist
+
+    Returns:
+        Dict with total processed counts
+    """
+    async def _process():
+        from sqlalchemy import select
+
+        from researchhub.db.session import async_session_factory
+        from researchhub.services.embedding import (
+            EMBEDDABLE_ENTITIES,
+            get_embedding_service,
+        )
+
+        model_class = EMBEDDABLE_ENTITIES.get(entity_type)
+        if not model_class:
+            return {"error": f"Unknown entity type: {entity_type}"}
+
+        total_success = 0
+        total_skipped = 0
+        total_failed = 0
+
+        async with async_session_factory() as db:
+            service = get_embedding_service(db)
+
+            # Query for entities needing embeddings
+            query = select(model_class.id)
+            if not reembed_existing:
+                query = query.where(model_class.embedding.is_(None))
+
+            # Get all IDs first
+            result = await db.execute(query)
+            all_ids = [row[0] for row in result.all()]
+
+            # Process in batches
+            for i in range(0, len(all_ids), batch_size):
+                batch_ids = all_ids[i : i + batch_size]
+                batch_result = await service.embed_entities_batch(
+                    entity_type=entity_type,
+                    entity_ids=batch_ids,
+                )
+                total_success += batch_result.get("success", 0)
+                total_skipped += batch_result.get("skipped", 0)
+                total_failed += batch_result.get("failed", 0)
+
+        return {
+            "total_processed": len(all_ids),
+            "success": total_success,
+            "skipped": total_skipped,
+            "failed": total_failed,
+        }
+
+    try:
+        result = asyncio.run(_process())
+        if "error" in result:
+            return {"status": "error", **result}
+
+        logger.info(
+            "backfill_embeddings_completed",
+            entity_type=entity_type,
+            **result,
+        )
+        return {
+            "status": "success",
+            "entity_type": entity_type,
+            **result,
+        }
+    except Exception as e:
+        logger.error(
+            "backfill_embeddings_failed",
+            entity_type=entity_type,
+            error=str(e),
+        )
+        return {
+            "status": "error",
+            "entity_type": entity_type,
+            "error": str(e),
+        }
+
+
 @celery_app.task(bind=True, name="researchhub.tasks.auto_review_for_review_task")
 def auto_review_for_review_task(
     self,

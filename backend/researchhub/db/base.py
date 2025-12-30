@@ -4,9 +4,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, func
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import DateTime, String, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
+
+from researchhub.config import get_settings
 
 
 class Base(DeclarativeBase):
@@ -65,6 +68,52 @@ class UUIDMixin:
         primary_key=True,
         default=uuid4,
     )
+
+
+class EmbeddableMixin:
+    """Mixin for entities that support vector embeddings for semantic search.
+
+    Adds embedding storage and metadata fields for vector search capabilities.
+    Uses pgvector for efficient similarity search in PostgreSQL.
+    """
+
+    # Vector embedding - dimensions match the configured embedding model
+    # text-embedding-3-small uses 1536 dimensions by default
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(get_settings().embedding_dimensions),
+        nullable=True,
+        index=False,  # We'll create a specialized index in migration
+    )
+
+    # Track which model generated the embedding for version compatibility
+    embedding_model: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    # When the embedding was last generated
+    embedded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    @property
+    def has_embedding(self) -> bool:
+        """Check if this entity has a computed embedding."""
+        return self.embedding is not None
+
+    @property
+    def needs_reembedding(self) -> bool:
+        """Check if embedding needs to be regenerated.
+
+        Returns True if:
+        - No embedding exists
+        - Embedding was generated with a different model than currently configured
+        """
+        if self.embedding is None:
+            return True
+        settings = get_settings()
+        return self.embedding_model != settings.embedding_model
 
 
 class BaseModel(Base, UUIDMixin, TimestampMixin):

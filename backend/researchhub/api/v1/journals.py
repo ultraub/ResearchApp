@@ -20,6 +20,7 @@ from researchhub.models.project import Project, Task, ProjectMember, ProjectTeam
 from researchhub.models.collaboration import ProjectShare
 from researchhub.models.document import Document
 from researchhub.models.knowledge import Paper
+from researchhub.tasks import generate_embedding
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -320,6 +321,19 @@ async def create_journal_entry(
         scope=entry_data.scope,
         user_id=str(current_user.id),
     )
+
+    # Generate embedding for semantic search
+    try:
+        generate_embedding.delay(
+            entity_type="journal_entry",
+            entity_id=str(entry.id),
+        )
+    except Exception as e:
+        logger.warning(
+            "Embedding generation trigger failed",
+            entry_id=str(entry.id),
+            error=str(e),
+        )
 
     # Return response with project_name
     return {
@@ -769,6 +783,20 @@ async def update_journal_entry(
         )
 
     logger.info("Journal entry updated", entry_id=str(entry_id))
+
+    # Regenerate embedding if content-related fields changed
+    if "title" in update_data or "content" in update_data or "tags" in update_data:
+        try:
+            generate_embedding.delay(
+                entity_type="journal_entry",
+                entity_id=str(entry_id),
+            )
+        except Exception as e:
+            logger.warning(
+                "Embedding generation trigger failed",
+                entry_id=str(entry_id),
+                error=str(e),
+            )
 
     # Return response with project_name
     return {

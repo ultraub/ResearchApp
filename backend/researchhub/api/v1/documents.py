@@ -18,7 +18,7 @@ from researchhub.models.document import Document, DocumentVersion, DocumentComme
 from researchhub.models.project import Project
 from researchhub.models.user import User
 from researchhub.services.notification import NotificationService
-from researchhub.tasks import auto_review_document_task
+from researchhub.tasks import auto_review_document_task, generate_embedding
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -306,6 +306,19 @@ async def create_document(
             error=str(e),
         )
 
+    # Generate embedding for semantic search
+    try:
+        generate_embedding.delay(
+            entity_type="document",
+            entity_id=str(document.id),
+        )
+    except Exception as e:
+        logger.warning(
+            "Embedding generation trigger failed",
+            document_id=str(document.id),
+            error=str(e),
+        )
+
     return document_to_response(document)
 
 
@@ -509,6 +522,19 @@ async def update_document(
             # Don't fail document update if auto-review trigger fails
             logger.warning(
                 "Auto-review trigger failed",
+                document_id=str(document.id),
+                error=str(e),
+            )
+
+        # Regenerate embedding if content changed
+        try:
+            generate_embedding.delay(
+                entity_type="document",
+                entity_id=str(document.id),
+            )
+        except Exception as e:
+            logger.warning(
+                "Embedding generation trigger failed",
                 document_id=str(document.id),
                 error=str(e),
             )

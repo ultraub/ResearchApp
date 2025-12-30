@@ -14,6 +14,7 @@ from researchhub.db.session import get_db
 from researchhub.api.v1.auth import get_current_user
 from researchhub.models import Paper, Collection, CollectionPaper, PaperHighlight, PaperLink, User
 from researchhub.services.external_apis import crossref_service, pubmed_service
+from researchhub.tasks import generate_embedding
 
 logger = structlog.get_logger()
 
@@ -220,6 +221,19 @@ async def create_paper(
     await db.commit()
     await db.refresh(paper)
 
+    # Trigger embedding generation
+    try:
+        generate_embedding.delay(
+            entity_type="paper",
+            entity_id=str(paper.id),
+        )
+    except Exception as e:
+        logger.warning(
+            "Embedding generation trigger failed",
+            paper_id=str(paper.id),
+            error=str(e),
+        )
+
     return paper
 
 
@@ -307,6 +321,21 @@ async def update_paper(
     await db.commit()
     await db.refresh(paper)
 
+    # Regenerate embedding if content-related fields changed
+    content_fields = {"title", "authors", "abstract", "notes", "journal"}
+    if content_fields & set(update_data.keys()):
+        try:
+            generate_embedding.delay(
+                entity_type="paper",
+                entity_id=str(paper_id),
+            )
+        except Exception as e:
+            logger.warning(
+                "Embedding generation trigger failed",
+                paper_id=str(paper_id),
+                error=str(e),
+            )
+
     return paper
 
 
@@ -383,6 +412,19 @@ async def import_paper_by_doi(
     await db.commit()
     await db.refresh(paper)
 
+    # Trigger embedding generation
+    try:
+        generate_embedding.delay(
+            entity_type="paper",
+            entity_id=str(paper.id),
+        )
+    except Exception as e:
+        logger.warning(
+            "Embedding generation trigger failed",
+            paper_id=str(paper.id),
+            error=str(e),
+        )
+
     return paper
 
 
@@ -438,6 +480,19 @@ async def import_paper_by_pmid(
     db.add(paper)
     await db.commit()
     await db.refresh(paper)
+
+    # Trigger embedding generation
+    try:
+        generate_embedding.delay(
+            entity_type="paper",
+            entity_id=str(paper.id),
+        )
+    except Exception as e:
+        logger.warning(
+            "Embedding generation trigger failed",
+            paper_id=str(paper.id),
+            error=str(e),
+        )
 
     return paper
 

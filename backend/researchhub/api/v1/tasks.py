@@ -22,7 +22,7 @@ from researchhub.services.task_document import TaskDocumentService
 from researchhub.services.custom_field import CustomFieldService
 from researchhub.services.workflow import WorkflowService
 from researchhub.services.notification import NotificationService
-from researchhub.tasks import auto_review_for_review_task
+from researchhub.tasks import auto_review_for_review_task, generate_embedding
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -409,6 +409,20 @@ async def create_task(
         task_id=str(task.id),
         project_id=str(task_data.project_id),
     )
+
+    # Generate embedding for semantic search
+    try:
+        generate_embedding.delay(
+            entity_type="task",
+            entity_id=str(task.id),
+        )
+    except Exception as e:
+        logger.warning(
+            "Embedding generation trigger failed",
+            task_id=str(task.id),
+            error=str(e),
+        )
+
     return task
 
 
@@ -824,6 +838,20 @@ async def update_task(
     task = result.scalar_one()
 
     logger.info("Task updated", task_id=str(task_id))
+
+    # Regenerate embedding if title or description changed
+    if "title" in update_data or "description" in update_data:
+        try:
+            generate_embedding.delay(
+                entity_type="task",
+                entity_id=str(task_id),
+            )
+        except Exception as e:
+            logger.warning(
+                "Embedding generation trigger failed",
+                task_id=str(task_id),
+                error=str(e),
+            )
 
     # Notify assignees if status changed
     new_status = update_data.get("status")
