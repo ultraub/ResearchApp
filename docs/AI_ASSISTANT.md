@@ -380,15 +380,20 @@ The assistant operates with a budget system that limits tool calls per conversat
 
 | Budget Type | Tools | Per-Turn Limit | Reset Behavior |
 |-------------|-------|----------------|----------------|
-| Query | All query tools | 15 calls | Resets each turn |
-| Action | All action tools | 5 calls | Resets each turn |
-| Meta | think, ask_user | 10 calls | Resets each turn |
+| Query | All query tools | 4 calls | Resets each turn |
+| Action | All action tools | 15 calls | Resets per session |
+| Meta | think, ask_user | 3 calls | Resets each turn |
 
 **Budget Exhaustion**:
 - When a budget is exhausted, the assistant is informed and should wrap up
 - Query budget exhaustion suggests summarizing findings
 - Action budget exhaustion means no more modifications this turn
 - User responses to clarifications start a fresh turn with reset budgets
+
+**Clarification Blocking**:
+- When multiple matches are found (ambiguous_result pattern), further queries are blocked
+- The assistant MUST call `ask_user` before making additional queries
+- This prevents wasting budget on verification searches when clarification is needed
 
 ## Action Tools
 
