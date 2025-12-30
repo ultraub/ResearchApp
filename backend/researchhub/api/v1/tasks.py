@@ -525,15 +525,16 @@ async def get_tasks_by_status(
 ) -> dict:
     """Get tasks grouped by status for kanban view."""
     # Verify project access
-    await check_project_access(db, project_id, current_user.id)
+    project = await check_project_access(db, project_id, current_user.id)
 
+    # Optimized query: only load relationships needed for kanban cards
+    # - assignments.user: needed for assignee avatars
+    # - created_by: needed for creator info
+    # - Skip project (we already have it), comments (just need count), subtasks (just need count)
     result = await db.execute(
         select(Task)
         .options(
             selectinload(Task.assignments).selectinload(TaskAssignment.user),
-            selectinload(Task.project),
-            selectinload(Task.comments),
-            selectinload(Task.subtasks),
             selectinload(Task.created_by),
         )
         .where(Task.project_id == project_id, Task.parent_task_id.is_(None))
@@ -541,8 +542,35 @@ async def get_tasks_by_status(
     )
     tasks = list(result.scalars().all())
 
-    # Convert tasks to response dicts
-    task_responses = [_task_to_response(t) for t in tasks]
+    # Get comment and subtask counts efficiently in bulk
+    if tasks:
+        task_ids = [t.id for t in tasks]
+
+        # Get comment counts
+        from researchhub.models.project import TaskComment
+        comment_counts_result = await db.execute(
+            select(TaskComment.task_id, func.count(TaskComment.id))
+            .where(TaskComment.task_id.in_(task_ids))
+            .group_by(TaskComment.task_id)
+        )
+        comment_counts = dict(comment_counts_result.all())
+
+        # Get subtask counts
+        subtask_counts_result = await db.execute(
+            select(Task.parent_task_id, func.count(Task.id))
+            .where(Task.parent_task_id.in_(task_ids))
+            .group_by(Task.parent_task_id)
+        )
+        subtask_counts = dict(subtask_counts_result.all())
+    else:
+        comment_counts = {}
+        subtask_counts = {}
+
+    # Convert tasks to response dicts with counts
+    task_responses = [
+        _task_to_response_light(t, project.name, comment_counts.get(t.id, 0), subtask_counts.get(t.id, 0))
+        for t in tasks
+    ]
 
     return {
         "idea": [t for t in task_responses if t["status"] == "idea"],
@@ -689,6 +717,48 @@ def _task_to_response(task: Task) -> dict:
         "updated_at": task.updated_at,
         "comment_count": len(task.comments) if hasattr(task, "comments") and task.comments else 0,
         "subtask_count": len(task.subtasks) if hasattr(task, "subtasks") and task.subtasks else 0,
+        "vote_count": task.vote_count if hasattr(task, "vote_count") else 0,
+        "user_voted": False,
+        "impact_score": task.impact_score if hasattr(task, "impact_score") else None,
+        "effort_score": task.effort_score if hasattr(task, "effort_score") else None,
+        "assignments": [
+            _assignment_to_response(a)
+            for a in (task.assignments if hasattr(task, "assignments") and task.assignments else [])
+        ],
+    }
+
+
+def _task_to_response_light(
+    task: Task,
+    project_name: str | None,
+    comment_count: int,
+    subtask_count: int,
+) -> dict:
+    """Convert task to response dict with pre-computed counts (optimized for kanban)."""
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "status": task.status,
+        "priority": task.priority,
+        "task_type": task.task_type,
+        "project_id": task.project_id,
+        "project_name": project_name,
+        "assignee_id": task.assignee_id,
+        "created_by_id": task.created_by_id,
+        "created_by_name": task.created_by.display_name if hasattr(task, "created_by") and task.created_by else None,
+        "created_by_email": task.created_by.email if hasattr(task, "created_by") and task.created_by else None,
+        "due_date": task.due_date,
+        "completed_at": task.completed_at,
+        "position": task.position,
+        "estimated_hours": task.estimated_hours,
+        "actual_hours": task.actual_hours,
+        "parent_task_id": task.parent_task_id,
+        "tags": task.tags or [],
+        "created_at": task.created_at,
+        "updated_at": task.updated_at,
+        "comment_count": comment_count,
+        "subtask_count": subtask_count,
         "vote_count": task.vote_count if hasattr(task, "vote_count") else 0,
         "user_voted": False,
         "impact_score": task.impact_score if hasattr(task, "impact_score") else None,
