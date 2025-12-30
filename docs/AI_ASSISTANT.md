@@ -308,6 +308,88 @@ class GetTasksTool(QueryTool):
         return {"tasks": [task.to_dict() for task in tasks]}
 ```
 
+## Strategic Tools
+
+Strategic tools are meta-level tools that help the assistant reason more effectively and interact with users when needed. Unlike query tools (which fetch data) or action tools (which modify data), strategic tools manage the assistant's reasoning process.
+
+### Think Tool
+
+The `think` tool provides a structured reasoning checkpoint for the assistant.
+
+| Tool | Description |
+|------|-------------|
+| `think` | Record reasoning, assess situation, and plan next steps |
+
+**Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| thought | Yes | Current reasoning about the situation |
+| assessment | Yes | Assessment of progress (on_track, stuck, need_info, or complete) |
+| next_step | No | Planned next action if assessment is on_track |
+| what_i_need | No | What information is needed if assessment is need_info |
+| why_stuck | No | Explanation if assessment is stuck |
+
+**When Used**:
+- Before calling query tools (planning)
+- After receiving results (evaluation)
+- When encountering ambiguity
+- To document reasoning chains
+
+**Context Enrichment**: When the assistant thinks, the tool may return contextual hints about available tools, common patterns, or suggestions based on the current situation.
+
+### Ask User Tool
+
+The `ask_user` tool requests clarification from the user when the assistant needs more information to proceed.
+
+| Tool | Description |
+|------|-------------|
+| `ask_user` | Ask the user a clarifying question with optional structured choices |
+
+**Parameters**:
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| question | Yes | The question to ask the user |
+| reason | No | Why this clarification is needed |
+| options | No | Array of structured choices for the user |
+
+**Options Structure**:
+```json
+{
+  "label": "Display text for the option",
+  "value": "Internal value returned if selected",
+  "description": "Optional longer description"
+}
+```
+
+**When Used**:
+- Ambiguous requests with multiple interpretations
+- Missing required information (e.g., which project?)
+- User preference needed for action details
+- Confirming understanding before complex operations
+
+**Flow**:
+1. Assistant calls `ask_user` with question and optional choices
+2. Backend emits `clarification_needed` SSE event
+3. Stream pauses, frontend displays interactive card
+4. User selects option or types custom response
+5. Response sent as new message, assistant continues
+
+### Tool Budgets
+
+The assistant operates with a budget system that limits tool calls per conversation turn:
+
+| Budget Type | Tools | Per-Turn Limit | Reset Behavior |
+|-------------|-------|----------------|----------------|
+| Query | All query tools | 15 calls | Resets each turn |
+| Action | All action tools | 5 calls | Resets each turn |
+| Meta | think, ask_user | 10 calls | Resets each turn |
+
+**Budget Exhaustion**:
+- When a budget is exhausted, the assistant is informed and should wrap up
+- Query budget exhaustion suggests summarizing findings
+- Action budget exhaustion means no more modifications this turn
+- User responses to clarifications start a fresh turn with reset budgets
+
 ## Action Tools
 
 Action tools propose changes that require user approval before execution.
@@ -538,11 +620,24 @@ The chat endpoint returns Server-Sent Events:
 | Event | Data | Description |
 |-------|------|-------------|
 | `text` | `{ content: string }` | Text content from LLM |
+| `text_delta` | `{ content: string }` | Streaming text chunk |
+| `thinking` | `{ content: string }` | Model reasoning (Gemini 3+) |
 | `tool_call` | `{ tool: string, input: object }` | Tool being called |
 | `tool_result` | `{ ... }` | Query tool result |
 | `action_preview` | ActionPreview | Pending action for approval |
+| `clarification_needed` | `{ question, reason?, options[] }` | Assistant needs user input |
 | `error` | `{ message: string }` | Error occurred |
 | `done` | `{ conversation_id: string }` | Stream complete |
+
+### Clarification Flow
+
+When the assistant needs user input to proceed:
+
+1. Assistant calls `ask_user` tool with question and optional choices
+2. Backend emits `clarification_needed` event and stops the stream
+3. Frontend displays an interactive card with the question/options
+4. User responds (clicks option or types answer)
+5. Response sent as new message, assistant continues with fresh context
 
 ## AI Providers
 
