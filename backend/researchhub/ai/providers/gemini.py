@@ -4,8 +4,11 @@ import time
 import uuid
 from typing import AsyncIterator, List, Optional
 
+import structlog
 from google import genai
 from google.genai import types
+
+logger = structlog.get_logger()
 
 from researchhub.ai.providers.base import (
     AIMessage,
@@ -535,6 +538,9 @@ class GeminiProvider(AIProvider):
 
             # Create fresh client for streaming
             client = genai.Client(api_key=self._api_key)
+
+            # Log which model is being used
+            logger.info("gemini_stream_request", model=model, is_gemini_3=is_gemini_3)
 
             # Use streaming endpoint
             stream = await client.aio.models.generate_content_stream(
