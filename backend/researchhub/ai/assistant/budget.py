@@ -68,14 +68,14 @@ class ToolBudget:
 
     def __init__(
         self,
-        query_limit: int = 6,
+        query_limit: int = 4,
         action_limit: int = 15,
         meta_limit: int = 3,
     ):
         """Initialize budget with configurable limits.
 
         Args:
-            query_limit: Max query tool calls per request (default 6)
+            query_limit: Max query tool calls per request (default 4)
             action_limit: Max action tool calls per session (default 15)
             meta_limit: Max meta tool calls per request (default 3)
         """
@@ -88,6 +88,10 @@ class ToolBudget:
         self.meta_calls = 0
 
         self.awaiting_user_response = False
+
+        # Track when user clarification is required (blocks further queries)
+        self.requires_user_clarification = False
+        self.clarification_reason: str | None = None
 
     def get_tool_type(self, tool_name: str) -> str:
         """Classify a tool by its type.
@@ -153,12 +157,33 @@ class ToolBudget:
             },
         }
 
+    def set_requires_clarification(self, reason: str) -> None:
+        """Mark that user clarification is required before proceeding.
+
+        When this is set, further query calls will be blocked until
+        the user clarifies via ask_user.
+        """
+        self.requires_user_clarification = True
+        self.clarification_reason = reason
+
+    def is_blocked_for_clarification(self) -> bool:
+        """Check if queries are blocked pending user clarification."""
+        return self.requires_user_clarification
+
     def get_injection_message(self) -> Optional[str]:
         """Check if we should inject a budget warning message.
 
         Returns:
             Warning message if budget is low/exhausted, None otherwise
         """
+        # Clarification required takes priority
+        if self.requires_user_clarification:
+            return (
+                f"[System: STOP. {self.clarification_reason} "
+                "You MUST call ask_user NOW to let the user choose. "
+                "No further queries will be processed until you ask the user.]"
+            )
+
         query_remaining = self.query_limit - self.query_calls
         meta_remaining = self.meta_limit - self.meta_calls
 
@@ -256,6 +281,8 @@ class ToolBudget:
         self.query_calls = 0
         self.meta_calls = 0
         self.awaiting_user_response = False
+        self.requires_user_clarification = False
+        self.clarification_reason = None
         # action_calls intentionally NOT reset
 
     def get_budget_summary(self) -> str:

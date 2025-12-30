@@ -289,10 +289,11 @@ Tool selection heuristics (in order of preference):
 - **AVOID**: Iterating through lists with multiple calls. If you find yourself wanting to call the same tool repeatedly for different items, STOP and use `dynamic_query` instead.
 
 **Step 4: Execute with Budget Awareness**
-- You have a budget of ~6 tool calls. Most requests need only 1-3.
+- You have a budget of ~4 tool calls. Most requests need only 1-2.
 - After EACH tool call, ask yourself: "Do I have enough to answer the user?" If YES → respond immediately.
 - After 2 calls: You likely have enough. Synthesize and respond.
 - After 3 calls: You MUST have a good reason to continue.
+- IMPORTANT: If you get multiple matches, call ask_user IMMEDIATELY to let the user choose. Do not try to verify or search more.
 
 **Step 5: Respond When Ready**
 Don't keep gathering data for completeness. A good answer with available data beats an exhaustive search that times out.
@@ -316,18 +317,20 @@ Use this when you need to pause and reason about your approach:
 
 The system will enrich your thinking with context about your tool call history, patterns detected, and situational guidance. This tool does NOT count against your query budget.
 
-### `ask_user` - User Clarification
-Use this instead of guessing when you need user input:
-- Multiple entities match a name (which project/task did they mean?)
+### `ask_user` - User Clarification (USE IMMEDIATELY ON AMBIGUITY)
+Use this IMMEDIATELY instead of trying more queries when:
+- Multiple entities match a name (which project/task did they mean?) → CALL ask_user NOW
 - Required context is missing (what priority? which project?)
 - Search returned similar but not exact matches
 - The request is ambiguous
+
+CRITICAL: When you get 2+ matches, DO NOT search for more variations. Call ask_user immediately with the options you found. The system will BLOCK further queries if you don't.
 
 You can provide structured options to make it easy for the user to respond. After the user clarifies, your query budget is refreshed so you can act on their answer.
 
 **When to use these tools:**
 - Got empty results? → Use `think` to diagnose, then `ask_user` if needed
-- Multiple matches? → Use `ask_user` to let user choose
+- Multiple matches? → IMMEDIATELY call `ask_user` to let user choose (do not search more!)
 - Complex request? → Use `think` to plan before starting
 - Unsure if you have enough? → Use `think` to assess"""
 
@@ -532,6 +535,22 @@ Use this context to provide relevant suggestions and defaults for actions."""
                     # Record call with budget tracker
                     tool_budget.record_call(tool_use.name)
 
+                    # Check if queries are blocked for clarification (except ask_user itself)
+                    if (tool_budget.is_blocked_for_clarification() and
+                        tool_budget.get_tool_type(tool_use.name) == "query" and
+                        tool_use.name != "ask_user"):
+                        # Block query - user clarification is required first
+                        tool_results.append(ToolResult(
+                            tool_use_id=tool_use.id,
+                            content={
+                                "error": f"Query blocked: {tool_budget.clarification_reason} "
+                                         "You MUST call ask_user first to let the user choose.",
+                                "required_action": "ask_user",
+                            },
+                            is_error=True,
+                        ))
+                        continue
+
                     # Check if query or action budget is exhausted
                     if tool_budget.is_query_exhausted() and tool_budget.get_tool_type(tool_use.name) == "query":
                         # Return a "budget exhausted" result
@@ -580,6 +599,12 @@ Use this context to provide relevant suggestions and defaults for actions."""
                                     tool_input=tool_use.input,
                                     result=result,
                                 )
+
+                                # Check if patterns require user clarification
+                                # This blocks further queries until ask_user is called
+                                requires_clarification, reason = execution_context.requires_user_clarification()
+                                if requires_clarification and not tool_budget.is_blocked_for_clarification():
+                                    tool_budget.set_requires_clarification(reason)
 
                             # Handle ask_user specially - emit clarification_needed event and stop
                             if result.get("type") == "user_interaction_required":

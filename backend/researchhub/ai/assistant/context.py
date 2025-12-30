@@ -145,6 +145,20 @@ class ExecutionContext:
 
         return injection
 
+    def requires_user_clarification(self) -> tuple[bool, str | None]:
+        """Check if patterns indicate user clarification is required.
+
+        Returns:
+            Tuple of (requires_clarification, reason_message)
+        """
+        if "ambiguous_result" in self.patterns:
+            return True, "Multiple matches found for user's request."
+
+        if "repeated_search" in self.patterns:
+            return True, "Repeated searches for similar terms."
+
+        return False, None
+
     def _has_results(self, result: Dict[str, Any]) -> bool:
         """Check if a result contains actual data."""
         # Check various result formats
