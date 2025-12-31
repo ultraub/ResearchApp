@@ -83,7 +83,7 @@ for comprehensive keyword-based search."""
                 },
                 "similarity_threshold": {
                     "type": "number",
-                    "default": 0.5,
+                    "default": 0.3,
                     "minimum": 0.0,
                     "maximum": 1.0,
                     "description": "Minimum similarity score (0-1). Higher values return more relevant but fewer results.",
@@ -104,7 +104,7 @@ for comprehensive keyword-based search."""
         entity_types = input.get("entity_types", ["project", "document", "task", "journal_entry", "paper"])
         project_id = input.get("project_id")
         limit = min(input.get("limit", 10), 30)
-        similarity_threshold = input.get("similarity_threshold", 0.5)
+        similarity_threshold = input.get("similarity_threshold", 0.3)
 
         # Get accessible project IDs for the user
         accessible_project_ids = await get_accessible_project_ids(db, user_id)
