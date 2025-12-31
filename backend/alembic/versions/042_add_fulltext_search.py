@@ -20,75 +20,135 @@ branch_labels = None
 depends_on = None
 
 
+def column_exists(table_name: str, column_name: str) -> bool:
+    """Check if a column exists in a table."""
+    conn = op.get_bind()
+    result = conn.execute(sa.text(f"""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '{table_name}' AND column_name = '{column_name}'
+        )
+    """))
+    return result.scalar()
+
+
+def index_exists(index_name: str) -> bool:
+    """Check if an index exists."""
+    conn = op.get_bind()
+    result = conn.execute(sa.text(f"""
+        SELECT EXISTS (
+            SELECT 1 FROM pg_indexes WHERE indexname = '{index_name}'
+        )
+    """))
+    return result.scalar()
+
+
+def trigger_exists(trigger_name: str, table_name: str) -> bool:
+    """Check if a trigger exists on a table."""
+    conn = op.get_bind()
+    result = conn.execute(sa.text(f"""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.triggers
+            WHERE trigger_name = '{trigger_name}' AND event_object_table = '{table_name}'
+        )
+    """))
+    return result.scalar()
+
+
 def upgrade() -> None:
-    # Add tsvector columns for full-text search
+    # Add tsvector columns for full-text search (idempotent)
 
     # Documents: title + content_text
-    op.add_column(
-        'documents',
-        sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
-    )
+    if not column_exists('documents', 'search_vector'):
+        op.add_column(
+            'documents',
+            sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
+        )
 
-    # Tasks: title + description_text (we'll populate from title only since description is JSONB)
-    op.add_column(
-        'tasks',
-        sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
-    )
-    op.add_column(
-        'tasks',
-        sa.Column('description_text', sa.Text, nullable=True)
-    )
+    # Tasks: title + description_text
+    if not column_exists('tasks', 'search_vector'):
+        op.add_column(
+            'tasks',
+            sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
+        )
+    if not column_exists('tasks', 'description_text'):
+        op.add_column(
+            'tasks',
+            sa.Column('description_text', sa.Text, nullable=True)
+        )
 
     # Projects: name + description
-    op.add_column(
-        'projects',
-        sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
-    )
+    if not column_exists('projects', 'search_vector'):
+        op.add_column(
+            'projects',
+            sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
+        )
 
     # Journal entries: title + content_text
-    op.add_column(
-        'journal_entries',
-        sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
-    )
+    if not column_exists('journal_entries', 'search_vector'):
+        op.add_column(
+            'journal_entries',
+            sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
+        )
 
     # Papers: title + abstract
-    op.add_column(
-        'papers',
-        sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
-    )
+    if not column_exists('papers', 'search_vector'):
+        op.add_column(
+            'papers',
+            sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
+        )
 
-    # Create GIN indexes for efficient full-text search
-    op.execute("""
-        CREATE INDEX ix_documents_search_vector
-        ON documents
-        USING GIN (search_vector)
-    """)
+    # Blockers: title + description
+    if not column_exists('blockers', 'search_vector'):
+        op.add_column(
+            'blockers',
+            sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
+        )
 
-    op.execute("""
-        CREATE INDEX ix_tasks_search_vector
-        ON tasks
-        USING GIN (search_vector)
-    """)
+    # Create GIN indexes for efficient full-text search (idempotent)
+    if not index_exists('ix_documents_search_vector'):
+        op.execute("""
+            CREATE INDEX ix_documents_search_vector
+            ON documents
+            USING GIN (search_vector)
+        """)
 
-    op.execute("""
-        CREATE INDEX ix_projects_search_vector
-        ON projects
-        USING GIN (search_vector)
-    """)
+    if not index_exists('ix_tasks_search_vector'):
+        op.execute("""
+            CREATE INDEX ix_tasks_search_vector
+            ON tasks
+            USING GIN (search_vector)
+        """)
 
-    op.execute("""
-        CREATE INDEX ix_journal_entries_search_vector
-        ON journal_entries
-        USING GIN (search_vector)
-    """)
+    if not index_exists('ix_projects_search_vector'):
+        op.execute("""
+            CREATE INDEX ix_projects_search_vector
+            ON projects
+            USING GIN (search_vector)
+        """)
 
-    op.execute("""
-        CREATE INDEX ix_papers_search_vector
-        ON papers
-        USING GIN (search_vector)
-    """)
+    if not index_exists('ix_journal_entries_search_vector'):
+        op.execute("""
+            CREATE INDEX ix_journal_entries_search_vector
+            ON journal_entries
+            USING GIN (search_vector)
+        """)
 
-    # Create triggers to auto-update search vectors
+    if not index_exists('ix_papers_search_vector'):
+        op.execute("""
+            CREATE INDEX ix_papers_search_vector
+            ON papers
+            USING GIN (search_vector)
+        """)
+
+    if not index_exists('ix_blockers_search_vector'):
+        op.execute("""
+            CREATE INDEX ix_blockers_search_vector
+            ON blockers
+            USING GIN (search_vector)
+        """)
+
+    # Create triggers to auto-update search vectors (use CREATE OR REPLACE for idempotency)
 
     # Documents trigger
     op.execute("""
@@ -102,13 +162,14 @@ def upgrade() -> None:
         $$ LANGUAGE plpgsql;
     """)
 
-    op.execute("""
-        CREATE TRIGGER documents_search_vector_trigger
-        BEFORE INSERT OR UPDATE OF title, content_text
-        ON documents
-        FOR EACH ROW
-        EXECUTE FUNCTION documents_search_vector_update();
-    """)
+    if not trigger_exists('documents_search_vector_trigger', 'documents'):
+        op.execute("""
+            CREATE TRIGGER documents_search_vector_trigger
+            BEFORE INSERT OR UPDATE OF title, content_text
+            ON documents
+            FOR EACH ROW
+            EXECUTE FUNCTION documents_search_vector_update();
+        """)
 
     # Tasks trigger
     op.execute("""
@@ -122,13 +183,14 @@ def upgrade() -> None:
         $$ LANGUAGE plpgsql;
     """)
 
-    op.execute("""
-        CREATE TRIGGER tasks_search_vector_trigger
-        BEFORE INSERT OR UPDATE OF title, description_text
-        ON tasks
-        FOR EACH ROW
-        EXECUTE FUNCTION tasks_search_vector_update();
-    """)
+    if not trigger_exists('tasks_search_vector_trigger', 'tasks'):
+        op.execute("""
+            CREATE TRIGGER tasks_search_vector_trigger
+            BEFORE INSERT OR UPDATE OF title, description_text
+            ON tasks
+            FOR EACH ROW
+            EXECUTE FUNCTION tasks_search_vector_update();
+        """)
 
     # Projects trigger
     op.execute("""
@@ -142,13 +204,14 @@ def upgrade() -> None:
         $$ LANGUAGE plpgsql;
     """)
 
-    op.execute("""
-        CREATE TRIGGER projects_search_vector_trigger
-        BEFORE INSERT OR UPDATE OF name, description
-        ON projects
-        FOR EACH ROW
-        EXECUTE FUNCTION projects_search_vector_update();
-    """)
+    if not trigger_exists('projects_search_vector_trigger', 'projects'):
+        op.execute("""
+            CREATE TRIGGER projects_search_vector_trigger
+            BEFORE INSERT OR UPDATE OF name, description
+            ON projects
+            FOR EACH ROW
+            EXECUTE FUNCTION projects_search_vector_update();
+        """)
 
     # Journal entries trigger
     op.execute("""
@@ -162,13 +225,14 @@ def upgrade() -> None:
         $$ LANGUAGE plpgsql;
     """)
 
-    op.execute("""
-        CREATE TRIGGER journal_entries_search_vector_trigger
-        BEFORE INSERT OR UPDATE OF title, content_text
-        ON journal_entries
-        FOR EACH ROW
-        EXECUTE FUNCTION journal_entries_search_vector_update();
-    """)
+    if not trigger_exists('journal_entries_search_vector_trigger', 'journal_entries'):
+        op.execute("""
+            CREATE TRIGGER journal_entries_search_vector_trigger
+            BEFORE INSERT OR UPDATE OF title, content_text
+            ON journal_entries
+            FOR EACH ROW
+            EXECUTE FUNCTION journal_entries_search_vector_update();
+        """)
 
     # Papers trigger
     op.execute("""
@@ -182,13 +246,35 @@ def upgrade() -> None:
         $$ LANGUAGE plpgsql;
     """)
 
+    if not trigger_exists('papers_search_vector_trigger', 'papers'):
+        op.execute("""
+            CREATE TRIGGER papers_search_vector_trigger
+            BEFORE INSERT OR UPDATE OF title, abstract
+            ON papers
+            FOR EACH ROW
+            EXECUTE FUNCTION papers_search_vector_update();
+        """)
+
+    # Blockers trigger
     op.execute("""
-        CREATE TRIGGER papers_search_vector_trigger
-        BEFORE INSERT OR UPDATE OF title, abstract
-        ON papers
-        FOR EACH ROW
-        EXECUTE FUNCTION papers_search_vector_update();
+        CREATE OR REPLACE FUNCTION blockers_search_vector_update() RETURNS trigger AS $$
+        BEGIN
+            NEW.search_vector :=
+                setweight(to_tsvector('english', COALESCE(NEW.title, '')), 'A') ||
+                setweight(to_tsvector('english', COALESCE(NEW.description, '')), 'B');
+            RETURN NEW;
+        END
+        $$ LANGUAGE plpgsql;
     """)
+
+    if not trigger_exists('blockers_search_vector_trigger', 'blockers'):
+        op.execute("""
+            CREATE TRIGGER blockers_search_vector_trigger
+            BEFORE INSERT OR UPDATE OF title, description
+            ON blockers
+            FOR EACH ROW
+            EXECUTE FUNCTION blockers_search_vector_update();
+        """)
 
     # Populate existing rows with search vectors
     op.execute("""
@@ -196,6 +282,7 @@ def upgrade() -> None:
         SET search_vector =
             setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
             setweight(to_tsvector('english', COALESCE(content_text, '')), 'B')
+        WHERE search_vector IS NULL
     """)
 
     op.execute("""
@@ -203,6 +290,7 @@ def upgrade() -> None:
         SET search_vector =
             setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
             setweight(to_tsvector('english', COALESCE(description_text, '')), 'B')
+        WHERE search_vector IS NULL
     """)
 
     op.execute("""
@@ -210,6 +298,7 @@ def upgrade() -> None:
         SET search_vector =
             setweight(to_tsvector('english', COALESCE(name, '')), 'A') ||
             setweight(to_tsvector('english', COALESCE(description, '')), 'B')
+        WHERE search_vector IS NULL
     """)
 
     op.execute("""
@@ -217,6 +306,7 @@ def upgrade() -> None:
         SET search_vector =
             setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
             setweight(to_tsvector('english', COALESCE(content_text, '')), 'B')
+        WHERE search_vector IS NULL
     """)
 
     op.execute("""
@@ -224,6 +314,15 @@ def upgrade() -> None:
         SET search_vector =
             setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
             setweight(to_tsvector('english', COALESCE(abstract, '')), 'B')
+        WHERE search_vector IS NULL
+    """)
+
+    op.execute("""
+        UPDATE blockers
+        SET search_vector =
+            setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
+            setweight(to_tsvector('english', COALESCE(description, '')), 'B')
+        WHERE search_vector IS NULL
     """)
 
 
@@ -234,6 +333,7 @@ def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS projects_search_vector_trigger ON projects")
     op.execute("DROP TRIGGER IF EXISTS journal_entries_search_vector_trigger ON journal_entries")
     op.execute("DROP TRIGGER IF EXISTS papers_search_vector_trigger ON papers")
+    op.execute("DROP TRIGGER IF EXISTS blockers_search_vector_trigger ON blockers")
 
     # Drop functions
     op.execute("DROP FUNCTION IF EXISTS documents_search_vector_update()")
@@ -241,6 +341,7 @@ def downgrade() -> None:
     op.execute("DROP FUNCTION IF EXISTS projects_search_vector_update()")
     op.execute("DROP FUNCTION IF EXISTS journal_entries_search_vector_update()")
     op.execute("DROP FUNCTION IF EXISTS papers_search_vector_update()")
+    op.execute("DROP FUNCTION IF EXISTS blockers_search_vector_update()")
 
     # Drop indexes
     op.execute("DROP INDEX IF EXISTS ix_documents_search_vector")
@@ -248,6 +349,7 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS ix_projects_search_vector")
     op.execute("DROP INDEX IF EXISTS ix_journal_entries_search_vector")
     op.execute("DROP INDEX IF EXISTS ix_papers_search_vector")
+    op.execute("DROP INDEX IF EXISTS ix_blockers_search_vector")
 
     # Drop columns
     op.drop_column('documents', 'search_vector')
@@ -256,3 +358,4 @@ def downgrade() -> None:
     op.drop_column('projects', 'search_vector')
     op.drop_column('journal_entries', 'search_vector')
     op.drop_column('papers', 'search_vector')
+    op.drop_column('blockers', 'search_vector')
