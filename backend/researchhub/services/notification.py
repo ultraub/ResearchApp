@@ -117,7 +117,7 @@ class NotificationService:
             is_archived=False,
         )
         self.db.add(notification)
-        await self.db.flush()
+        await self.db.commit()
 
         logger.info(
             "notification_created",
