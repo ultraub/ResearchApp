@@ -171,45 +171,36 @@ class ToolBudget:
         return self.requires_user_clarification
 
     def get_injection_message(self) -> Optional[str]:
-        """Check if we should inject a budget warning message.
+        """Check if we should inject an internal directive.
 
         Returns:
-            Warning message if budget is low/exhausted, None otherwise
+            Directive message if needed, None otherwise.
+            IMPORTANT: These are internal directives - never expose to user.
         """
         # Clarification required takes priority
         if self.requires_user_clarification:
             return (
-                f"[System: STOP. {self.clarification_reason} "
-                "You MUST call ask_user NOW to let the user choose. "
-                "No further queries will be processed until you ask the user.]"
+                f"[Internal: {self.clarification_reason} "
+                "Call ask_user now with options. Do not mention this to user.]"
             )
 
         query_remaining = self.query_limit - self.query_calls
         meta_remaining = self.meta_limit - self.meta_calls
 
-        # Query budget warnings (most common)
+        # Query limit reached - respond now
         if query_remaining <= 0:
             return (
-                "[System: Query budget exhausted. You must respond now with "
-                "the information you have gathered. Do not attempt more queries.]"
+                "[Internal: Respond now with gathered information. "
+                "Do not mention any limits to the user.]"
             )
         elif query_remaining == 1:
-            return (
-                "[System: Query budget: 1 remaining. Make it count, "
-                "or respond with what you have.]"
-            )
+            return "[Internal: One more query available, then respond.]"
         elif query_remaining == 2:
-            return (
-                "[System: Query budget: 2 remaining. Consider if you have "
-                "enough to respond, or prioritize your remaining queries.]"
-            )
+            return "[Internal: Consider responding if you have enough information.]"
 
-        # Meta budget warnings
+        # Meta limit reached
         if meta_remaining <= 0:
-            return (
-                "[System: Meta tool budget exhausted. Proceed with queries, "
-                "actions, or respond to the user.]"
-            )
+            return "[Internal: Proceed with response.]"
 
         return None
 
@@ -226,32 +217,29 @@ class ToolBudget:
         return self.meta_calls >= self.meta_limit
 
     def on_user_clarification(self, user_response: str) -> str:
-        """Handle user response to ask_user - refresh query budget.
+        """Handle user response to ask_user - refresh query allowance.
 
         Args:
             user_response: The user's clarification response
 
         Returns:
-            Message to inject about budget refresh
+            Internal message (not for user display)
         """
         self.awaiting_user_response = False
 
         # Restore up to 3 query calls
-        restored = min(3, self.query_calls)
         self.query_calls = max(0, self.query_calls - 3)
 
-        remaining = self.query_limit - self.query_calls
+        # Reset clarification requirement
+        self.requires_user_clarification = False
+        self.clarification_reason = None
 
         # Truncate response for display
         display_response = user_response[:80]
         if len(user_response) > 80:
             display_response += "..."
 
-        return (
-            f"[System: User clarified: \"{display_response}\". "
-            f"Query budget refreshed (+{restored}). "
-            f"You have {remaining} queries available.]"
-        )
+        return f"[Internal: User selected: \"{display_response}\". Proceed with their choice.]"
 
     def on_action_executed(self, action_description: str) -> str:
         """Handle successful action execution.
@@ -260,18 +248,13 @@ class ToolBudget:
             action_description: Description of the executed action
 
         Returns:
-            Message about remaining action budget
+            Internal confirmation (not for user display)
         """
-        # Small query budget restoration for follow-up
+        # Small query restoration for follow-up
         if self.query_calls > 0:
             self.query_calls -= 1
 
-        action_remaining = self.action_limit - self.action_calls
-
-        return (
-            f"[System: Action executed: {action_description}. "
-            f"Actions remaining: {action_remaining}]"
-        )
+        return f"[Internal: Completed: {action_description}]"
 
     def on_new_user_message(self) -> None:
         """Reset budgets for a new user message/request.

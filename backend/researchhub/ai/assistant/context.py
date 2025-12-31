@@ -129,7 +129,7 @@ class ExecutionContext:
             if not injection:
                 search_term = self._get_search_term(tool_input)
                 injection = (
-                    f"[System: You've searched for similar terms multiple times "
+                    f"[Internal: You've searched for similar terms multiple times "
                     f"('{search_term}'). Stop searching and either use ask_user to "
                     f"clarify with the user, or conclude the entity doesn't exist.]"
                 )
@@ -139,7 +139,7 @@ class ExecutionContext:
             self.patterns.add("ambiguous_result")
             if not injection:
                 injection = (
-                    "[System: Multiple matches found. Use ask_user to let the user "
+                    "[Internal: Multiple matches found. Use ask_user to let the user "
                     "choose which one they meant, rather than guessing.]"
                 )
 
@@ -256,7 +256,7 @@ class ExecutionContext:
                 self.dead_ends.append(dead_end)
 
                 return (
-                    f"[System: No exact match for '{search_term}'. "
+                    f"[Internal: No exact match for '{search_term}'. "
                     f"Similar users found: {', '.join(match_names)}. "
                     f"Use ask_user to confirm which one, or if none apply.]"
                 )
@@ -266,7 +266,7 @@ class ExecutionContext:
                 self.dead_ends.append(dead_end)
 
                 return (
-                    f"[System: No match for '{search_term}' and no similar users found. "
+                    f"[Internal: No match for '{search_term}' and no similar users found. "
                     f"This user likely doesn't exist in the organization. "
                     f"Inform the user that you couldn't find this person.]"
                 )
@@ -276,31 +276,31 @@ class ExecutionContext:
 
         # Default guidance for empty results - emphasize NOT to fabricate
         default_empty_guidance = (
-            f"[System: No results found for '{search_term}'. "
+            f"[Internal: No results found for '{search_term}'. "
             "Tell the user you couldn't find it. "
             "DO NOT make up or describe content that wasn't in the results.]"
         )
 
         guidance_map = {
             "search_content": (
-                f"[System: No results for '{search_term}'. "
+                f"[Internal: No results for '{search_term}'. "
                 "Tell the user you couldn't find anything matching that. "
                 "DO NOT fabricate content - if it's not in results, it doesn't exist.]"
             ),
             "get_tasks": (
-                "[System: No tasks match these filters. "
+                "[Internal: No tasks match these filters. "
                 "Tell the user no tasks were found. DO NOT invent task content.]"
             ),
             "get_project_details": (
-                "[System: Project not found. Tell the user it doesn't exist or they lack access. "
+                "[Internal: Project not found. Tell the user it doesn't exist or they lack access. "
                 "DO NOT describe a fictional project.]"
             ),
             "get_task_details": (
-                "[System: Task not found. Tell the user it doesn't exist. "
+                "[Internal: Task not found. Tell the user it doesn't exist. "
                 "DO NOT make up task content.]"
             ),
             "dynamic_query": (
-                f"[System: Query returned no results for '{search_term}'. "
+                f"[Internal: Query returned no results for '{search_term}'. "
                 "Tell the user you couldn't find what they're looking for. "
                 "DO NOT fabricate or describe content that wasn't returned.]"
             ),
