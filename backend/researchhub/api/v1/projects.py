@@ -495,10 +495,10 @@ async def list_projects(
     query = query.order_by(Project.updated_at.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
-    # Load subprojects, tasks, project_teams, exclusions, team, and creator for computed fields
+    # Load subprojects, project_teams, exclusions, team, and creator for computed fields
+    # NOTE: Do NOT load tasks - use bulk COUNT query instead for performance
     query = query.options(
         selectinload(Project.subprojects),
-        selectinload(Project.tasks),
         selectinload(Project.project_teams),
         selectinload(Project.exclusions),
         selectinload(Project.team).selectinload(Team.organization),
@@ -507,6 +507,22 @@ async def list_projects(
 
     result = await db.execute(query)
     projects = list(result.scalars().all())
+
+    # Get task counts efficiently in bulk (instead of loading all tasks)
+    task_counts_map: dict[UUID, tuple[int, int]] = {}
+    if projects:
+        project_ids = [p.id for p in projects]
+        task_counts_result = await db.execute(
+            select(
+                Task.project_id,
+                func.count(Task.id),
+                func.count(Task.id).filter(Task.status == "done"),
+            )
+            .where(Task.project_id.in_(project_ids))
+            .group_by(Task.project_id)
+        )
+        for row in task_counts_result.all():
+            task_counts_map[row[0]] = (row[1], row[2])
 
     # Build ancestors map if requested
     ancestors_map: dict[UUID, list[ProjectAncestor]] = {}
@@ -582,8 +598,8 @@ async def list_projects(
             created_by_email=project.created_by.email if project.created_by else None,
             created_at=project.created_at,
             updated_at=project.updated_at,
-            task_count=len(project.tasks) if project.tasks else 0,
-            completed_task_count=len([t for t in project.tasks if t.status == "done"]) if project.tasks else 0,
+            task_count=task_counts_map.get(project.id, (0, 0))[0],
+            completed_task_count=task_counts_map.get(project.id, (0, 0))[1],
             has_children=len(project.subprojects) > 0 if project.subprojects else False,
             children_count=len(project.subprojects) if project.subprojects else 0,
             ancestors=ancestors_map.get(project.id) if include_ancestors else None,
@@ -639,18 +655,28 @@ async def get_project(
     # Check access first
     await check_project_access(db, project_id, current_user.id)
 
-    # Load project with subprojects, tasks, team, and creator for computed fields
+    # Load project with subprojects, team, and creator (NOT tasks - use COUNT instead)
     result = await db.execute(
         select(Project)
         .options(
             selectinload(Project.subprojects),
-            selectinload(Project.tasks),
             selectinload(Project.team).selectinload(Team.organization),
             selectinload(Project.created_by),
         )
         .where(Project.id == project_id)
     )
     project = result.scalar_one()
+
+    # Get task counts efficiently with a single COUNT query
+    task_counts_result = await db.execute(
+        select(
+            func.count(Task.id),
+            func.count(Task.id).filter(Task.status == "done"),
+        ).where(Task.project_id == project_id)
+    )
+    task_row = task_counts_result.one()
+    task_count = task_row[0] or 0
+    completed_task_count = task_row[1] or 0
 
     # Load project_teams and exclusions for counts
     teams_result = await db.execute(
@@ -692,8 +718,8 @@ async def get_project(
         created_by_email=project.created_by.email if project.created_by else None,
         created_at=project.created_at,
         updated_at=project.updated_at,
-        task_count=len(project.tasks) if project.tasks else 0,
-        completed_task_count=len([t for t in project.tasks if t.status == "done"]) if project.tasks else 0,
+        task_count=task_count,
+        completed_task_count=completed_task_count,
         has_children=len(project.subprojects) > 0 if project.subprojects else False,
         children_count=len(project.subprojects) if project.subprojects else 0,
         team_name=team_name,
