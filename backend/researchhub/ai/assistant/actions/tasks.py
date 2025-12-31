@@ -80,6 +80,12 @@ class CreateTaskTool(ActionTool):
         org_id: UUID,
     ) -> ActionPreview:
         """Create a preview of the task creation."""
+        # Validate required fields
+        if "project_id" not in input:
+            raise ValueError("project_id is required to create a task")
+        if "title" not in input:
+            raise ValueError("title is required to create a task")
+
         # For create, there's no old state
         old_state = None
 
