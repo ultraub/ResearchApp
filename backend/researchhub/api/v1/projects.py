@@ -378,19 +378,18 @@ async def list_projects(
     include_ancestors: bool = Query(False, description="Include ancestor chain for breadcrumb display"),
 ) -> dict:
     """List projects the user has access to."""
-    # Get user's team memberships
-    team_result = await db.execute(
-        select(TeamMember.team_id).where(TeamMember.user_id == current_user.id)
-    )
-    user_team_ids = [row[0] for row in team_result.all()]
-
-    # Get user's organization memberships for org-public access
-    org_result = await db.execute(
-        select(OrganizationMember.organization_id).where(
-            OrganizationMember.user_id == current_user.id
+    # Get user's team and organization memberships in a single query
+    membership_result = await db.execute(
+        select(
+            TeamMember.team_id,
+            Team.organization_id,
         )
+        .join(Team, TeamMember.team_id == Team.id)
+        .where(TeamMember.user_id == current_user.id)
     )
-    user_org_ids = [row[0] for row in org_result.all()]
+    membership_rows = membership_result.all()
+    user_team_ids = [row[0] for row in membership_rows]
+    user_org_ids = list(set(row[1] for row in membership_rows if row[1] is not None))
 
     # Subquery for projects where user is direct member
     project_member_subquery = (
@@ -476,12 +475,10 @@ async def list_projects(
     query = query.order_by(Project.updated_at.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
-    # Load subprojects, project_teams, exclusions, team, and creator for computed fields
-    # NOTE: Do NOT load tasks - use bulk COUNT query instead for performance
+    # Load only essential relationships - use COUNT queries for team_count/exclusion_count
+    # NOTE: Do NOT load tasks, project_teams, or exclusions - use bulk COUNT queries instead
     query = query.options(
         selectinload(Project.subprojects),
-        selectinload(Project.project_teams),
-        selectinload(Project.exclusions),
         selectinload(Project.team).selectinload(Team.organization),
         selectinload(Project.created_by),
     )
@@ -489,10 +486,14 @@ async def list_projects(
     result = await db.execute(query)
     projects = list(result.scalars().all())
 
-    # Get task counts efficiently in bulk (instead of loading all tasks)
+    # Get task counts, team counts, and exclusion counts efficiently in bulk
     task_counts_map: dict[UUID, tuple[int, int]] = {}
+    team_counts_map: dict[UUID, int] = {}
+    exclusion_counts_map: dict[UUID, int] = {}
     if projects:
         project_ids = [p.id for p in projects]
+
+        # Task counts
         task_counts_result = await db.execute(
             select(
                 Task.project_id,
@@ -504,6 +505,22 @@ async def list_projects(
         )
         for row in task_counts_result.all():
             task_counts_map[row[0]] = (row[1], row[2])
+
+        # Team counts (number of teams with access)
+        team_counts_result = await db.execute(
+            select(ProjectTeam.project_id, func.count(ProjectTeam.id))
+            .where(ProjectTeam.project_id.in_(project_ids))
+            .group_by(ProjectTeam.project_id)
+        )
+        team_counts_map = dict(team_counts_result.all())
+
+        # Exclusion counts
+        exclusion_counts_result = await db.execute(
+            select(ProjectExclusion.project_id, func.count(ProjectExclusion.id))
+            .where(ProjectExclusion.project_id.in_(project_ids))
+            .group_by(ProjectExclusion.project_id)
+        )
+        exclusion_counts_map = dict(exclusion_counts_result.all())
 
     # Build ancestors map if requested
     ancestors_map: dict[UUID, list[ProjectAncestor]] = {}
@@ -591,8 +608,8 @@ async def list_projects(
             is_org_public=project.is_org_public,
             org_public_role=project.org_public_role,
             allow_all_team_members=project.allow_all_team_members,
-            team_count=len(project.project_teams) if hasattr(project, 'project_teams') and project.project_teams else 1,
-            exclusion_count=len(project.exclusions) if hasattr(project, 'exclusions') and project.exclusions else 0,
+            team_count=team_counts_map.get(project.id, 1),
+            exclusion_count=exclusion_counts_map.get(project.id, 0),
             is_demo=project.is_demo,
         )
         project_responses.append(response)
@@ -1413,19 +1430,85 @@ async def list_project_children(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
     include_archived: bool = Query(False),
-) -> list[Project]:
+) -> list[ProjectResponse]:
     """List direct children (subprojects) of a project."""
     # Check access to parent project
     await check_project_access(db, project_id, current_user.id)
 
-    # Get children
-    query = select(Project).where(Project.parent_id == project_id)
+    # Get children with necessary relationships
+    query = (
+        select(Project)
+        .options(
+            selectinload(Project.subprojects),
+            selectinload(Project.team).selectinload(Team.organization),
+            selectinload(Project.created_by),
+        )
+        .where(Project.parent_id == project_id)
+    )
     if not include_archived:
         query = query.where(Project.is_archived == False)
     query = query.order_by(Project.name)
 
     result = await db.execute(query)
-    return list(result.scalars().all())
+    projects = list(result.scalars().all())
+
+    # Get task counts efficiently in bulk
+    task_counts_map: dict[UUID, tuple[int, int]] = {}
+    if projects:
+        project_ids = [p.id for p in projects]
+        task_counts_result = await db.execute(
+            select(
+                Task.project_id,
+                func.count(Task.id),
+                func.count(Task.id).filter(Task.status == "done"),
+            )
+            .where(Task.project_id.in_(project_ids))
+            .group_by(Task.project_id)
+        )
+        for row in task_counts_result.all():
+            task_counts_map[row[0]] = (row[1], row[2])
+
+    # Convert to response with computed fields
+    project_responses = []
+    for project in projects:
+        team = project.team
+        project_responses.append(ProjectResponse(
+            id=project.id,
+            name=project.name,
+            description=project.description,
+            status=project.status,
+            scope=project.scope,
+            project_type=project.project_type,
+            team_id=project.team_id,
+            parent_id=project.parent_id,
+            start_date=project.start_date,
+            target_end_date=project.target_end_date,
+            actual_end_date=project.actual_end_date,
+            tags=project.tags,
+            color=project.color,
+            emoji=project.emoji,
+            is_archived=project.is_archived,
+            settings=project.settings,
+            created_by_id=project.created_by_id,
+            created_by_name=project.created_by.display_name if project.created_by else None,
+            created_by_email=project.created_by.email if project.created_by else None,
+            created_at=project.created_at,
+            updated_at=project.updated_at,
+            task_count=task_counts_map.get(project.id, (0, 0))[0],
+            completed_task_count=task_counts_map.get(project.id, (0, 0))[1],
+            has_children=len(project.subprojects) > 0 if project.subprojects else False,
+            children_count=len(project.subprojects) if project.subprojects else 0,
+            team_name=team.name if team else None,
+            team_is_personal=team.is_personal if team else False,
+            organization_id=team.organization_id if team else None,
+            organization_name=team.organization.name if team and team.organization else None,
+            is_org_public=project.is_org_public,
+            org_public_role=project.org_public_role,
+            allow_all_team_members=project.allow_all_team_members,
+            is_demo=project.is_demo,
+        ))
+
+    return project_responses
 
 
 class ProjectTreeNode(BaseModel):
@@ -2149,18 +2232,26 @@ async def get_project_blockers(
     # Verify project access
     await check_project_access(db, project_id, current_user.id)
 
-    # Get all blockers in this project
-    query = (
-        select(Blocker)
-        .options(selectinload(Blocker.blocked_items))
-        .where(Blocker.project_id == project_id)
-    )
+    # Get all blockers in this project (without loading blocked_items relationship)
+    query = select(Blocker).where(Blocker.project_id == project_id)
 
     if active_only:
         query = query.where(Blocker.status.in_(["open", "in_progress"]))
 
     result = await db.execute(query)
-    blockers = result.scalars().all()
+    blockers = list(result.scalars().all())
+
+    # Get blocked_items counts efficiently with a single COUNT query
+    blocked_counts: dict[UUID, int] = {}
+    if blockers:
+        blocker_ids = [b.id for b in blockers]
+        from researchhub.models.project import BlockerLink
+        counts_result = await db.execute(
+            select(BlockerLink.blocker_id, func.count(BlockerLink.id))
+            .where(BlockerLink.blocker_id.in_(blocker_ids))
+            .group_by(BlockerLink.blocker_id)
+        )
+        blocked_counts = dict(counts_result.all())
 
     return [
         {
@@ -2173,7 +2264,7 @@ async def get_project_blockers(
             "assignee_id": b.assignee_id,
             "due_date": b.due_date,
             "created_at": b.created_at,
-            "blocked_items_count": len(b.blocked_items) if b.blocked_items else 0,
+            "blocked_items_count": blocked_counts.get(b.id, 0),
         }
         for b in blockers
     ]

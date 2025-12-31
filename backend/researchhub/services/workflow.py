@@ -539,13 +539,30 @@ class WorkflowService:
         - ai_suggestion_count: Number of unresolved AI suggestions
         - tasks_in_review: Number of tasks currently in_review status
         """
-        # Get all reviews for tasks in this project
-        reviews_result = await self.db.execute(
-            select(Review)
-            .options(selectinload(Review.assignments))
-            .where(Review.project_id == project_id)
+        # Use SQL aggregates instead of loading all reviews and counting in Python
+        # This is much more efficient for projects with many reviews
+        review_counts_result = await self.db.execute(
+            select(
+                func.count(Review.id).label('total'),
+                func.count(Review.id).filter(
+                    Review.status.in_(["pending", "in_progress"])
+                ).label('pending'),
+                func.count(Review.id).filter(
+                    or_(Review.status == "approved", Review.decision == "approve")
+                ).label('approved'),
+                func.count(Review.id).filter(
+                    or_(
+                        Review.status == "rejected",
+                        Review.decision.in_(["reject", "request_changes"])
+                    )
+                ).label('rejected'),
+            ).where(Review.project_id == project_id)
         )
-        reviews = list(reviews_result.scalars().all())
+        counts = review_counts_result.one()
+        total = counts.total or 0
+        pending = counts.pending or 0
+        approved = counts.approved or 0
+        rejected = counts.rejected or 0
 
         # Count tasks in review status
         tasks_in_review_result = await self.db.execute(
@@ -558,7 +575,7 @@ class WorkflowService:
         )
         tasks_in_review = tasks_in_review_result.scalar() or 0
 
-        if not reviews:
+        if total == 0:
             return {
                 "total_reviews": 0,
                 "pending_reviews": 0,
@@ -570,23 +587,10 @@ class WorkflowService:
                 "tasks_in_review": tasks_in_review,
             }
 
-        pending = 0
-        approved = 0
-        rejected = 0
+        # Handle reviews that don't match any category (count as pending)
+        uncategorized = total - pending - approved - rejected
+        pending += uncategorized
 
-        review_ids = [r.id for r in reviews]
-
-        for review in reviews:
-            if review.status in ("pending", "in_progress"):
-                pending += 1
-            elif review.status == "approved" or review.decision == "approve":
-                approved += 1
-            elif review.status == "rejected" or review.decision in ("reject", "request_changes"):
-                rejected += 1
-            else:
-                pending += 1  # Unknown status treated as pending
-
-        total = len(reviews)
         all_approved = approved == total and total > 0
 
         # Determine overall status
@@ -599,12 +603,13 @@ class WorkflowService:
         else:
             overall_status = "mixed"
 
-        # Count unresolved AI suggestions across all reviews for this project
+        # Count unresolved AI suggestions using a subquery
         ai_count_result = await self.db.execute(
             select(func.count(ReviewComment.id))
+            .join(Review, ReviewComment.review_id == Review.id)
             .where(
                 and_(
-                    ReviewComment.review_id.in_(review_ids),
+                    Review.project_id == project_id,
                     ReviewComment.source == "ai_suggestion",
                     ReviewComment.is_resolved == False,
                 )
