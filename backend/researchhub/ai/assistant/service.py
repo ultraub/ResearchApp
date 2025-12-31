@@ -462,6 +462,14 @@ You are an AI assistant for a knowledge management app. Help users with projects
                                 },
                             ))
 
+                            # Stop processing - wait for user approval before continuing
+                            # This prevents duplicate action calls from being processed
+                            yield SSEEvent(
+                                event="done",
+                                data={"conversation_id": str(conversation_id)},
+                            )
+                            return
+
                     except Exception as e:
                         # Handle tool execution errors
                         tool_results.append(ToolResult(
