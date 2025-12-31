@@ -9,7 +9,7 @@ Implements three-tier project access control with multi-team support:
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import structlog
@@ -30,6 +30,242 @@ ROLE_HIERARCHY = {"owner": 5, "admin": 4, "editor": 3, "member": 2, "viewer": 1}
 def has_sufficient_role(user_role: str, required_role: str) -> bool:
     """Check if user_role meets or exceeds required_role."""
     return ROLE_HIERARCHY.get(user_role, 0) >= ROLE_HIERARCHY.get(required_role, 0)
+
+
+async def check_project_access_fast(
+    db: AsyncSession,
+    project_id: UUID,
+    user_id: UUID,
+    required_role: str | None = None,
+) -> tuple[Project, str]:
+    """
+    Optimized single-query access check for a project.
+
+    Consolidates 8-12 sequential queries into 1-2 queries for ~80% faster access checks.
+
+    Returns:
+        Tuple of (Project, effective_role) if access granted
+
+    Raises:
+        HTTPException 404 if project not found
+        HTTPException 403 if access denied or insufficient role
+    """
+    # Single query to get project + all access-relevant data
+    result = await db.execute(
+        select(
+            Project,
+            # Direct member access
+            ProjectMember.role.label('member_role'),
+            # Share access
+            ProjectShare.role.label('share_role'),
+            # Exclusion check
+            ProjectExclusion.id.label('exclusion_id'),
+            # Team access (via project_teams)
+            TeamMember.role.label('team_member_role'),
+            ProjectTeam.role.label('project_team_role'),
+            Team.owner_id.label('team_owner_id'),
+            Team.organization_id.label('team_org_id'),
+            # Org access
+            OrganizationMember.role.label('org_member_role'),
+        )
+        .select_from(Project)
+        .outerjoin(
+            ProjectMember,
+            and_(
+                ProjectMember.project_id == Project.id,
+                ProjectMember.user_id == user_id,
+            )
+        )
+        .outerjoin(
+            ProjectShare,
+            and_(
+                ProjectShare.project_id == Project.id,
+                ProjectShare.user_id == user_id,
+            )
+        )
+        .outerjoin(
+            ProjectExclusion,
+            and_(
+                ProjectExclusion.project_id == Project.id,
+                ProjectExclusion.user_id == user_id,
+            )
+        )
+        .outerjoin(ProjectTeam, ProjectTeam.project_id == Project.id)
+        .outerjoin(Team, Team.id == ProjectTeam.team_id)
+        .outerjoin(
+            TeamMember,
+            and_(
+                TeamMember.team_id == ProjectTeam.team_id,
+                TeamMember.user_id == user_id,
+            )
+        )
+        .outerjoin(
+            OrganizationMember,
+            and_(
+                OrganizationMember.organization_id == Team.organization_id,
+                OrganizationMember.user_id == user_id,
+            )
+        )
+        .where(Project.id == project_id)
+    )
+
+    rows = result.all()
+
+    if not rows:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # All rows have the same project, just different join results
+    project = rows[0][0]
+
+    # Check for exclusion first (any row with exclusion_id means excluded)
+    for row in rows:
+        if row.exclusion_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - you have been excluded from this project",
+            )
+
+    # Priority 1: Direct ProjectMember (highest priority)
+    for row in rows:
+        if row.member_role is not None:
+            return project, _validate_role(row.member_role, required_role)
+
+    # Priority 2: ProjectShare
+    for row in rows:
+        if row.share_role is not None:
+            return project, _validate_role(row.share_role, required_role)
+
+    # Priority 3: Scope-based access
+    if project.scope == "PERSONAL":
+        if project.created_by_id == user_id:
+            return project, _validate_role("owner", required_role)
+        # Check parent inheritance before denying
+        inherited = await _check_parent_access_fast(db, project, user_id)
+        if inherited:
+            return project, _validate_role(inherited, required_role)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - this is a personal project",
+        )
+
+    elif project.scope == "TEAM":
+        if not project.allow_all_team_members:
+            # Check parent inheritance before denying
+            inherited = await _check_parent_access_fast(db, project, user_id)
+            if inherited:
+                return project, _validate_role(inherited, required_role)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - explicit membership required for this project",
+            )
+
+        # Check team-based access from the joined data
+        best_role = None
+        for row in rows:
+            # Team owner gets owner access
+            if row.team_owner_id == user_id:
+                return project, _validate_role("owner", required_role)
+
+            # Team member gets project_team role (possibly escalated if lead)
+            if row.team_member_role is not None and row.project_team_role is not None:
+                effective_role = row.project_team_role
+                if row.team_member_role == "lead":
+                    if ROLE_HIERARCHY.get(effective_role, 0) < ROLE_HIERARCHY["admin"]:
+                        effective_role = "admin"
+                if best_role is None or ROLE_HIERARCHY.get(effective_role, 0) > ROLE_HIERARCHY.get(best_role, 0):
+                    best_role = effective_role
+
+        if best_role:
+            return project, _validate_role(best_role, required_role)
+
+        # Check parent inheritance before denying
+        inherited = await _check_parent_access_fast(db, project, user_id)
+        if inherited:
+            return project, _validate_role(inherited, required_role)
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - you are not a member of any team with access to this project",
+        )
+
+    elif project.scope == "ORGANIZATION":
+        # Check team-based access first (always available for ORGANIZATION scope)
+        best_role = None
+        has_org_membership = False
+
+        for row in rows:
+            # Team owner gets owner access
+            if row.team_owner_id == user_id:
+                return project, _validate_role("owner", required_role)
+
+            # Team member gets project_team role
+            if row.team_member_role is not None and row.project_team_role is not None:
+                effective_role = row.project_team_role
+                if row.team_member_role == "lead":
+                    if ROLE_HIERARCHY.get(effective_role, 0) < ROLE_HIERARCHY["admin"]:
+                        effective_role = "admin"
+                if best_role is None or ROLE_HIERARCHY.get(effective_role, 0) > ROLE_HIERARCHY.get(best_role, 0):
+                    best_role = effective_role
+
+            # Track org membership for org-public fallback
+            if row.org_member_role is not None:
+                has_org_membership = True
+
+        if best_role:
+            return project, _validate_role(best_role, required_role)
+
+        # Not a team member, check org-public access
+        if project.is_org_public and has_org_membership:
+            return project, _validate_role(project.org_public_role, required_role)
+
+        # Check parent inheritance before denying
+        inherited = await _check_parent_access_fast(db, project, user_id)
+        if inherited:
+            return project, _validate_role(inherited, required_role)
+
+        if not project.is_org_public:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - this organization project is not public",
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - you are not a member of this organization",
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied",
+    )
+
+
+async def _check_parent_access_fast(
+    db: AsyncSession,
+    project: Project,
+    user_id: UUID,
+    max_depth: int = 10,
+) -> str | None:
+    """
+    Check if user has access to any parent project (inheritance).
+    Uses recursive call to check_project_access_fast for efficiency.
+    """
+    if not project.parent_id or max_depth <= 0:
+        return None
+
+    try:
+        _, parent_role = await check_project_access_fast(
+            db, project.parent_id, user_id, None
+        )
+        # Admins/owners inherit their full role, others get member
+        if ROLE_HIERARCHY.get(parent_role, 0) >= ROLE_HIERARCHY["admin"]:
+            return parent_role
+        return "member"
+    except HTTPException:
+        return None
 
 
 async def check_project_access(

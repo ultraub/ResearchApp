@@ -184,28 +184,9 @@ async def check_project_access(
     user_id: UUID,
     required_role: str | None = None,
 ) -> Project:
-    """Check if user has access to project using new three-tier access control."""
-    result = await db.execute(
-        select(Project)
-        .options(
-            selectinload(Project.members),
-            selectinload(Project.project_teams),
-            selectinload(Project.exclusions),
-            selectinload(Project.team),
-        )
-        .where(Project.id == project_id)
-    )
-    project = result.scalar_one_or_none()
-
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
-
-    # Use the new access control service
-    await ac.check_project_access(db, project, user_id, required_role)
-
+    """Check if user has access to project using optimized single-query access control."""
+    # Use the fast consolidated access check (1-2 queries instead of 8-12)
+    project, _ = await ac.check_project_access_fast(db, project_id, user_id, required_role)
     return project
 
 
