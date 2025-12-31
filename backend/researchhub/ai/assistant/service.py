@@ -306,6 +306,7 @@ You are an AI assistant for a knowledge management app. Help users with projects
             tool_results = []
 
             # Process any tool calls that were collected
+            has_action_tools = False  # Track if any action tools were processed
             if pending_tool_uses:
                 for tool_use in pending_tool_uses:
                     # Record call with budget tracker
@@ -476,13 +477,8 @@ You are an AI assistant for a knowledge management app. Help users with projects
                                 content=pending_result,
                             ))
 
-                            # Stop processing - wait for user approval before continuing
-                            # This prevents duplicate action calls from being processed
-                            yield SSEEvent(
-                                event="done",
-                                data={"conversation_id": str(conversation_id)},
-                            )
-                            return
+                            # Mark that we processed action tools
+                            has_action_tools = True
 
                     except Exception as e:
                         # Handle tool execution errors
@@ -496,6 +492,11 @@ You are an AI assistant for a knowledge management app. Help users with projects
                             event="error",
                             data={"message": f"Tool error: {str(e)}"},
                         )
+
+                # If action tools were processed, stop and wait for user approval
+                # All actions are now pending - user needs to approve them before we continue
+                if has_action_tools:
+                    break
 
                 # Add assistant response to messages for context (only if there was text)
                 # Tool results are passed separately via tool_results parameter
