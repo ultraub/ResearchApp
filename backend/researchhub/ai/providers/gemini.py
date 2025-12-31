@@ -522,11 +522,12 @@ class GeminiProvider(AIProvider):
             if system_instruction:
                 generation_config.system_instruction = system_instruction
 
-            # For Gemini 3+ models, configure thinking if requested
-            # Gemini 3 Flash supports thinking_level parameter
-            is_gemini_3 = model and ("gemini-3" in model.lower() or "gemini3" in model.lower())
-            if is_gemini_3 and thinking_level:
-                # Gemini 3 thinking configuration
+            # For Gemini 2.5+ models, configure thinking if requested
+            # Gemini 2.5 and 3+ support thinking_level parameter
+            model_lower = model.lower() if model else ""
+            supports_thinking = any(x in model_lower for x in ["gemini-2.5", "gemini-3", "gemini2.5", "gemini3"])
+            if supports_thinking and thinking_level:
+                # Gemini 2.5+ thinking configuration
                 # Valid levels: 'minimal', 'low', 'medium', 'high'
                 try:
                     generation_config.thinking_config = types.ThinkingConfig(
@@ -540,7 +541,7 @@ class GeminiProvider(AIProvider):
             client = genai.Client(api_key=self._api_key)
 
             # Log which model is being used
-            logger.info("gemini_stream_request", model=model, is_gemini_3=is_gemini_3)
+            logger.info("gemini_stream_request", model=model, supports_thinking=supports_thinking)
 
             # Use streaming endpoint
             stream = await client.aio.models.generate_content_stream(
