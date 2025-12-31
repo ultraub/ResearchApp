@@ -12,6 +12,7 @@ from researchhub.models.document import Document, DocumentComment
 from researchhub.models.journal import JournalEntry, JournalEntryLink
 from researchhub.models.ai import AIPendingAction
 from researchhub.ai.assistant.queries.access import get_accessible_project_ids
+from researchhub.utils.tiptap import extract_plain_text
 
 
 class ActionExecutor:
@@ -91,14 +92,15 @@ class ActionExecutor:
 
         # Convert string description to TipTap/ProseMirror JSONB format
         description = None
+        plain_text = None
         if input.get("description"):
-            description_text = input["description"]
+            plain_text = input["description"]
             description = {
                 "type": "doc",
                 "content": [
                     {
                         "type": "paragraph",
-                        "content": [{"type": "text", "text": description_text}]
+                        "content": [{"type": "text", "text": plain_text}]
                     }
                 ]
             }
@@ -107,6 +109,7 @@ class ActionExecutor:
             project_id=UUID(input["project_id"]),
             title=input["title"],
             description=description,
+            description_text=plain_text,
             priority=input.get("priority", "medium"),
             status=input.get("status", "todo"),
             created_by_id=self.user_id,
@@ -257,14 +260,15 @@ class ActionExecutor:
 
         # Convert string description to TipTap/ProseMirror JSONB format
         description = None
+        plain_text = None
         if input.get("description"):
-            description_text = input["description"]
+            plain_text = input["description"]
             description = {
                 "type": "doc",
                 "content": [
                     {
                         "type": "paragraph",
-                        "content": [{"type": "text", "text": description_text}]
+                        "content": [{"type": "text", "text": plain_text}]
                     }
                 ]
             }
@@ -273,6 +277,7 @@ class ActionExecutor:
             project_id=UUID(input["project_id"]),
             title=input["title"],
             description=description,
+            description_text=plain_text,
             blocker_type=input.get("blocker_type", "other"),
             priority=input.get("priority", 3),
             impact_level=input.get("impact_level", "medium"),

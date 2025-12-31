@@ -19,6 +19,7 @@ from researchhub.models.project import Project
 from researchhub.models.user import User
 from researchhub.services.notification import NotificationService
 from researchhub.tasks import auto_review_document_task, generate_embedding
+from researchhub.utils.tiptap import extract_plain_text, count_words
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -207,37 +208,6 @@ def document_to_response(document: Document) -> dict:
         "created_at": document.created_at,
         "updated_at": document.updated_at,
     }
-
-
-def count_words(content: dict) -> int:
-    """Count words in TipTap content."""
-
-    def extract_text(node: dict) -> str:
-        text = ""
-        if "text" in node:
-            text += node["text"] + " "
-        if "content" in node:
-            for child in node["content"]:
-                text += extract_text(child)
-        return text
-
-    text = extract_text(content)
-    return len(text.split())
-
-
-def extract_plain_text(content: dict) -> str:
-    """Extract plain text from TipTap content for search indexing."""
-
-    def extract_text(node: dict) -> str:
-        text = ""
-        if "text" in node:
-            text += node["text"] + " "
-        if "content" in node:
-            for child in node["content"]:
-                text += extract_text(child)
-        return text
-
-    return extract_text(content).strip()
 
 
 @router.post("/", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)

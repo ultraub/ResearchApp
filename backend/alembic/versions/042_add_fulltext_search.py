@@ -98,11 +98,16 @@ def upgrade() -> None:
             sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
         )
 
-    # Blockers: title + description
+    # Blockers: title + description_text (description is JSONB)
     if not column_exists('blockers', 'search_vector'):
         op.add_column(
             'blockers',
             sa.Column('search_vector', sa.dialects.postgresql.TSVECTOR, nullable=True)
+        )
+    if not column_exists('blockers', 'description_text'):
+        op.add_column(
+            'blockers',
+            sa.Column('description_text', sa.Text, nullable=True)
         )
 
     # Create GIN indexes for efficient full-text search (idempotent)
@@ -255,12 +260,13 @@ def upgrade() -> None:
             EXECUTE FUNCTION papers_search_vector_update();
         """)
 
-    # Blockers trigger (title only - description is JSONB)
+    # Blockers trigger (uses description_text, not JSONB description)
     op.execute("""
         CREATE OR REPLACE FUNCTION blockers_search_vector_update() RETURNS trigger AS $$
         BEGIN
             NEW.search_vector :=
-                setweight(to_tsvector('english', COALESCE(NEW.title, '')), 'A');
+                setweight(to_tsvector('english', COALESCE(NEW.title, '')), 'A') ||
+                setweight(to_tsvector('english', COALESCE(NEW.description_text, '')), 'B');
             RETURN NEW;
         END
         $$ LANGUAGE plpgsql;
@@ -269,7 +275,7 @@ def upgrade() -> None:
     if not trigger_exists('blockers_search_vector_trigger', 'blockers'):
         op.execute("""
             CREATE TRIGGER blockers_search_vector_trigger
-            BEFORE INSERT OR UPDATE OF title
+            BEFORE INSERT OR UPDATE OF title, description_text
             ON blockers
             FOR EACH ROW
             EXECUTE FUNCTION blockers_search_vector_update();
@@ -316,11 +322,12 @@ def upgrade() -> None:
         WHERE search_vector IS NULL
     """)
 
-    # Blockers: title only (description is JSONB)
+    # Blockers: title + description_text
     op.execute("""
         UPDATE blockers
         SET search_vector =
-            setweight(to_tsvector('english', COALESCE(title, '')), 'A')
+            setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
+            setweight(to_tsvector('english', COALESCE(description_text, '')), 'B')
         WHERE search_vector IS NULL
     """)
 
@@ -358,3 +365,4 @@ def downgrade() -> None:
     op.drop_column('journal_entries', 'search_vector')
     op.drop_column('papers', 'search_vector')
     op.drop_column('blockers', 'search_vector')
+    op.drop_column('blockers', 'description_text')

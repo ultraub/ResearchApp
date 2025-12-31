@@ -315,6 +315,7 @@ class Task(BaseModel, EmbeddableMixin):
     # Basic info
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # TipTap rich text format
+    description_text: Mapped[str | None] = mapped_column(Text, nullable=True)  # Plain text for search
 
     # Status and priority
     status: Mapped[str] = mapped_column(
@@ -931,6 +932,7 @@ class Blocker(BaseModel):
     # Basic info (mirrors Task structure)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # TipTap rich text format
+    description_text: Mapped[str | None] = mapped_column(Text, nullable=True)  # Plain text for search
 
     # Status and priority
     status: Mapped[str] = mapped_column(

@@ -23,6 +23,7 @@ from researchhub.services.custom_field import CustomFieldService
 from researchhub.services.workflow import WorkflowService
 from researchhub.services.notification import NotificationService
 from researchhub.tasks import auto_review_for_review_task, generate_embedding
+from researchhub.utils.tiptap import extract_plain_text
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -385,6 +386,7 @@ async def create_task(
     task = Task(
         title=task_data.title,
         description=task_data.description,
+        description_text=extract_plain_text(task_data.description),
         project_id=task_data.project_id,
         status=task_data.status,
         priority=task_data.priority,
@@ -897,6 +899,10 @@ async def update_task(
             task.completed_at = datetime.now(timezone.utc)
         elif update_data["status"] != "done" and task.status == "done":
             task.completed_at = None
+
+    # If description is being updated, also update description_text for search
+    if "description" in update_data:
+        update_data["description_text"] = extract_plain_text(update_data["description"])
 
     for field, value in update_data.items():
         setattr(task, field, value)

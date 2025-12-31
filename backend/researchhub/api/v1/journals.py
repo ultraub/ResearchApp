@@ -21,6 +21,7 @@ from researchhub.models.collaboration import ProjectShare
 from researchhub.models.document import Document
 from researchhub.models.knowledge import Paper
 from researchhub.tasks import generate_embedding
+from researchhub.utils.tiptap import extract_plain_text
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -115,21 +116,6 @@ def count_words(content: dict) -> int:
 
     text = extract_text(content)
     return len(text.split())
-
-
-def extract_plain_text(content: dict) -> str:
-    """Extract plain text from TipTap content for search indexing."""
-
-    def extract_text(node: dict) -> str:
-        text = ""
-        if "text" in node:
-            text += node["text"] + " "
-        if "content" in node:
-            for child in node["content"]:
-                text += extract_text(child)
-        return text
-
-    return extract_text(content).strip()
 
 
 async def get_linked_entity_title(

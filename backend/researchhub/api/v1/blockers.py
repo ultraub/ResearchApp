@@ -18,6 +18,7 @@ from researchhub.db.session import get_db_session
 from researchhub.models.project import Project, Task, Blocker, BlockerLink, TaskAssignment
 from researchhub.models.user import User
 from researchhub.services.notification import NotificationService
+from researchhub.utils.tiptap import extract_plain_text
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -166,6 +167,7 @@ async def create_blocker(
     blocker = Blocker(
         title=blocker_data.title,
         description=blocker_data.description,
+        description_text=extract_plain_text(blocker_data.description),
         project_id=blocker_data.project_id,
         status=blocker_data.status,
         priority=blocker_data.priority,
@@ -367,6 +369,10 @@ async def update_blocker(
             is_resolving = old_status not in ("resolved", "wont_fix")
         elif update_data["status"] in ("open", "in_progress"):
             blocker.resolved_at = None
+
+    # If description is being updated, also update description_text for search
+    if "description" in update_data:
+        update_data["description_text"] = extract_plain_text(update_data["description"])
 
     for field, value in update_data.items():
         setattr(blocker, field, value)
