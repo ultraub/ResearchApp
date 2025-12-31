@@ -255,13 +255,12 @@ def upgrade() -> None:
             EXECUTE FUNCTION papers_search_vector_update();
         """)
 
-    # Blockers trigger
+    # Blockers trigger (title only - description is JSONB)
     op.execute("""
         CREATE OR REPLACE FUNCTION blockers_search_vector_update() RETURNS trigger AS $$
         BEGIN
             NEW.search_vector :=
-                setweight(to_tsvector('english', COALESCE(NEW.title, '')), 'A') ||
-                setweight(to_tsvector('english', COALESCE(NEW.description, '')), 'B');
+                setweight(to_tsvector('english', COALESCE(NEW.title, '')), 'A');
             RETURN NEW;
         END
         $$ LANGUAGE plpgsql;
@@ -270,7 +269,7 @@ def upgrade() -> None:
     if not trigger_exists('blockers_search_vector_trigger', 'blockers'):
         op.execute("""
             CREATE TRIGGER blockers_search_vector_trigger
-            BEFORE INSERT OR UPDATE OF title, description
+            BEFORE INSERT OR UPDATE OF title
             ON blockers
             FOR EACH ROW
             EXECUTE FUNCTION blockers_search_vector_update();
@@ -317,11 +316,11 @@ def upgrade() -> None:
         WHERE search_vector IS NULL
     """)
 
+    # Blockers: title only (description is JSONB)
     op.execute("""
         UPDATE blockers
         SET search_vector =
-            setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
-            setweight(to_tsvector('english', COALESCE(description, '')), 'B')
+            setweight(to_tsvector('english', COALESCE(title, '')), 'A')
         WHERE search_vector IS NULL
     """)
 
