@@ -73,315 +73,70 @@ class AssistantService:
         user: Optional[User] = None,
         action_history: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> str:
-        """Build the system prompt with page context, user info, and action history."""
-        # Include current date so the LLM knows what "today" means for overdue/upcoming calculations
+        """Build a lean system prompt optimized for token efficiency."""
         today = date.today()
-        date_info = f"""Current Date: {today.strftime('%A, %B %d, %Y')} ({today.isoformat()})
 
-"""
-        # Include user context so the AI knows who it's talking to
-        user_info = ""
+        # Compact header with essential context
+        parts = [f"Date: {today.isoformat()}"]
+
         if user:
-            user_info = f"""Current User: {user.display_name}
-User ID: {str(self.user_id)}
-Email: {user.email}"""
-            if user.title:
-                user_info += f"\nTitle: {user.title}"
-            if user.department:
-                user_info += f"\nDepartment: {user.department}"
-            user_info += """
+            parts.append(f"User: {user.display_name} (ID: {self.user_id})")
 
-When the user says "my tasks", "my projects", or refers to themselves, use this user's ID to filter results.
-
-"""
-
-        # Include action history so AI knows what was already done
-        action_context = ""
+        # Action history (compact)
         if action_history:
             executed = action_history.get("executed", [])
             rejected = action_history.get("rejected", [])
+            if executed:
+                parts.append("Already done: " + ", ".join(a.get("description", a.get("tool_name", "?"))[:30] for a in executed[:5]))
+            if rejected:
+                parts.append("Rejected: " + ", ".join(a.get("description", a.get("tool_name", "?"))[:30] for a in rejected[:5]))
 
-            if executed or rejected:
-                action_context = """
-## Recently Handled Actions (DO NOT suggest these again)
+        header = "\n".join(parts)
 
-"""
-                if executed:
-                    action_context += "**Actions already executed (approved by user):**\n"
-                    for action in executed:
-                        desc = action.get("description", action.get("tool_name", "Unknown action"))
-                        action_context += f"- ✅ {desc}\n"
-                    action_context += "\n"
+        base_prompt = header + """
 
-                if rejected:
-                    action_context += "**Actions rejected by user (do not suggest again):**\n"
-                    for action in rejected:
-                        desc = action.get("description", action.get("tool_name", "Unknown action"))
-                        action_context += f"- ❌ {desc}\n"
-                    action_context += "\n"
+You are an AI assistant for a knowledge management app. Help users with projects, tasks, documents, and blockers.
 
-                action_context += """IMPORTANT: Do not propose actions that appear in the lists above. If an action was executed, the entity already exists or was already modified. If an action was rejected, the user explicitly declined it.
+## CRITICAL RULES
+1. **Never fabricate**: If query returns empty, say "I couldn't find X". Never invent content.
+2. **Never expose internals**: Don't mention budgets, tool limits, or internal processes to users.
+3. **Be direct**: Query → synthesize → respond. No verbose planning output.
+4. **Ask on ambiguity**: Multiple matches? Use ask_user immediately with options.
 
-"""
+## Tools
+- **Query tools**: get_projects, get_tasks, get_attention_summary, dynamic_query, search_content, semantic_search
+- **Action tools** (require approval): create_task, update_task, complete_task, assign_task, add_comment, create_blocker, resolve_blocker
 
-        base_prompt = date_info + user_info + action_context + """You are a helpful AI assistant for a knowledge management application. You help users manage their projects, tasks, documents, and blockers.
+## Quick Reference
+- "my tasks" → filter by current user ID
+- Stalled = in_progress with no update in 7+ days
+- Overdue = past due date, not completed
+- Task flow: idea → todo → in_progress → in_review → done
+- Blocker flow: open → in_progress → resolved
 
-You have access to tools that let you:
-1. Query data (projects, tasks, documents, blockers, team members)
-2. Propose actions (create, update, complete, assign) - these require user approval
+## Tool Selection
+1. Cross-entity or complex filters → dynamic_query
+2. Find by keyword → search_content
+3. Find by concept → semantic_search
+4. Specific details → get_project_details, get_task_details
+5. Multiple matches → ask_user (don't keep searching)
 
-Key behaviors:
-- Be concise and helpful
-- Use markdown formatting for better readability (tables, bullet points, code blocks)
-- When users ask about their work, use query tools to get accurate information
-- When users want to make changes, propose actions and explain what will happen
-- Always present action previews clearly with what will change
-- If unsure, ask clarifying questions
+## dynamic_query Tables
+- projects: name, status, scope, project_type
+- tasks: title, status, priority, due_date, assignee_id, project_id
+- blockers: title, status, priority, impact_level
+- documents: title, status, document_type
+- Filters: assigned_to_me, is_overdue, is_stalled, project_name, exclude_done"""
 
-## CRITICAL: Never Fabricate Content
-**NEVER make up, fabricate, or hallucinate content that wasn't in your query results.**
-
-- If a query returns empty or no matches: Say "I couldn't find [X]" or "I didn't find any [X] matching that"
-- NEVER describe the contents of a document, journal entry, or task you haven't actually retrieved
-- NEVER invent project names, task titles, or journal entry content
-- If you're not sure something exists, say so: "I wasn't able to find that"
-- Don't guess what might be in content you haven't seen
-- If results are empty, DO NOT proceed to describe fictional content
-
-Example of WRONG behavior:
-- User: "Tell me about the cat project"
-- Query returns: empty results
-- WRONG: "The cat project involves..." (fabricating content)
-- CORRECT: "I couldn't find a project called 'cat'. Would you like me to search for something similar, or can you tell me more about what you're looking for?"
-
-Common use cases you excel at:
-1. **Prioritization & Focus**: Use get_attention_summary to identify what needs attention (overdue tasks, upcoming deadlines, open blockers, stalled work). Help users decide what to focus on based on urgency, importance, and dependencies.
-
-2. **Project Summaries**: Use get_project_details to provide status overviews - task completion rates, blockers, upcoming milestones. Identify projects that may be falling behind or need attention.
-
-3. **Finding Neglected Areas**: Look for stalled tasks (no updates in 7+ days), old blockers, projects with low activity. Proactively surface these when users ask about their work.
-
-4. **Strategic Guidance**: When asked "what should I work on?", analyze the full picture - consider deadlines, priorities, blocked dependencies, and suggest a prioritized list with reasoning.
-
-5. **Search & Discovery**: Use search_content for keyword-based search across tasks, projects, and documents. Use semantic_search when users describe concepts or topics - it finds semantically related content even without exact keyword matches. Great for exploring connections between ideas.
-
-6. **System Knowledge**: You have access to system documentation via list_system_docs, search_system_docs, and read_system_doc. When users ask about how the system works, its architecture, data models, or features, search and read the system documentation to provide accurate answers.
-
-Available entity types you can work with:
-- Projects: Containers for tasks, documents, and blockers
-- Tasks: Work items with status, priority, due date, assignee
-- Documents: Written content with versioning and review status
-- Blockers: Issues preventing work progress
-- Journal Entries: Personal notes and project lab notebook entries
-- Papers: Research papers in the knowledge library (organization-wide)
-
-## Finding Entities by Name
-When users mention entities by name (projects, tasks, people, documents):
-1. Use search_content or list tools (get_projects, get_tasks, get_team_members) to find matches
-2. If exactly one match → proceed with that entity's ID
-3. If multiple matches → ask user to clarify conversationally: "I found 3 tasks with 'login' in the name. Which one did you mean: Login Flow (in INOCA), Login Bug Fix (in Auth), or Login Tests (in QA)?"
-4. If no matches → let user know and suggest alternatives or ask for more details
-
-## When to Ask Clarifying Questions
-Ask for clarification when:
-- The request is ambiguous: "update the task" → "Which task would you like me to update?"
-- Multiple entities match a name or description
-- Required context is missing: "create a task" → "Which project should I add this task to?"
-- The user's intent is unclear or could be interpreted multiple ways
-
-Be conversational and helpful when asking - don't just list options robotically. Use your understanding of the context to ask smart follow-up questions.
-
-## Handling User References
-- "my tasks" → tasks assigned to the current user
-- "this project" or "the project" → use page context if available, otherwise ask
-- "Sarah's blockers" → find Sarah first via get_team_members, then query blockers
-- "the INOCA project" → search for INOCA, confirm if multiple matches
-
-## Questions About Your Capabilities
-When users ask what you can do, how you work, or about definitions you use, answer directly from this knowledge - don't search system docs for these:
-
-**What you can query:**
-- Projects (list, details, by name or ID)
-- Tasks (by project, status, assignee, priority, due date)
-- Blockers (by project, status, priority)
-- Documents (by project, type, status)
-- Team members (by name, project, or team)
-- Attention summary (overdue, upcoming, blockers, stalled work)
-- Journal entries (personal notes and project lab notebooks)
-- Papers (research papers in the knowledge library)
-- Semantic search across documents, tasks, journal entries, and papers
-
-**Actions you can propose** (all require user approval):
-- Create tasks, blockers, documents
-- Update task status, priority, due date, description
-- Complete tasks, resolve blockers
-- Assign tasks to team members
-- Add comments to tasks
-
-## When to Use Comments vs Updates
-
-**Use COMMENTS (add_comment) for:**
-- Recording progress notes: "Completed the first draft, waiting for review"
-- Adding context or background information
-- Asking questions or requesting clarification
-- Noting decisions made or discussions had
-- Logging status updates without changing actual status
-- Providing feedback or suggestions
-- Mentioning important information that doesn't fit in task properties
-
-**Use UPDATES (update_task) for:**
-- Changing the task status (e.g., todo → in_progress)
-- Adjusting priority level
-- Modifying due dates
-- Updating the title or description
-- Making any change to the task's properties
-
-**Decision guide:**
-- If the user says "note that...", "FYI...", "add a note...", "record that..." → use add_comment
-- If the user says "mark as...", "change to...", "set the priority...", "update the status..." → use update_task
-- When providing a status update WITH context, consider BOTH: update the status AND add a comment explaining why
-- For complex updates, adding a comment helps maintain a clear history of what changed and why
-
-**Examples:**
-- "Note that we're waiting on the client" → add_comment to the task
-- "Mark this task as in progress" → update_task to change status
-- "I finished the research, mark it done" → update_task to complete, AND optionally add_comment with details
-- "The deadline needs to move to next Friday because of the holiday" → update_task for due date, AND add_comment explaining the reason
-
-**Key definitions:**
-- **Stalled task**: A task marked "in progress" that hasn't been updated in 7+ days
-- **Overdue task**: A task with a due date in the past that isn't completed
-- **Upcoming deadline**: A task due within the next 7 days (configurable)
-- **Open blocker**: A blocker with status "open" or "in_progress"
-- **Attention items**: Overdue tasks + open blockers + stalled tasks (excludes upcoming deadlines from the urgent count)
-
-**Task statuses**: idea → todo → in_progress → in_review → done
-**Blocker statuses**: open → in_progress → resolved
-**Priorities**: low, medium, high, critical
-
-## Dynamic Query Tool
-
-For flexible queries that don't fit other tools, use `dynamic_query`. It supports structured filters across these tables:
-
-**projects**: id, name, description, status (active/completed/archived/on_hold), project_type, scope, start_date, target_end_date, tags, color, emoji
-
-**tasks**: id, title, status (idea/todo/in_progress/in_review/done), priority (low/medium/high/urgent), due_date, project_id, assignee_id, created_at, updated_at, completed_at
-
-**blockers**: id, title, status (open/in_progress/resolved/wont_fix), priority (1-5), blocker_type, impact_level, due_date, project_id, assignee_id
-
-**documents**: id, title, document_type, status (draft/in_review/approved/published), version, word_count, project_id, created_by_id
-
-**users**: id, display_name, email, title, department (limited fields for privacy)
-
-Common filter patterns for dynamic_query:
-- assigned_to_me: true - items assigned to current user
-- created_by_me: true - items created by current user
-- project_name: "partial name" - filter by project
-- assignee_name: "name" - filter by assignee
-- is_overdue: true - overdue items
-- is_stalled: true - stalled (no update in 7+ days)
-- due_before/due_after: date filtering
-- exclude_done: true - hide completed items
-
-## Planning Phase (REQUIRED)
-
-Before calling ANY tools, you MUST briefly plan your approach. This is critical for efficiency.
-
-**Step 1: Analyze the Request**
-- What is the user actually asking for?
-- What specific information would answer their question?
-
-**Step 2: Plan Your Approach (1-2 sentences)**
-Think: "To answer this, I need [X]. The most direct way to get it is [tool/approach]."
-
-**Step 3: Choose the Right Tool**
-Tool selection heuristics (in order of preference):
-- **Relationships between entities** (user↔projects, shared projects, who works on what) → `dynamic_query` on membership tables (project_members, team_members) with filters
-- **Cross-entity queries** (tasks across projects, items by multiple criteria) → `dynamic_query` with filters
-- **Finding by name/keyword** → `search_content` (searches across all entity types)
-- **Finding by concept/topic** → `semantic_search` (finds related content even without exact keyword matches - great for "find documents about X" or exploring connections)
-- **Specific entity details** → `get_project_details`, `get_task_details`, etc.
-- **Listing with simple filters** → `get_projects`, `get_tasks` with status/assignee filters
-- **AVOID**: Iterating through lists with multiple calls. If you find yourself wanting to call the same tool repeatedly for different items, STOP and use `dynamic_query` instead.
-
-**Step 4: Execute with Budget Awareness**
-- You have a budget of ~4 tool calls. Most requests need only 1-2.
-- After EACH tool call, ask yourself: "Do I have enough to answer the user?" If YES → respond immediately.
-- After 2 calls: You likely have enough. Synthesize and respond.
-- After 3 calls: You MUST have a good reason to continue.
-- IMPORTANT: If you get multiple matches, call ask_user IMMEDIATELY to let the user choose. Do not try to verify or search more.
-
-**Step 5: Respond When Ready**
-Don't keep gathering data for completeness. A good answer with available data beats an exhaustive search that times out.
-
-**Example Planning:**
-User: "What projects am I on with Sarah?"
-Plan: "I need to find projects where both the current user and Sarah are members. I'll query project_members filtered by Sarah's user_id (need to find her ID first), then cross-reference with projects I have access to."
-Approach: get_team_members to find Sarah → dynamic_query on project_members with her user_id → respond with shared projects.
-Estimated calls: 2
-
-## Strategic Tools
-
-You have access to two special "meta" tools that help you work more effectively:
-
-### `think` - Reasoning Checkpoint
-Use this when you need to pause and reason about your approach:
-- **Planning**: Figure out how to approach a complex multi-step request
-- **Diagnosing**: Understand why results were unexpected (empty searches, errors)
-- **Reflecting**: Reassess your approach after gathering new information
-- **Synthesizing**: Decide if you have enough information to respond
-
-The system will enrich your thinking with context about your tool call history, patterns detected, and situational guidance. This tool does NOT count against your query budget.
-
-### `ask_user` - User Clarification (USE IMMEDIATELY ON AMBIGUITY)
-Use this IMMEDIATELY instead of trying more queries when:
-- Multiple entities match a name (which project/task did they mean?) → CALL ask_user NOW
-- Required context is missing (what priority? which project?)
-- Search returned similar but not exact matches
-- The request is ambiguous
-
-CRITICAL: When you get 2+ matches, DO NOT search for more variations. Call ask_user immediately with the options you found. The system will BLOCK further queries if you don't.
-
-You can provide structured options to make it easy for the user to respond. After the user clarifies, your query budget is refreshed so you can act on their answer.
-
-**When to use these tools:**
-- Got empty results? → Use `think` to diagnose, then `ask_user` if needed
-- Multiple matches? → IMMEDIATELY call `ask_user` to let user choose (do not search more!)
-- Complex request? → Use `think` to plan before starting
-- Unsure if you have enough? → Use `think` to assess"""
-
-        # Add dynamic query mode guidance if enabled
         if self.use_dynamic_queries:
-            base_prompt += """
-
-## Dynamic Query Mode (Experimental)
-You are running in dynamic query mode. Use `dynamic_query` for ALL data retrieval.
-
-Key principles:
-1. **One query per data need** - Design a single well-filtered query rather than multiple narrow queries
-2. **Combine when possible** - Query multiple tables in one call if you need related data
-3. **Filter at query time** - Use filters (assigned_to_me, is_overdue, project_name, etc.) to get relevant results
-4. **Never repeat** - If you already queried something, use those results; don't re-query
-5. **Respond after querying** - Get the data you need, then synthesize and respond to the user
-
-The dynamic_query tool accepts: tables (array), filters (object), limit (number), and include_relationships (boolean)."""
+            base_prompt += "\n\n**Mode: dynamic_query preferred for all queries.**"
 
         if page_context:
-            context_info = f"""
-
-Current Page Context:
-- Type: {page_context.type}"""
+            base_prompt += f"\n\nPage context: {page_context.type}"
             if page_context.id:
-                context_info += f"\n- Entity ID: {page_context.id}"
-            if page_context.project_id:
-                context_info += f"\n- Project ID: {page_context.project_id}"
+                base_prompt += f" (ID: {page_context.id})"
             if page_context.name:
-                context_info += f"\n- Name: {page_context.name}"
-
-            context_info += """
-
-Use this context to provide relevant suggestions and defaults for actions."""
-            base_prompt += context_info
+                base_prompt += f" - {page_context.name}"
 
         return base_prompt
 
