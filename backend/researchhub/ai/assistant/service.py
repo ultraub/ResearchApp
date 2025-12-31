@@ -92,6 +92,9 @@ class AssistantService:
             if rejected:
                 action_list = ", ".join(a.get("description", a.get("tool_name", "?"))[:40] for a in rejected[:5])
                 parts.append(f"REJECTED ACTIONS (don't suggest again): {action_list}")
+            # Explicit instruction to prevent re-proposing
+            if executed or rejected:
+                parts.append("Do not re-propose actions from these lists.")
 
         header = "\n".join(parts)
 
