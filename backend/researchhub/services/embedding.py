@@ -18,7 +18,7 @@ from researchhub.config import get_settings
 from researchhub.models.document import Document
 from researchhub.models.journal import JournalEntry
 from researchhub.models.knowledge import Paper
-from researchhub.models.project import Task
+from researchhub.models.project import Project, Task
 
 logger = structlog.get_logger()
 
@@ -28,6 +28,7 @@ EMBEDDABLE_ENTITIES = {
     "task": Task,
     "journal_entry": JournalEntry,
     "paper": Paper,
+    "project": Project,
 }
 
 
@@ -212,6 +213,8 @@ class EmbeddingService:
             return self._extract_journal_entry_text(entity)
         elif entity_type == "paper":
             return self._extract_paper_text(entity)
+        elif entity_type == "project":
+            return self._extract_project_text(entity)
         else:
             logger.warning(
                 "unknown_entity_type_for_embedding",
@@ -319,6 +322,25 @@ class EmbeddingService:
         # Include tags
         if paper.tags:
             parts.append(f"Tags: {', '.join(paper.tags)}")
+
+        if not parts:
+            return None
+
+        return "\n\n".join(parts)
+
+    def _extract_project_text(self, project: Project) -> str | None:
+        """Extract embeddable text from a Project."""
+        parts = []
+
+        if project.name:
+            parts.append(project.name)
+
+        if project.description:
+            parts.append(project.description)
+
+        # Include project type for context
+        if project.project_type and project.project_type != "general":
+            parts.append(f"Type: {project.project_type}")
 
         if not parts:
             return None

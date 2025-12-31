@@ -18,6 +18,7 @@ from researchhub.services.recurring_task import RecurringTaskService
 from researchhub.services.custom_field import CustomFieldService
 from researchhub.services.workflow import WorkflowService
 from researchhub.services import access_control as ac
+from researchhub.tasks import generate_embedding
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -358,6 +359,19 @@ async def create_project(
 
     await db.commit()
     await db.refresh(project)
+
+    # Generate embedding for semantic search
+    try:
+        generate_embedding.delay(
+            entity_type="project",
+            entity_id=str(project.id),
+        )
+    except Exception as e:
+        logger.warning(
+            "embedding_generation_scheduled_failed",
+            project_id=str(project.id),
+            error=str(e),
+        )
 
     logger.info(
         "Project created",
@@ -724,6 +738,20 @@ async def update_project(
 
     await db.commit()
     await db.refresh(project)
+
+    # Regenerate embedding if name or description changed
+    if "name" in update_data or "description" in update_data:
+        try:
+            generate_embedding.delay(
+                entity_type="project",
+                entity_id=str(project_id),
+            )
+        except Exception as e:
+            logger.warning(
+                "embedding_generation_scheduled_failed",
+                project_id=str(project_id),
+                error=str(e),
+            )
 
     logger.info("Project updated", project_id=str(project_id))
 

@@ -37,11 +37,12 @@ class SemanticSearchTool(QueryTool):
 
     @property
     def description(self) -> str:
-        return """Search for documents, tasks, journal entries, and papers semantically related to a query.
+        return """Search for projects, documents, tasks, journal entries, and papers semantically related to a query.
 Unlike keyword search (search_content), this finds conceptually similar content
 even when exact words don't match.
 
 Best used for:
+- Finding projects related to a research area or topic
 - Finding documents about a topic (even with different terminology)
 - Discovering related tasks and work items
 - Finding relevant journal entries and lab notes
@@ -65,7 +66,7 @@ for comprehensive keyword-based search."""
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["document", "task", "journal_entry", "paper"],
+                        "enum": ["project", "document", "task", "journal_entry", "paper"],
                     },
                     "description": "Filter to specific entity types. If not provided, searches all entity types.",
                 },
@@ -100,7 +101,7 @@ for comprehensive keyword-based search."""
     ) -> Dict[str, Any]:
         """Execute semantic search and return results."""
         query_text = input["query"]
-        entity_types = input.get("entity_types", ["document", "task", "journal_entry", "paper"])
+        entity_types = input.get("entity_types", ["project", "document", "task", "journal_entry", "paper"])
         project_id = input.get("project_id")
         limit = min(input.get("limit", 10), 30)
         similarity_threshold = input.get("similarity_threshold", 0.5)
@@ -128,6 +129,18 @@ for comprehensive keyword-based search."""
             }
 
         results: Dict[str, List[Dict[str, Any]]] = {}
+
+        # Search projects (requires project access)
+        if "project" in entity_types and accessible_project_ids:
+            project_results = await self._search_projects(
+                db=db,
+                query_embedding=query_embedding,
+                accessible_project_ids=accessible_project_ids,
+                limit=limit,
+                similarity_threshold=similarity_threshold,
+            )
+            if project_results:
+                results["projects"] = project_results
 
         # Search documents (requires project access)
         if "document" in entity_types and accessible_project_ids:
@@ -190,6 +203,56 @@ for comprehensive keyword-based search."""
             "total_count": total_count,
             "search_type": "semantic",
         }
+
+    async def _search_projects(
+        self,
+        db: AsyncSession,
+        query_embedding: List[float],
+        accessible_project_ids: List[UUID],
+        limit: int,
+        similarity_threshold: float,
+    ) -> List[Dict[str, Any]]:
+        """Search projects by semantic similarity."""
+        distance_expr = Project.embedding.cosine_distance(query_embedding)
+
+        # Base query with access control
+        query = (
+            select(Project, distance_expr.label("distance"))
+            .options(selectinload(Project.team))
+            .where(
+                and_(
+                    Project.id.in_(accessible_project_ids),
+                    Project.embedding.isnot(None),
+                    Project.status != "archived",
+                )
+            )
+        )
+
+        # Order by similarity (ascending distance)
+        query = query.order_by(distance_expr).limit(limit * 2)
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        # Filter by similarity threshold and format results
+        projects = []
+        for project, distance in rows:
+            similarity = 1 - distance
+            if similarity >= similarity_threshold:
+                projects.append({
+                    "id": str(project.id),
+                    "name": project.name,
+                    "description": project.description[:200] + "..." if project.description and len(project.description) > 200 else project.description,
+                    "status": project.status,
+                    "project_type": project.project_type,
+                    "team_name": project.team.name if project.team else None,
+                    "similarity_score": round(similarity, 3),
+                    "type": "project",
+                })
+                if len(projects) >= limit:
+                    break
+
+        return projects
 
     async def _search_documents(
         self,
@@ -478,7 +541,7 @@ Use this when you need thorough coverage and aren't sure which search type is be
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["task", "document", "journal_entry", "paper"],
+                        "enum": ["project", "task", "document", "journal_entry", "paper"],
                     },
                     "description": "Filter to specific entity types",
                 },
@@ -508,7 +571,7 @@ Use this when you need thorough coverage and aren't sure which search type is be
         from researchhub.ai.assistant.queries.search import SearchContentTool
 
         query_text = input["query"]
-        entity_types = input.get("entity_types", ["task", "document", "journal_entry", "paper"])
+        entity_types = input.get("entity_types", ["project", "task", "document", "journal_entry", "paper"])
         project_id = input.get("project_id")
         limit = min(input.get("limit", 15), 30)
 

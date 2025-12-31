@@ -29,8 +29,12 @@ if TYPE_CHECKING:
     from researchhub.models.user import User
 
 
-class Project(BaseModel):
-    """Research project - flat by default, optional subprojects."""
+class Project(BaseModel, EmbeddableMixin):
+    """Research project - flat by default, optional subprojects.
+
+    Includes EmbeddableMixin for vector search capabilities.
+    The embedding is generated from name + description + project_type.
+    """
 
     __tablename__ = "projects"
 
