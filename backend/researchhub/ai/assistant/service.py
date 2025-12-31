@@ -82,14 +82,16 @@ class AssistantService:
         if user:
             parts.append(f"User: {user.display_name} (ID: {self.user_id})")
 
-        # Action history (compact)
+        # Action history - show what was already done in this session
         if action_history:
             executed = action_history.get("executed", [])
             rejected = action_history.get("rejected", [])
             if executed:
-                parts.append("Already done: " + ", ".join(a.get("description", a.get("tool_name", "?"))[:30] for a in executed[:5]))
+                action_list = ", ".join(a.get("description", a.get("tool_name", "?"))[:40] for a in executed[:5])
+                parts.append(f"COMPLETED ACTIONS (user already approved): {action_list}")
             if rejected:
-                parts.append("Rejected: " + ", ".join(a.get("description", a.get("tool_name", "?"))[:30] for a in rejected[:5]))
+                action_list = ", ".join(a.get("description", a.get("tool_name", "?"))[:40] for a in rejected[:5])
+                parts.append(f"REJECTED ACTIONS (don't suggest again): {action_list}")
 
         header = "\n".join(parts)
 
@@ -104,6 +106,7 @@ You are an AI assistant for a knowledge management app. Help users with projects
 4. **Ask on ambiguity**: Multiple matches? Use ask_user immediately with options.
 5. **One action at a time**: Only call ONE action tool per response. Wait for user approval before next action.
 6. **No duplicate calls**: Never call the same tool twice in one response.
+7. **Check COMPLETED ACTIONS**: If actions are listed above as completed, acknowledge them and continue with any remaining work the user requested.
 
 ## Tools
 - **Query tools**: get_projects, get_tasks, get_attention_summary, dynamic_query, search_content, semantic_search
@@ -454,14 +457,23 @@ You are an AI assistant for a knowledge management app. Help users with projects
                                 },
                             )
 
+                            # Build the pending approval result
+                            pending_result = {
+                                "status": "pending_approval",
+                                "action_id": str(pending_action.id),
+                                "message": f"Action '{preview.description}' is pending user approval. The user will see a preview of the changes.",
+                            }
+
+                            # Emit tool result event so frontend can track it
+                            yield SSEEvent(
+                                event="tool_result",
+                                data=pending_result,
+                            )
+
                             # Tell the LLM the action is pending approval
                             tool_results.append(ToolResult(
                                 tool_use_id=tool_use.id,
-                                content={
-                                    "status": "pending_approval",
-                                    "action_id": str(pending_action.id),
-                                    "message": f"Action '{preview.description}' is pending user approval. The user will see a preview of the changes.",
-                                },
+                                content=pending_result,
                             ))
 
                             # Stop processing - wait for user approval before continuing
@@ -696,12 +708,16 @@ Would you like to try rephrasing your question?"""
         - What actions were already approved and executed (don't suggest again)
         - What actions were rejected by the user (don't suggest again)
 
+        NOTE: We intentionally do NOT filter by conversation_id. The AI should
+        know about ALL recent actions for this user, even across conversations.
+        This prevents duplicate actions when users start new conversations.
+
         Returns:
             Dict with 'executed' and 'rejected' lists of actions
         """
         from sqlalchemy import select, or_
 
-        # Get actions from the last hour for this user
+        # Get actions from the last hour for this user (regardless of conversation)
         cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
 
         query = (
@@ -712,12 +728,9 @@ Would you like to try rephrasing your question?"""
                 AIPendingAction.status == "rejected",
             ))
             .where(AIPendingAction.created_at >= cutoff)
+            .order_by(AIPendingAction.created_at.desc())
+            .limit(limit)
         )
-
-        if conversation_id:
-            query = query.where(AIPendingAction.conversation_id == conversation_id)
-
-        query = query.order_by(AIPendingAction.created_at.desc()).limit(limit)
 
         result = await self.db.execute(query)
         actions = result.scalars().all()
