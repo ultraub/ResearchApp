@@ -1,10 +1,12 @@
 """Tool registry for the AI Assistant.
 
 Defines all available tools (queries and actions) that the AI can call.
+Supports Tier 1 (always available) and Tier 2 (loaded on demand) tools.
 """
 
+import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 from uuid import UUID
 
 from researchhub.ai.providers.base import ToolDefinition
@@ -12,6 +14,45 @@ from researchhub.ai.providers.base import ToolDefinition
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
     from researchhub.ai.assistant.schemas import ActionPreview
+
+
+# Tier 2 tool triggers - keywords that indicate which tools should be loaded
+TIER2_TRIGGERS: Dict[str, List[str]] = {
+    # Team/collaboration tools
+    "team_activity": ["team activity", "what's everyone", "team updates", "recent activity"],
+    "workload": ["workload", "who has capacity", "bandwidth", "availability"],
+    "collaborators": ["collaborators", "who worked on", "who contributed"],
+
+    # Journal tools
+    "journal": ["journal", "daily log", "reflection", "notes for today", "diary"],
+
+    # System documentation tools
+    "system_docs": ["help", "how do i", "documentation", "guide", "tutorial", "learn how"],
+
+    # Dynamic query (complex cross-entity queries)
+    "dynamic_query": ["complex query", "custom filter", "advanced search", "sql-like"],
+}
+
+
+def detect_tier2_tools(user_message: str) -> Set[str]:
+    """Detect which Tier 2 tool categories to load based on user message.
+
+    Args:
+        user_message: The user's message to analyze
+
+    Returns:
+        Set of Tier 2 tool category names to load
+    """
+    tools_to_load: Set[str] = set()
+    message_lower = user_message.lower()
+
+    for tool_category, triggers in TIER2_TRIGGERS.items():
+        for trigger in triggers:
+            if trigger in message_lower:
+                tools_to_load.add(tool_category)
+                break  # Found a match for this category, move to next
+
+    return tools_to_load
 
 
 class BaseTool(ABC):
@@ -182,14 +223,98 @@ class ToolRegistry:
         """Get all action tools."""
         return list(self._action_tools.values())
 
+    def load_tier2_tools(self, categories: Set[str]) -> List[str]:
+        """Dynamically load Tier 2 tools based on detected categories.
 
-def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
+        This method is called when user message triggers suggest additional tools
+        should be made available. Tools are only loaded once (idempotent).
+
+        Args:
+            categories: Set of Tier 2 category names to load
+
+        Returns:
+            List of tool names that were newly loaded
+        """
+        loaded: List[str] = []
+
+        if "team_activity" in categories:
+            if "get_team_activity" not in self._query_tools:
+                from researchhub.ai.assistant.queries.collaboration import GetTeamActivityTool
+                tool = GetTeamActivityTool()
+                self._query_tools[tool.name] = tool
+                loaded.append(tool.name)
+
+            if "get_recent_activity" not in self._query_tools:
+                from researchhub.ai.assistant.queries.collaboration import GetRecentActivityTool
+                tool = GetRecentActivityTool()
+                self._query_tools[tool.name] = tool
+                loaded.append(tool.name)
+
+        if "workload" in categories:
+            if "get_user_workload" not in self._query_tools:
+                from researchhub.ai.assistant.queries.collaboration import GetUserWorkloadTool
+                tool = GetUserWorkloadTool()
+                self._query_tools[tool.name] = tool
+                loaded.append(tool.name)
+
+        if "collaborators" in categories:
+            if "get_collaborators" not in self._query_tools:
+                from researchhub.ai.assistant.queries.collaboration import GetCollaboratorsTool
+                tool = GetCollaboratorsTool()
+                self._query_tools[tool.name] = tool
+                loaded.append(tool.name)
+
+        if "journal" in categories:
+            if "create_journal_entry" not in self._action_tools:
+                from researchhub.ai.assistant.actions.journal import (
+                    CreateJournalEntryTool,
+                    UpdateJournalEntryTool,
+                    LinkJournalEntryTool,
+                )
+                for tool_cls in [CreateJournalEntryTool, UpdateJournalEntryTool, LinkJournalEntryTool]:
+                    tool = tool_cls()
+                    self._action_tools[tool.name] = tool
+                    loaded.append(tool.name)
+
+        if "system_docs" in categories:
+            if "list_system_docs" not in self._query_tools:
+                from researchhub.ai.assistant.queries.system_docs import (
+                    ListSystemDocsTool,
+                    SearchSystemDocsTool,
+                    ReadSystemDocTool,
+                )
+                for tool_cls in [ListSystemDocsTool, SearchSystemDocsTool, ReadSystemDocTool]:
+                    tool = tool_cls()
+                    self._query_tools[tool.name] = tool
+                    loaded.append(tool.name)
+
+        if "dynamic_query" in categories:
+            if "dynamic_query" not in self._query_tools:
+                from researchhub.ai.assistant.queries.dynamic import DynamicQueryTool
+                tool = DynamicQueryTool()
+                self._query_tools[tool.name] = tool
+                loaded.append(tool.name)
+
+        return loaded
+
+    def get_loaded_tool_names(self) -> List[str]:
+        """Get names of all currently loaded tools."""
+        return list(self._query_tools.keys()) + list(self._action_tools.keys())
+
+
+def create_default_registry(
+    use_dynamic_queries: bool = False,
+    use_unified_tools: bool = True,
+) -> ToolRegistry:
     """Create a registry with all default tools.
 
     Args:
         use_dynamic_queries: If True, disables specialized query tools
             (get_projects, get_tasks, etc.) to force use of dynamic_query.
             Useful for testing the dynamic query tool's capabilities.
+        use_unified_tools: If True, uses consolidated tools (search, get_details,
+            get_items) instead of individual query tools. Reduces tool count
+            from ~38 to ~18 for better LLM tool selection accuracy.
     """
     from researchhub.ai.assistant.queries.projects import (
         GetProjectsTool,
@@ -227,6 +352,11 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
         ThinkTool,
         AskUserTool,
     )
+    from researchhub.ai.assistant.queries.unified import (
+        UnifiedSearchTool,
+        GetDetailsTool,
+        GetItemsTool,
+    )
 
     from researchhub.ai.assistant.actions.tasks import (
         CreateTaskTool,
@@ -254,12 +384,36 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
         UpdateJournalEntryTool,
         LinkJournalEntryTool,
     )
+    from researchhub.ai.assistant.actions.unified import (
+        UnifiedCreateTool,
+        UnifiedUpdateTool,
+        CompleteTool as UnifiedCompleteTool,
+    )
 
     registry = ToolRegistry()
 
-    # Register query tools
-    # These specialized tools can be replaced by dynamic_query
-    if not use_dynamic_queries:
+    # Register query tools based on mode
+    if use_unified_tools:
+        # Consolidated tools - reduces tool count for better LLM accuracy
+        # Based on research: optimal performance at 15-20 tools
+        registry.register_query(UnifiedSearchTool())  # Combines search_content, semantic, hybrid
+        registry.register_query(GetDetailsTool())     # Combines all get_*_details tools
+        registry.register_query(GetItemsTool())       # Combines all get_* list tools
+        registry.register_query(GetAttentionSummaryTool())  # Keep for attention/overdue queries
+        registry.register_query(GetTeamMembersTool())  # Keep for user lookup
+        registry.register_query(ThinkTool())
+        registry.register_query(AskUserTool())
+        # Note: System docs and collaboration tools are Tier 2 (loaded on demand)
+    elif use_dynamic_queries:
+        # Dynamic query mode - use dynamic_query for everything
+        registry.register_query(DynamicQueryTool())
+        registry.register_query(GetTeamMembersTool())
+        registry.register_query(SemanticSearchTool())
+        registry.register_query(HybridSearchTool())
+        registry.register_query(ThinkTool())
+        registry.register_query(AskUserTool())
+    else:
+        # Original mode - all individual tools (38 total)
         registry.register_query(GetProjectsTool())
         registry.register_query(GetProjectDetailsTool())
         registry.register_query(GetTasksTool())
@@ -267,57 +421,56 @@ def create_default_registry(use_dynamic_queries: bool = False) -> ToolRegistry:
         registry.register_query(GetBlockersTool())
         registry.register_query(GetDocumentsTool())
         registry.register_query(GetDocumentDetailsTool())
+        registry.register_query(SearchContentTool())
+        registry.register_query(GetAttentionSummaryTool())
+        registry.register_query(GetTeamMembersTool())
+        registry.register_query(SemanticSearchTool())
+        registry.register_query(HybridSearchTool())
+        registry.register_query(ListSystemDocsTool())
+        registry.register_query(SearchSystemDocsTool())
+        registry.register_query(ReadSystemDocTool())
+        registry.register_query(DynamicQueryTool())
+        registry.register_query(GetTeamActivityTool())
+        registry.register_query(GetUserWorkloadTool())
+        registry.register_query(GetCollaboratorsTool())
+        registry.register_query(GetRecentActivityTool())
+        registry.register_query(ThinkTool())
+        registry.register_query(AskUserTool())
 
-    # These tools have unique functionality not fully replicated by dynamic_query
-    # but we disable them in dynamic mode to force pure dynamic_query testing
-    if not use_dynamic_queries:
-        registry.register_query(SearchContentTool())  # Full-text search
-        registry.register_query(GetAttentionSummaryTool())  # Complex aggregation
-    registry.register_query(GetTeamMembersTool())  # User lookup (keep for name resolution)
+    # Register action tools based on mode
+    if use_unified_tools:
+        # Consolidated action tools - reduces tool count from 16 to 6
+        # create: task, blocker, document, project, comment
+        # update: task, document, project
+        # complete: task, blocker (resolve)
+        registry.register_action(UnifiedCreateTool())
+        registry.register_action(UnifiedUpdateTool())
+        registry.register_action(UnifiedCompleteTool())
+        registry.register_action(AssignTaskTool())  # Keep separate - clear single purpose
+        registry.register_action(LinkDocumentToTaskTool())  # Keep - specialized linking
+        registry.register_action(ArchiveProjectTool())  # Keep - specialized archive
+        # Note: Journal tools are Tier 2 (loaded on demand)
+    else:
+        # Original mode - all individual action tools (16 total)
+        registry.register_action(CreateTaskTool())
+        registry.register_action(UpdateTaskTool())
+        registry.register_action(CompleteTaskTool())
+        registry.register_action(AssignTaskTool())
+        registry.register_action(CreateBlockerTool())
+        registry.register_action(ResolveBlockerTool())
+        registry.register_action(AddCommentTool())
+        registry.register_action(CreateDocumentTool())
+        registry.register_action(UpdateDocumentTool())
+        registry.register_action(LinkDocumentToTaskTool())
 
-    # Register semantic search tools (always available - complement keyword search)
-    registry.register_query(SemanticSearchTool())  # Vector similarity search
-    registry.register_query(HybridSearchTool())  # Combined semantic + keyword
+        # Register project action tools
+        registry.register_action(CreateProjectTool())
+        registry.register_action(UpdateProjectTool())
+        registry.register_action(ArchiveProjectTool())
 
-    # Register system documentation tools
-    registry.register_query(ListSystemDocsTool())
-    registry.register_query(SearchSystemDocsTool())
-    registry.register_query(ReadSystemDocTool())
-
-    # Register dynamic query tool
-    # When use_dynamic_queries=True, this is the primary query mechanism
-    registry.register_query(DynamicQueryTool())
-
-    # Register collaboration/team awareness tools
-    registry.register_query(GetTeamActivityTool())
-    registry.register_query(GetUserWorkloadTool())
-    registry.register_query(GetCollaboratorsTool())
-    registry.register_query(GetRecentActivityTool())
-
-    # Register strategic reasoning tools (meta-tools for planning/reflection)
-    registry.register_query(ThinkTool())
-    registry.register_query(AskUserTool())
-
-    # Register action tools
-    registry.register_action(CreateTaskTool())
-    registry.register_action(UpdateTaskTool())
-    registry.register_action(CompleteTaskTool())
-    registry.register_action(AssignTaskTool())
-    registry.register_action(CreateBlockerTool())
-    registry.register_action(ResolveBlockerTool())
-    registry.register_action(AddCommentTool())
-    registry.register_action(CreateDocumentTool())
-    registry.register_action(UpdateDocumentTool())
-    registry.register_action(LinkDocumentToTaskTool())
-
-    # Register project action tools
-    registry.register_action(CreateProjectTool())
-    registry.register_action(UpdateProjectTool())
-    registry.register_action(ArchiveProjectTool())
-
-    # Register journal entry action tools
-    registry.register_action(CreateJournalEntryTool())
-    registry.register_action(UpdateJournalEntryTool())
-    registry.register_action(LinkJournalEntryTool())
+        # Register journal entry action tools
+        registry.register_action(CreateJournalEntryTool())
+        registry.register_action(UpdateJournalEntryTool())
+        registry.register_action(LinkJournalEntryTool())
 
     return registry

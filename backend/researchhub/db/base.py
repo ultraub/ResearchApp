@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, String, func
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import TSVECTOR, UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
 from researchhub.config import get_settings
@@ -75,6 +75,7 @@ class EmbeddableMixin:
 
     Adds embedding storage and metadata fields for vector search capabilities.
     Uses pgvector for efficient similarity search in PostgreSQL.
+    Also includes full-text search vector for hybrid search.
     """
 
     # Vector embedding - dimensions match the configured embedding model
@@ -95,6 +96,14 @@ class EmbeddableMixin:
     embedded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+    )
+
+    # Full-text search vector for PostgreSQL FTS (hybrid search)
+    # Populated by database trigger - no need to set in application code
+    search_vector: Mapped[Any | None] = mapped_column(
+        TSVECTOR,
+        nullable=True,
+        index=False,  # GIN index created in migration
     )
 
     @property

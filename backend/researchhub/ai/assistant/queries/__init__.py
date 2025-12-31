@@ -29,6 +29,11 @@ from researchhub.ai.assistant.queries.strategic import (
     ThinkTool,
     AskUserTool,
 )
+from researchhub.ai.assistant.queries.unified import (
+    UnifiedSearchTool,
+    GetDetailsTool,
+    GetItemsTool,
+)
 
 __all__ = [
     "GetProjectsTool",
@@ -48,4 +53,8 @@ __all__ = [
     "ReadSystemDocTool",
     "ThinkTool",
     "AskUserTool",
+    # Unified tools (consolidated)
+    "UnifiedSearchTool",
+    "GetDetailsTool",
+    "GetItemsTool",
 ]

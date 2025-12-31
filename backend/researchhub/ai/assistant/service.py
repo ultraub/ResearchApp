@@ -13,7 +13,12 @@ from researchhub.ai.assistant.schemas import (
     PageContext,
     SSEEvent,
 )
-from researchhub.ai.assistant.tools import ActionTool, QueryTool, create_default_registry
+from researchhub.ai.assistant.tools import (
+    ActionTool,
+    QueryTool,
+    create_default_registry,
+    detect_tier2_tools,
+)
 from researchhub.ai.assistant.budget import ToolBudget
 from researchhub.ai.assistant.context import ExecutionContext
 from researchhub.ai.assistant.queries.strategic import ThinkTool, AskUserTool
@@ -39,6 +44,7 @@ class AssistantService:
         user_id: UUID,
         org_id: UUID,
         use_dynamic_queries: bool = False,
+        use_unified_tools: bool = True,
     ):
         """Initialize the assistant service.
 
@@ -50,13 +56,21 @@ class AssistantService:
             use_dynamic_queries: If True, disables specialized query tools
                 (get_projects, get_tasks, etc.) and forces use of dynamic_query.
                 Experimental mode for testing dynamic query capabilities.
+            use_unified_tools: If True, uses consolidated tools (search, get_details,
+                get_items, create, update, complete) instead of individual tools.
+                Reduces tool count from ~38 to ~13 for better LLM accuracy.
+                Research shows optimal performance at 15-20 tools.
         """
         self.provider = provider
         self.db = db
         self.user_id = user_id
         self.org_id = org_id
         self.use_dynamic_queries = use_dynamic_queries
-        self.tool_registry = create_default_registry(use_dynamic_queries=use_dynamic_queries)
+        self.use_unified_tools = use_unified_tools
+        self.tool_registry = create_default_registry(
+            use_dynamic_queries=use_dynamic_queries,
+            use_unified_tools=use_unified_tools,
+        )
 
     async def _get_user_info(self) -> Optional[User]:
         """Fetch the current user's information."""
@@ -98,7 +112,51 @@ class AssistantService:
 
         header = "\n".join(parts)
 
-        base_prompt = header + """
+        # Build tool-specific guidance based on mode
+        if self.use_unified_tools:
+            base_prompt = header + """
+
+You are an AI assistant for a knowledge management app. Help users with projects, tasks, documents, and blockers.
+
+## CRITICAL RULES
+1. **Never fabricate**: If query returns empty, say "I couldn't find X". Never invent content.
+2. **Never expose internals**: Don't mention budgets, tool limits, or internal processes to users.
+3. **Be direct**: Query → synthesize → respond. No verbose planning output.
+4. **Ask on ambiguity**: Multiple matches? Use ask_user immediately with options.
+5. **One action at a time**: Only call ONE action tool per response. Wait for user approval before next action.
+6. **No duplicate calls**: Never call the same tool twice in one response.
+7. **Check COMPLETED ACTIONS**: If actions are listed above as completed, acknowledge them and continue with any remaining work the user requested.
+
+## Tools (13 total)
+**Query**: search, get_details, get_items, get_attention_summary, get_team_members, think, ask_user
+**Action** (require approval): create, update, complete, assign_task, link_document_to_task, archive_project
+
+## Tool Selection
+| Intent | Tool | Example |
+|--------|------|---------|
+| Find anything | search | search(query="FHIR docs", entity_types=["document"]) |
+| Get specific item | get_details | get_details(entity_type="task", id="...") |
+| List/filter items | get_items | get_items(entity_type="task", filters={"is_overdue": true}) |
+| What needs attention | get_attention_summary | Overdue, stalled, unresolved blockers |
+| Create something | create | create(entity_type="task", project_id="...", title="...") |
+| Modify something | update | update(entity_type="task", id="...", changes={"status": "in_progress"}) |
+| Mark done | complete | complete(entity_type="task", id="...") or complete(entity_type="blocker", id="...") |
+| Multiple matches | ask_user | Don't keep searching - clarify with user |
+
+## search Tool - Method Auto-Selection
+- `auto` (default): Detects query type automatically
+- Technical terms (FHIR, API, UUID, CamelCase) → hybrid search
+- Concepts ("authentication flow") → semantic search
+- Filters available: status, priority, project_id, assignee_id, is_overdue, is_stalled
+
+## Quick Reference
+- "my tasks" → get_items with filters.assignee_id = current user ID
+- Stalled = in_progress with no update in 7+ days
+- Overdue = past due date, not completed
+- Task flow: idea → todo → in_progress → in_review → done
+- Blocker flow: open → in_progress → resolved"""
+        else:
+            base_prompt = header + """
 
 You are an AI assistant for a knowledge management app. Help users with projects, tasks, documents, and blockers.
 
@@ -112,7 +170,7 @@ You are an AI assistant for a knowledge management app. Help users with projects
 7. **Check COMPLETED ACTIONS**: If actions are listed above as completed, acknowledge them and continue with any remaining work the user requested.
 
 ## Tools
-- **Query tools**: get_projects, get_tasks, get_attention_summary, dynamic_query, search_content, semantic_search
+- **Query tools**: get_projects, get_tasks, get_attention_summary, dynamic_query, search_content, semantic_search, hybrid_search
 - **Action tools** (require approval): create_task, update_task, complete_task, assign_task, add_comment, create_blocker, resolve_blocker
 
 ## Quick Reference
@@ -126,8 +184,9 @@ You are an AI assistant for a knowledge management app. Help users with projects
 1. Cross-entity or complex filters → dynamic_query
 2. Find by keyword → search_content
 3. Find by concept → semantic_search
-4. Specific details → get_project_details, get_task_details
-5. Multiple matches → ask_user (don't keep searching)
+4. Technical terms, acronyms, codes (FHIR, API, etc.) → hybrid_search
+5. Specific details → get_project_details, get_task_details
+6. Multiple matches → ask_user (don't keep searching)
 
 ## dynamic_query Tables
 - projects: name, status, scope, project_type
@@ -195,6 +254,22 @@ You are an AI assistant for a knowledge management app. Help users with projects
 
         # Add the current user message
         messages.append(AIMessage(role="user", content=request.message))
+
+        # Detect and load Tier 2 tools based on conversation context
+        # Scans current message AND history so tools persist across turns
+        # Example: User asks about "journal" in msg 1, then "create one" in msg 2
+        #          → Journal tools stay available for the follow-up
+        if self.use_unified_tools:
+            # Build context from history + current message
+            history_text = " ".join(
+                msg.content for msg in request.messages
+                if msg.content and msg.role == "user"
+            )
+            full_context = f"{history_text} {request.message}"
+
+            tier2_categories = detect_tier2_tools(full_context)
+            if tier2_categories:
+                self.tool_registry.load_tier2_tools(tier2_categories)
 
         # Get tool definitions
         tools = self._get_tool_definitions()

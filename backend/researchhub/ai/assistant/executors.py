@@ -61,6 +61,10 @@ class ActionExecutor:
             "create_journal_entry": self._execute_create_journal_entry,
             "update_journal_entry": self._execute_update_journal_entry,
             "link_journal_entry": self._execute_link_journal_entry,
+            # Unified action tools
+            "create": self._execute_unified_create,
+            "update": self._execute_unified_update,
+            "complete": self._execute_unified_complete,
         }
 
         executor = executor_map.get(tool_name)
@@ -841,6 +845,152 @@ class ActionExecutor:
             "entity_id": str(link.id),
             "message": f"Journal entry linked to {linked_type} successfully",
         }
+
+    # =========================================================================
+    # Unified Action Tool Executors
+    # =========================================================================
+
+    async def _execute_unified_create(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute unified create action - routes based on entity_type."""
+        entity_type = input.get("entity_type")
+
+        if entity_type == "task":
+            # Transform to create_task format
+            transformed = {
+                "project_id": input.get("project_id"),
+                "title": input.get("title") or input.get("name"),
+                "description": input.get("description") or input.get("content"),
+                "priority": input.get("priority", "medium"),
+                "status": input.get("status", "todo"),
+                "assignee_id": input.get("assignee_id"),
+                "due_date": input.get("due_date"),
+            }
+            return await self._execute_create_task(transformed)
+
+        elif entity_type == "blocker":
+            # Transform to create_blocker format
+            priority = input.get("priority", 3)
+            if isinstance(priority, str):
+                priority_map = {"low": 1, "medium": 3, "high": 4, "urgent": 5, "critical": 5}
+                priority = priority_map.get(priority, 3)
+            transformed = {
+                "project_id": input.get("project_id"),
+                "title": input.get("title") or input.get("name"),
+                "description": input.get("description") or input.get("content"),
+                "blocker_type": input.get("blocker_type", "other"),
+                "priority": priority,
+                "impact_level": input.get("impact_level", "medium"),
+                "assignee_id": input.get("assignee_id"),
+                "due_date": input.get("due_date"),
+            }
+            return await self._execute_create_blocker(transformed)
+
+        elif entity_type == "document":
+            # Transform to create_document format
+            transformed = {
+                "project_id": input.get("project_id"),
+                "title": input.get("title") or input.get("name"),
+                "content": input.get("content") or input.get("description"),
+                "document_type": input.get("document_type", "general"),
+                "status": input.get("status", "draft"),
+            }
+            return await self._execute_create_document(transformed)
+
+        elif entity_type == "project":
+            # Transform to create_project format
+            transformed = {
+                "name": input.get("name") or input.get("title"),
+                "description": input.get("description") or input.get("content"),
+                "project_type": input.get("project_type", "general"),
+                "scope": input.get("scope", "PERSONAL"),
+                "team_id": input.get("team_id"),
+                "parent_id": input.get("parent_id"),
+                "start_date": input.get("start_date"),
+                "target_end_date": input.get("target_end_date") or input.get("due_date"),
+                "color": input.get("color"),
+                "emoji": input.get("emoji"),
+            }
+            return await self._execute_create_project(transformed)
+
+        elif entity_type == "comment":
+            # Transform to add_comment format
+            parent_id = input.get("parent_id")
+            content = input.get("content") or input.get("description")
+            transformed = {
+                "entity_type": "task",
+                "entity_id": parent_id,
+                "content": content,
+                "mention_ids": input.get("mention_ids"),
+            }
+            return await self._execute_add_comment(transformed)
+
+        else:
+            return {"success": False, "error": f"Unknown entity type for create: {entity_type}"}
+
+    async def _execute_unified_update(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute unified update action - routes based on entity_type."""
+        entity_type = input.get("entity_type")
+        entity_id = input.get("id")
+        changes = input.get("changes", {})
+
+        if entity_type == "task":
+            # Transform to update_task format
+            transformed = {"task_id": entity_id}
+            # Map 'name' to 'title' if present
+            if "name" in changes:
+                transformed["title"] = changes["name"]
+            if "title" in changes:
+                transformed["title"] = changes["title"]
+            for field in ["description", "priority", "status", "due_date"]:
+                if field in changes:
+                    transformed[field] = changes[field]
+            return await self._execute_update_task(transformed)
+
+        elif entity_type == "document":
+            # Transform to update_document format
+            transformed = {"document_id": entity_id}
+            if "name" in changes:
+                transformed["title"] = changes["name"]
+            if "title" in changes:
+                transformed["title"] = changes["title"]
+            for field in ["status", "content"]:
+                if field in changes:
+                    transformed[field] = changes[field]
+            return await self._execute_update_document(transformed)
+
+        elif entity_type == "project":
+            # Transform to update_project format
+            transformed = {"project_id": entity_id}
+            # Map 'title' to 'name' for projects
+            if "title" in changes:
+                transformed["name"] = changes["title"]
+            if "name" in changes:
+                transformed["name"] = changes["name"]
+            for field in ["description", "status", "project_type", "start_date", "target_end_date", "color", "emoji"]:
+                if field in changes:
+                    transformed[field] = changes[field]
+            return await self._execute_update_project(transformed)
+
+        else:
+            return {"success": False, "error": f"Unknown entity type for update: {entity_type}"}
+
+    async def _execute_unified_complete(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute unified complete action - routes based on entity_type."""
+        entity_type = input.get("entity_type")
+        entity_id = input.get("id")
+
+        if entity_type == "task":
+            return await self._execute_complete_task({"task_id": entity_id})
+
+        elif entity_type == "blocker":
+            transformed = {
+                "blocker_id": entity_id,
+                "resolution_notes": input.get("resolution_notes"),
+            }
+            return await self._execute_resolve_blocker(transformed)
+
+        else:
+            return {"success": False, "error": f"Unknown entity type for complete: {entity_type}"}
 
 
 async def approve_action(
