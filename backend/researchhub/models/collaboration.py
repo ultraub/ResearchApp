@@ -500,11 +500,13 @@ class Comment(BaseModel):
         "Comment",
         remote_side="Comment.id",
         foreign_keys=[parent_id],
+        back_populates="replies",
         lazy="selectin",
     )
     replies: Mapped[list["Comment"]] = relationship(
         "Comment",
         foreign_keys=[parent_id],
+        back_populates="parent",
         lazy="selectin",
     )
     organization: Mapped["Organization"] = relationship(
