@@ -10,6 +10,7 @@ import { ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
 import { useEditorPreferences } from '@/hooks/useEditorPreferences';
 import { ReviewCommentMark, reviewCommentMarkStyles } from './extensions/ReviewCommentMark';
 import { DocumentCommentMark, documentCommentMarkStyles } from './extensions/DocumentCommentMark';
+import { MarkdownPaste } from './extensions/MarkdownPaste';
 import { InlineReviewPanel } from './InlineReviewPanel';
 import { InlineCommentPopup } from '@/components/documents/comments';
 import type { ReviewComment } from '@/types';
@@ -125,6 +126,7 @@ export function DocumentEditor({
       }),
       ReviewCommentMark,
       DocumentCommentMark,
+      MarkdownPaste,
     ],
     content,
     editable,
