@@ -46,11 +46,18 @@ export interface MarkdownPasteOptions {
   markdownMode: boolean;
 }
 
+export interface MarkdownPasteStorage {
+  markdownMode: boolean;
+}
+
 /**
  * TipTap extension that handles pasting markdown content
  * Converts markdown to HTML and inserts it as rich text
+ *
+ * Uses storage to allow dynamic updates to markdownMode without
+ * recreating the editor.
  */
-export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
+export const MarkdownPaste = Extension.create<MarkdownPasteOptions, MarkdownPasteStorage>({
   name: 'markdownPaste',
 
   addOptions() {
@@ -59,9 +66,15 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
     };
   },
 
+  addStorage() {
+    return {
+      markdownMode: this.options.markdownMode,
+    };
+  },
+
   addProseMirrorPlugins() {
     const editor = this.editor;
-    const options = this.options;
+    const storage = this.storage;
 
     return [
       new Plugin({
@@ -83,9 +96,9 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
             }
 
             // Determine if we should treat as markdown:
-            // - If markdownMode is ON: always treat as markdown
+            // - If markdownMode is ON (from storage): always treat as markdown
             // - If markdownMode is OFF: use heuristic detection
-            const shouldConvert = options.markdownMode || looksLikeMarkdown(text);
+            const shouldConvert = storage.markdownMode || looksLikeMarkdown(text);
 
             if (!shouldConvert) {
               // Not markdown, use default paste behavior

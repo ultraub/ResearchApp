@@ -235,6 +235,13 @@ export function DocumentEditor({
     }
   }, [editor, content]);
 
+  // Update MarkdownPaste storage when markdownMode changes
+  useEffect(() => {
+    if (editor) {
+      editor.storage.markdownPaste.markdownMode = markdownMode;
+    }
+  }, [editor, markdownMode]);
+
   // Apply document comment marks to inline comments
   useEffect(() => {
     if (!editor || documentComments.length === 0) return;
