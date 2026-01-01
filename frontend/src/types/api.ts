@@ -124,6 +124,7 @@ export interface Document {
   template_id?: string | null;
   allow_comments?: boolean;
   allow_suggestions?: boolean;
+  markdown_mode?: boolean;
   word_count?: number;
   tags?: string[];
   is_archived?: boolean;

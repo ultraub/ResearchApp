@@ -22,6 +22,7 @@ export interface Document {
   last_edited_by_email?: string | null;
   is_pinned: boolean;
   is_archived: boolean;
+  markdown_mode: boolean;
   metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
@@ -95,6 +96,7 @@ export interface UpdateDocumentRequest {
   status?: string;
   is_pinned?: boolean;
   is_archived?: boolean;
+  markdown_mode?: boolean;
   create_version?: boolean;
   change_summary?: string;
 }

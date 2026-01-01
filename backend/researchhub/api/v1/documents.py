@@ -62,6 +62,7 @@ class DocumentUpdate(BaseModel):
     status: str | None = Field(None, pattern="^(draft|in_review|approved|published)$")
     tags: list[str] | None = None
     settings: dict | None = None
+    markdown_mode: bool | None = None  # Enable markdown paste mode
     create_version: bool = False  # If true, create a version snapshot
     change_summary: str | None = None  # Summary for the version
 
@@ -88,6 +89,7 @@ class DocumentResponse(BaseModel):
     template_id: UUID | None
     allow_comments: bool
     allow_suggestions: bool
+    markdown_mode: bool
     word_count: int
     tags: list[str]
     is_archived: bool
@@ -202,6 +204,7 @@ def document_to_response(document: Document) -> dict:
         "template_id": document.template_id,
         "allow_comments": document.allow_comments,
         "allow_suggestions": document.allow_suggestions,
+        "markdown_mode": document.markdown_mode,
         "word_count": document.word_count,
         "tags": document.tags,
         "is_archived": document.is_archived,

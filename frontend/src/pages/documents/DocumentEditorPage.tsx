@@ -11,6 +11,7 @@ import {
   EllipsisVerticalIcon,
   CheckCircleIcon,
   SparklesIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import { Menu, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
@@ -143,6 +144,21 @@ export function DocumentEditorPage() {
 
   const handleStatusChange = (status: string) => {
     updateMutation.mutate({ status });
+  };
+
+  const handleToggleMarkdownMode = () => {
+    updateMutation.mutate(
+      { markdown_mode: !document?.markdown_mode },
+      {
+        onSuccess: () => {
+          toast.success(
+            document?.markdown_mode
+              ? 'Markdown paste mode disabled'
+              : 'Markdown paste mode enabled'
+          );
+        },
+      }
+    );
   };
 
   // Handler for when user clicks "Add Comment" on selected text
@@ -308,6 +324,19 @@ export function DocumentEditorPage() {
               <SparklesIcon className="w-5 h-5" />
             </button>
 
+            <button
+              onClick={() => handleToggleMarkdownMode()}
+              className={clsx(
+                'p-2 rounded-lg transition-colors',
+                document.markdown_mode
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
+                  : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-elevated'
+              )}
+              title={document.markdown_mode ? 'Markdown paste mode (ON)' : 'Markdown paste mode (OFF)'}
+            >
+              <DocumentTextIcon className="w-5 h-5" />
+            </button>
+
             <Menu as="div" className="relative">
               <Menu.Button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200">
                 <EllipsisVerticalIcon className="w-5 h-5" />
@@ -390,6 +419,7 @@ export function DocumentEditorPage() {
             onReplyToDocComment={handleReplyToDocComment}
             onEditDocComment={handleEditDocComment}
             onDeleteDocComment={handleDeleteDocComment}
+            markdownMode={document?.markdown_mode}
           />
         </div>
 

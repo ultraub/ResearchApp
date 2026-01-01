@@ -77,6 +77,9 @@ class Document(BaseModel, EmbeddableMixin):
     allow_comments: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     allow_suggestions: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # Markdown paste mode - when enabled, pasted text is treated as markdown
+    markdown_mode: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # Word count for progress tracking
     word_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

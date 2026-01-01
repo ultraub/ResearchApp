@@ -46,6 +46,8 @@ interface DocumentEditorProps {
   onEditDocComment?: (commentId: string, content: string) => Promise<void>;
   /** Callback when deleting a document comment */
   onDeleteDocComment?: (commentId: string) => Promise<void>;
+  /** Enable markdown paste mode - all pasted text treated as markdown */
+  markdownMode?: boolean;
 }
 
 const MenuButton = ({
@@ -97,6 +99,7 @@ export function DocumentEditor({
   onReplyToDocComment,
   onEditDocComment,
   onDeleteDocComment,
+  markdownMode = false,
 }: DocumentEditorProps) {
   const { fontSize, lineHeight } = useEditorPreferences();
   const [wordCount, setWordCount] = useState(0);
@@ -126,7 +129,9 @@ export function DocumentEditor({
       }),
       ReviewCommentMark,
       DocumentCommentMark,
-      MarkdownPaste,
+      MarkdownPaste.configure({
+        markdownMode,
+      }),
     ],
     content,
     editable,

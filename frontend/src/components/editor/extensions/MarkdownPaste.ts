@@ -34,19 +34,34 @@ function looksLikeMarkdown(text: string): boolean {
   // Count how many patterns match
   const matchCount = markdownPatterns.filter(pattern => pattern.test(text)).length;
 
-  // Consider it markdown if 2+ patterns match, or if it has multiple headings/lists
+  // Consider it markdown if 2+ patterns match
   return matchCount >= 2;
+}
+
+export interface MarkdownPasteOptions {
+  /**
+   * When true, all pasted plain text is treated as markdown (no detection).
+   * When false, uses heuristic detection to decide if text is markdown.
+   */
+  markdownMode: boolean;
 }
 
 /**
  * TipTap extension that handles pasting markdown content
  * Converts markdown to HTML and inserts it as rich text
  */
-export const MarkdownPaste = Extension.create({
+export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
   name: 'markdownPaste',
+
+  addOptions() {
+    return {
+      markdownMode: false,
+    };
+  },
 
   addProseMirrorPlugins() {
     const editor = this.editor;
+    const options = this.options;
 
     return [
       new Plugin({
@@ -67,8 +82,12 @@ export const MarkdownPaste = Extension.create({
               return false;
             }
 
-            // Check if the plain text looks like markdown
-            if (!looksLikeMarkdown(text)) {
+            // Determine if we should treat as markdown:
+            // - If markdownMode is ON: always treat as markdown
+            // - If markdownMode is OFF: use heuristic detection
+            const shouldConvert = options.markdownMode || looksLikeMarkdown(text);
+
+            if (!shouldConvert) {
               // Not markdown, use default paste behavior
               return false;
             }
