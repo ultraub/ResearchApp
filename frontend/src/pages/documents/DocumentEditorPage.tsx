@@ -15,7 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Menu, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
-import { DocumentEditor } from '../../components/editor';
+import { DocumentEditor, MarkdownEditor } from '../../components/editor';
 import {
   getDocument,
   updateDocument,
@@ -124,6 +124,17 @@ export function DocumentEditorPage() {
     []
   );
 
+  // Handler for markdown editor content changes (plain text)
+  const handleMarkdownContentChange = useCallback(
+    (newText: string) => {
+      setContentText(newText);
+      // For markdown mode, store minimal content object
+      setContent({ type: 'markdown', text: newText });
+      setHasUnsavedChanges(true);
+    },
+    []
+  );
+
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle);
     setHasUnsavedChanges(true);
@@ -153,8 +164,8 @@ export function DocumentEditorPage() {
         onSuccess: () => {
           toast.success(
             document?.markdown_mode
-              ? 'Markdown paste mode disabled'
-              : 'Markdown paste mode enabled'
+              ? 'Switched to rich text editor'
+              : 'Switched to markdown mode'
           );
         },
       }
@@ -407,20 +418,27 @@ export function DocumentEditorPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Editor */}
         <div className="flex-1 overflow-auto bg-white dark:bg-dark-card">
-          <DocumentEditor
-            content={content}
-            onChange={handleContentChange}
-            onSave={() => handleSave(false)}
-            placeholder="Start writing your document..."
-            autoFocus
-            documentComments={comments}
-            onAddComment={handleAddInlineComment}
-            onResolveDocComment={handleResolveDocComment}
-            onReplyToDocComment={handleReplyToDocComment}
-            onEditDocComment={handleEditDocComment}
-            onDeleteDocComment={handleDeleteDocComment}
-            markdownMode={document?.markdown_mode}
-          />
+          {document.markdown_mode ? (
+            <MarkdownEditor
+              content={contentText}
+              onChange={handleMarkdownContentChange}
+              onSave={() => handleSave(false)}
+            />
+          ) : (
+            <DocumentEditor
+              content={content}
+              onChange={handleContentChange}
+              onSave={() => handleSave(false)}
+              placeholder="Start writing your document..."
+              autoFocus
+              documentComments={comments}
+              onAddComment={handleAddInlineComment}
+              onResolveDocComment={handleResolveDocComment}
+              onReplyToDocComment={handleReplyToDocComment}
+              onEditDocComment={handleEditDocComment}
+              onDeleteDocComment={handleDeleteDocComment}
+            />
+          )}
         </div>
 
         {/* DESKTOP: Version History Sidebar */}
